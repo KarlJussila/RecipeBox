@@ -97,16 +97,16 @@
       "renderer/",
       "assets/"
     ],
-    "asar": true,
-    "asarUnpack": [
-      "node_modules/@floating-ui/**/*",
-      "node_modules/@radix-ui/**/*",
-      "node_modules/sql.js/**/*"
-    ],
+    "asar": false,
     "includeSubNodeModules": false,
     "buildDependenciesFromSource": false,
     "forceCodeSigning": false,
     "compression": "store",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "removePackageScripts": false,
+    "removePackageKeywords": false,
+    "useHardLink": false,
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
@@ -126,7 +126,8 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "type": "distribution"
     },
     "linux": {
       "target": "AppImage",
