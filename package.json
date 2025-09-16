@@ -111,7 +111,11 @@
         }
       ],
       "icon": "assets/icon.icns",
-      "category": "public.app-category.food-cooking"
+      "category": "public.app-category.food-cooking",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "linux": {
       "target": "AppImage",

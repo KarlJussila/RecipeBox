@@ -10,6 +10,11 @@ if (fs.existsSync('dist')) {
   fs.rmSync('dist', { recursive: true });
 }
 
+// Clean node_modules cache
+if (fs.existsSync('node_modules/.cache')) {
+  fs.rmSync('node_modules/.cache', { recursive: true });
+}
+
 try {
   // Create dist directory
   if (!fs.existsSync('dist')) {

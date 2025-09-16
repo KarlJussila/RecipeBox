@@ -42,6 +42,11 @@ jobs:
         chmod +x create-icons.sh
         ./create-icons.sh
 
+    - name: Clean previous builds
+      run: |
+        rm -rf dist/
+        rm -rf node_modules/.cache/
+
     - name: Build application
       run: npm run build:electron
 
