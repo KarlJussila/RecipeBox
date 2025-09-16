@@ -66,14 +66,20 @@ jobs:
     - name: Build application
       run: npm run build:electron
 
-    - name: Build for platform
+    - name: Build for platform (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        if ("${{ matrix.platform }}" -eq "win") {
+          npm run dist:win
+        }
+
+    - name: Build for platform (macOS/Linux)
+      if: matrix.os != 'windows-latest'
       run: |
         if [ "${{ matrix.platform }}" = "mac" ]; then
           npm run dist:mac
         elif [ "${{ matrix.platform }}" = "linux" ]; then
           npm run dist:linux
-        elif [ "${{ matrix.platform }}" = "win" ]; then
-          npm run dist:win
         fi
 
     - name: Upload build artifacts
