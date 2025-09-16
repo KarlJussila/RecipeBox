@@ -110,7 +110,7 @@
           "arch": ["x64", "arm64"]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.icns",
       "category": "public.app-category.food-cooking"
     },
     "linux": {
