@@ -36,18 +36,20 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
-    - name: Clean previous builds
+    - name: Clean previous builds (Windows)
+      if: matrix.os == 'windows-latest'
       run: |
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          rmdir /s /q dist 2>nul || true
-          rmdir /s /q node_modules 2>nul || true
-          rmdir /s /q node_modules\.cache 2>nul || true
-        else
-          rm -rf dist/
-          rm -rf node_modules/
-          rm -rf node_modules/.cache/
-          rm -rf ~/.npm/_cacache/
-        fi
+        rmdir /s /q dist 2>nul || true
+        rmdir /s /q node_modules 2>nul || true
+        rmdir /s /q node_modules\.cache 2>nul || true
+
+    - name: Clean previous builds (macOS/Linux)
+      if: matrix.os != 'windows-latest'
+      run: |
+        rm -rf dist/
+        rm -rf node_modules/
+        rm -rf node_modules/.cache/
+        rm -rf ~/.npm/_cacache/
 
     - name: Install dependencies
       run: npm ci
