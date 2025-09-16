@@ -106,7 +106,23 @@
     "nodeGypRebuild": false,
     "removePackageScripts": false,
     "removePackageKeywords": false,
-    "useHardLink": false,
+    "extraFiles": [
+      {
+        "from": "node_modules/@floating-ui",
+        "to": "node_modules/@floating-ui",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "node_modules/@radix-ui",
+        "to": "node_modules/@radix-ui",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "node_modules/sql.js",
+        "to": "node_modules/sql.js",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
