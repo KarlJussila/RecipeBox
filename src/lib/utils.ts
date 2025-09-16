@@ -77,8 +77,6 @@ export function formatFileType(fileType: string): string {
     'SKETCH': 'Sketch Document',
     'FIG': 'Figma Document',
     'XD': 'Adobe XD Document',
-    'DWG': 'AutoCAD Drawing',
-    'DXF': 'AutoCAD Drawing',
     'STL': '3D Model',
     'OBJ': '3D Model',
     'FBX': '3D Model',
