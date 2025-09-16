@@ -95,10 +95,11 @@
       "preload.js",
       "lib/",
       "renderer/",
-      "assets/",
-      "node_modules/"
+      "assets/"
     ],
     "asar": false,
+    "includeSubNodeModules": false,
+    "buildDependenciesFromSource": false,
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
