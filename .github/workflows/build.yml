@@ -110,35 +110,3 @@ jobs:
           dist/*.blockmap
         retention-days: 30
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release'
-    
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-
-    - name: Create Release Assets
-      run: |
-        mkdir -p release-assets
-        
-        # Find and copy the built files
-        find artifacts -name "*.dmg" -exec cp {} release-assets/ \;
-        find artifacts -name "*.AppImage" -exec cp {} release-assets/ \;
-        find artifacts -name "*.exe" -exec cp {} release-assets/ \;
-        
-        # List what we found
-        ls -la release-assets/
-
-    - name: Upload Release Assets
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./release-assets/
-        asset_name: RecipeBox-${{ github.event.release.tag_name }}
-        asset_content_type: application/zip
