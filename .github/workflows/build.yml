@@ -63,7 +63,18 @@ jobs:
     - name: Build application
       run: npm run build:electron
 
-    - name: Clean before platform build
+    - name: Clean before platform build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        Remove-Item -Recurse -Force dist\mac -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force dist\win -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force dist\linux -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force dist\node_modules -ErrorAction SilentlyContinue
+        # Clean the specific target directory that's causing conflicts
+        Remove-Item -Recurse -Force dist\mac\Electron.app\Contents\Resources\app\node_modules -ErrorAction SilentlyContinue
+
+    - name: Clean before platform build (macOS/Linux)
+      if: matrix.os != 'windows-latest'
       run: |
         rm -rf dist/mac/ 2>/dev/null || true
         rm -rf dist/win/ 2>/dev/null || true
