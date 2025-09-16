@@ -63,11 +63,12 @@ jobs:
     - name: Build application
       run: npm run build:electron
 
-    - name: Clean before platform build (macOS)
-      if: matrix.os == 'macos-latest'
+    - name: Clean before platform build
       run: |
-        rm -rf dist/mac/
-        rm -rf dist/node_modules/@dnd-kit/ 2>/dev/null || true
+        rm -rf dist/mac/ 2>/dev/null || true
+        rm -rf dist/win/ 2>/dev/null || true
+        rm -rf dist/linux/ 2>/dev/null || true
+        rm -rf dist/node_modules/ 2>/dev/null || true
 
     - name: Build for platform
       run: |
