@@ -97,10 +97,16 @@
       "renderer/",
       "assets/"
     ],
-    "asar": false,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@floating-ui/**/*",
+      "node_modules/@radix-ui/**/*",
+      "node_modules/sql.js/**/*"
+    ],
     "includeSubNodeModules": false,
     "buildDependenciesFromSource": false,
     "forceCodeSigning": false,
+    "compression": "store",
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
