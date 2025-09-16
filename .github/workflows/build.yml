@@ -69,6 +69,8 @@ jobs:
         rm -rf dist/win/ 2>/dev/null || true
         rm -rf dist/linux/ 2>/dev/null || true
         rm -rf dist/node_modules/ 2>/dev/null || true
+        # Clean the specific target directory that's causing conflicts
+        rm -rf dist/mac/Electron.app/Contents/Resources/app/node_modules/ 2>/dev/null || true
 
     - name: Build for platform
       run: |
