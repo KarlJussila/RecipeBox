@@ -148,6 +148,7 @@
     "linux": {
       "target": "AppImage",
       "category": "Utility"
-    }
+    },
+    "publish": null
   }
 }
