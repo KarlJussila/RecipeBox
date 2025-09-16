@@ -77,11 +77,6 @@ try {
     fs.cpSync('uploads', 'dist/uploads', { recursive: true });
   }
   
-  // Install production dependencies in dist folder
-  console.log('Installing production dependencies...');
-  process.chdir('dist');
-  execSync('npm install --production', { stdio: 'inherit' });
-  
   // sql.js doesn't need special handling - it's pure JavaScript
   console.log('sql.js is pure JavaScript, no native module issues');
   
