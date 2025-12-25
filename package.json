@@ -139,7 +139,7 @@
       ],
       "icon": "assets/icon.icns",
       "category": "public.app-category.food-cooking",
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",

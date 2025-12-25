@@ -12,6 +12,22 @@ import { Separator } from '@/components/ui/separator'
 import { TimeInput } from '@/components/ui/time-input'
 import { Upload, X, Plus, Search } from 'lucide-react'
 
+// Add type declaration for the electronAPI object
+declare global {
+  interface Window {
+    electronAPI: {
+      // ... your existing properties
+      getFileInfo: (filePath: string) => Promise<{
+        name: string;
+        size: number;
+        type: string;
+        lastModified: number;
+        dataUrl: string;
+      }>;
+    }
+  }
+}
+
 interface Tag {
   id: string
   name: string
@@ -109,7 +125,53 @@ export default function RecipeFormDialog({
     }
   }
 
-  // Unified drag handler for both file and photo drop zones
+  // *** REVISED: A smart drop handler that works on both platforms ***
+  const handleDrop = async (e: React.DragEvent, isPhoto: boolean = false) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // Reset drag states
+    isPhoto ? setPhotoDragActive(false) : setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      let file = e.dataTransfer.files[0];
+
+      // *** KEY MACOS FIX: Check if file object is a "ghost" ***
+      // On macOS, sometimes the file object exists but has no name or size.
+      // In that case, we fall back to using the file path.
+      if (!file.name && !file.size && (file as any).path) {
+        console.log('🔧 Detected macOS ghost file, using path fallback:', (file as any).path);
+        try {
+          if (!window.electronAPI?.getFileInfo) {
+            console.error("electronAPI.getFileInfo is not available");
+            return;
+          }
+          
+          const fileInfo = await window.electronAPI.getFileInfo((file as any).path);
+          const response = await fetch(fileInfo.dataUrl);
+          const blob = await response.blob();
+          file = new File([blob], fileInfo.name, {
+            type: fileInfo.type,
+            lastModified: fileInfo.lastModified,
+          });
+          console.log('🗂️ Reconstructed File object from path:', file);
+        } catch (error) {
+          console.error('Error processing dropped file via path:', error);
+          return;
+        }
+      }
+      
+      // Now that we have a valid file object, proceed
+      if (isPhoto) {
+        if (file.type.startsWith('image/')) {
+          setFormData(prev => ({ ...prev, photo: file }))
+        }
+      } else {
+        setFormData(prev => ({ ...prev, file }))
+      }
+    }
+  }
+
   const handleDrag = (e: React.DragEvent, isPhoto: boolean = false) => {
     e.preventDefault()
     e.stopPropagation()
@@ -126,29 +188,6 @@ export default function RecipeFormDialog({
         return
       }
       isPhoto ? setPhotoDragActive(false) : setDragActive(false)
-    }
-  }
-
-  // Unified drop handler for both file and photo drop zones
-  const handleDrop = (e: React.DragEvent, isPhoto: boolean = false) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    // Reset drag states
-    isPhoto ? setPhotoDragActive(false) : setDragActive(false)
-    
-    // Handle file drop
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0]
-      
-      if (isPhoto) {
-        // Check if it's an image file
-        if (file.type.startsWith('image/')) {
-          setFormData(prev => ({ ...prev, photo: file }))
-        }
-      } else {
-        setFormData(prev => ({ ...prev, file }))
-      }
     }
   }
 

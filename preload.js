@@ -9,6 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // Environment info
   isElectron: true,
+  
   // Database operations
   databaseOperation: (operation, ...args) => ipcRenderer.invoke('database-operation', operation, ...args),
   
@@ -35,7 +36,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDatabaseReady: (callback) => ipcRenderer.on('database-ready', callback),
   
   // Remove listeners
-  removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
+  removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+  
+  // *** NEW: Added for macOS drag and drop fix ***
+  getFileInfo: (filePath) => ipcRenderer.invoke('get-file-info', filePath)
 });
 
 // Also publish a minimal global flag for convenience checks

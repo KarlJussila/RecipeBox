@@ -11,21 +11,16 @@ function setupDatabase() {
   const userDataPath = app.getPath('userData')
   const dbPath = path.join(userDataPath, isDev ? 'recipe-manager-dev.db' : 'recipe-manager.db')
   
-  // Ensure the directory exists
   if (!fs.existsSync(userDataPath)) {
     fs.mkdirSync(userDataPath, { recursive: true })
   }
   
-  // Import and initialize the database
   try {
-    // Use the correct path for both development and production
     const isPackaged = app.isPackaged
     const dbModulePath = isPackaged 
       ? path.join(process.resourcesPath, 'app', 'lib', 'electron-db-simple.js')
       : './lib/electron-db-simple.js'
     const { getElectronDb } = require(dbModulePath)
-    // Note: getElectronDb is now async, but we'll handle it in the IPC handlers
-    // Database module loaded, will initialize on first use
     return dbPath
   } catch (error) {
     console.error('Failed to load database module:', error)
@@ -44,14 +39,12 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
       preload: isDev ? path.join(__dirname, 'preload.js') : path.join(process.resourcesPath, 'app', 'preload.js'),
-      // Add these settings for better drag and drop support on macOS
-      webSecurity: false, // Already present
+      webSecurity: false,
       allowRunningInsecureContent: true
     },
     icon: isDev ? path.join(__dirname, 'assets/icon.png') : path.join(process.resourcesPath, 'app', 'assets', 'icon.png'),
     show: false,
     titleBarStyle: 'default',
-    // Add these properties for better drag and drop support
     acceptFirstMouse: true,
     titleBarOverlay: process.platform === 'darwin' ? {
       color: '#00000000',
@@ -59,52 +52,37 @@ function createWindow() {
     } : false
   })
 
-  // Set up database
   const dbPath = setupDatabase()
   
-  // Add this code to handle drag and drop events properly
-  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl)
-    
-    if (parsedUrl.origin !== 'file://') {
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) {
       event.preventDefault()
     }
   })
-  
-  // Pass database path to renderer process
+
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('Electron window finished loading, sending database-ready event');
     if (dbPath) {
       mainWindow.webContents.send('database-ready', { dbPath })
     }
     
-    // Add this code to enable proper drag and drop on macOS
+    // *** REVERTED: A much simpler, non-intrusive script ***
+    // This only sets the dropEffect and doesn't interfere with the actual drop event.
     mainWindow.webContents.executeJavaScript(`
-      document.addEventListener('dragover', (event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        event.dataTransfer.dropEffect = 'copy'
-      }, false)
-      
-      document.addEventListener('drop', (event) => {
-        event.preventDefault()
-        event.stopPropagation()
-      }, false)
-    `)
+      window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }, false);
+    `);
   })
 
-  // Load the app
   if (isDev) {
-    // In development, load static files and open DevTools
     mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'))
     mainWindow.webContents.openDevTools()
   } else {
-    // In production, load from the resources directory
     const htmlPath = path.join(process.resourcesPath, 'app', 'renderer', 'index.html')
     console.log('Loading HTML from:', htmlPath)
-    console.log('process.resourcesPath:', process.resourcesPath)
     mainWindow.loadFile(htmlPath)
-    // Don't open DevTools in production
   }
 
   mainWindow.once('ready-to-show', () => {
@@ -112,7 +90,6 @@ function createWindow() {
   })
 
   mainWindow.on('closed', () => {
-    // Close database connection
     if (dbInstance) {
       try {
         dbInstance.close()
@@ -216,16 +193,13 @@ function createMenu() {
 }
 
 app.whenReady().then(() => {
-  // Add this for macOS
   if (process.platform === 'darwin') {
-    // Set app activation policy for proper file handling
     app.setAboutPanelOptions({
       applicationName: 'Recipe Manager',
       applicationVersion: app.getVersion(),
       copyright: 'Copyright © 2023'
     })
     
-    // Handle file opening from Finder
     app.on('open-file', (event, path) => {
       event.preventDefault()
       if (mainWindow) {
@@ -237,7 +211,6 @@ app.whenReady().then(() => {
   
   createWindow()
   
-  // Only create menu in development
   if (isDev) {
     createMenu()
   }
@@ -256,7 +229,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  // Save database before app quits
   if (dbInstance) {
     try {
       console.log('Saving database before app quit...')
@@ -269,27 +241,42 @@ app.on('before-quit', () => {
 })
 
 // Handle IPC messages for database operations
-ipcMain.handle('get-app-path', () => {
-  return app.getPath('userData')
-})
+ipcMain.handle('get-app-path', () => app.getPath('userData'))
+ipcMain.handle('get-database-path', () => path.join(app.getPath('userData'), 'recipe-manager.db'))
+ipcMain.handle('get-user-data-path', () => app.getPath('userData'))
 
-ipcMain.handle('get-database-path', () => {
-  const userDataPath = app.getPath('userData')
-  return path.join(userDataPath, 'recipe-manager.db')
-})
-
-ipcMain.handle('get-user-data-path', () => {
-  return app.getPath('userData')
-})
+// *** NEW IPC HANDLER: Get file info from path ***
+ipcMain.handle('get-file-info', async (event, filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64Data = fileBuffer.toString('base64');
+    
+    const ext = path.extname(filePath).toLowerCase();
+    let mimeType = 'application/octet-stream';
+    
+    if (['.jpg', '.jpeg'].includes(ext)) mimeType = 'image/jpeg';
+    else if (ext === '.png') mimeType = 'image/png';
+    else if (ext === '.gif') mimeType = 'image/gif';
+    else if (ext === '.webp') mimeType = 'image/webp';
+    
+    return {
+      name: path.basename(filePath),
+      size: stats.size,
+      type: mimeType,
+      lastModified: stats.mtimeMs,
+      dataUrl: `data:${mimeType};base64,${base64Data}`
+    };
+  } catch (error) {
+    console.error('Failed to get file info:', error);
+    throw error;
+  }
+});
 
 // Handle file upload operations
 ipcMain.handle('upload-file', async (event, fileInfo) => {
   try {
     const { fileName, fileType, data } = fileInfo
-    const fs = require('fs')
-    const path = require('path')
-    
-    // Create uploads directory if it doesn't exist
     const userDataPath = app.getPath('userData')
     const uploadsDir = path.join(userDataPath, 'uploads')
     
@@ -297,11 +284,8 @@ ipcMain.handle('upload-file', async (event, fileInfo) => {
       fs.mkdirSync(uploadsDir, { recursive: true })
     }
     
-    // Generate unique file path
     const uniqueFileName = `${Date.now()}_${fileName}`
     const filePath = path.join(uploadsDir, uniqueFileName)
-    
-    // Extract base64 data and save to file
     const base64Data = data.replace(/^data:\w+\/\w+;base64,/, '')
     fs.writeFileSync(filePath, base64Data, 'base64')
     
@@ -319,36 +303,26 @@ ipcMain.handle('upload-file', async (event, fileInfo) => {
 // Handle file download operations
 ipcMain.handle('download-file', async (event, filePath, fileName) => {
   try {
-    const { dialog, shell } = require('electron')
-    const fs = require('fs')
-    const path = require('path')
+    const { dialog } = require('electron')
     
-    // Convert relative path to absolute path
     let absolutePath
     if (filePath.startsWith('/uploads/')) {
-      // Handle uploaded files
       const userDataPath = app.getPath('userData')
       absolutePath = path.join(userDataPath, 'uploads', path.basename(filePath))
     } else {
-      // Handle other file paths
       absolutePath = path.resolve(filePath)
     }
     
-    // Check if file exists
     if (!fs.existsSync(absolutePath)) {
       throw new Error('File not found')
     }
     
-    // Show save dialog
     const result = await dialog.showSaveDialog(mainWindow, {
       defaultPath: fileName,
-      filters: [
-        { name: 'All Files', extensions: ['*'] }
-      ]
+      filters: [{ name: 'All Files', extensions: ['*'] }]
     })
     
     if (!result.canceled && result.filePath) {
-      // Copy file to chosen location
       fs.copyFileSync(absolutePath, result.filePath)
       return { success: true, savedPath: result.filePath }
     }
@@ -363,9 +337,6 @@ ipcMain.handle('download-file', async (event, filePath, fileName) => {
 // Handle export files operation
 ipcMain.handle('export-files', async () => {
   try {
-    const fs = require('fs')
-    const path = require('path')
-    
     const userDataPath = app.getPath('userData')
     const uploadsDir = path.join(userDataPath, 'uploads')
     
@@ -393,13 +364,9 @@ ipcMain.handle('export-files', async () => {
 // Handle import files operation
 ipcMain.handle('import-files', async (event, files) => {
   try {
-    const fs = require('fs')
-    const path = require('path')
-    
     const userDataPath = app.getPath('userData')
     const uploadsDir = path.join(userDataPath, 'uploads')
     
-    // Ensure uploads directory exists
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true })
     }
@@ -409,7 +376,6 @@ ipcMain.handle('import-files', async (event, files) => {
     
     for (const [fileName, base64Data] of Object.entries(files)) {
       try {
-        // Check if file already exists and add timestamp if needed
         let finalFileName = fileName
         let counter = 1
         while (fs.existsSync(path.join(uploadsDir, finalFileName))) {
@@ -441,10 +407,7 @@ ipcMain.handle('import-files', async (event, files) => {
 // Handle database export
 ipcMain.handle('export-database', async () => {
   try {
-    const fs = require('fs')
-    const path = require('path')
     const { dialog } = require('electron')
-    
     const userDataPath = app.getPath('userData')
     const dbPath = path.join(userDataPath, 'recipe-manager.db')
     
@@ -475,10 +438,7 @@ ipcMain.handle('export-database', async () => {
 // Handle database import
 ipcMain.handle('import-database', async () => {
   try {
-    const fs = require('fs')
-    const path = require('path')
     const { dialog } = require('electron')
-    
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
@@ -492,16 +452,12 @@ ipcMain.handle('import-database', async () => {
       const userDataPath = app.getPath('userData')
       const targetPath = path.join(userDataPath, 'recipe-manager.db')
       
-      // Close existing database connection
       if (dbInstance) {
         dbInstance.close()
         dbInstance = null
       }
       
-      // Copy the database file
       fs.copyFileSync(sourcePath, targetPath)
-      
-      // Reinitialize database
       setupDatabase()
       
       return { success: true, path: sourcePath }
@@ -523,7 +479,6 @@ ipcMain.handle('database-operation', async (event, operation, ...args) => {
         throw new Error('Failed to initialize database')
       }
       
-      // Import the database functions and create global instance
       const isPackaged = app.isPackaged
       const dbModulePath = isPackaged 
         ? path.join(process.resourcesPath, 'app', 'lib', 'electron-db-simple.js')
@@ -535,43 +490,26 @@ ipcMain.handle('database-operation', async (event, operation, ...args) => {
     const db = dbInstance
     
     switch (operation) {
-      case 'createRecipe':
-        return await db.createRecipe(...args)
-      case 'getRecipes':
-        return await db.getRecipes()
-      case 'getRecipeById':
-        return await db.getRecipeById(...args)
-      case 'updateRecipe':
-        return await db.updateRecipe(...args)
-      case 'deleteRecipe':
+      case 'createRecipe': return await db.createRecipe(...args)
+      case 'getRecipes': return await db.getRecipes()
+      case 'getRecipeById': return await db.getRecipeById(...args)
+      case 'updateRecipe': return await db.updateRecipe(...args)
+      case 'deleteRecipe': 
         const userDataPath = app.getPath('userData')
         return await db.deleteRecipe(...args, userDataPath)
-      case 'createTag':
-        return await db.createTag(...args)
-      case 'getTags':
-        return await db.getTags()
-      case 'getTagById':
-        return await db.getTagById(...args)
-      case 'getTagByName':
-        return await db.getTagByName(...args)
-      case 'updateTag':
-        return await db.updateTag(...args)
-      case 'deleteTag':
-        return await db.deleteTag(...args)
-      case 'addTagToRecipe':
-        return await db.addTagToRecipe(...args)
-      case 'removeTagFromRecipe':
-        return await db.removeTagFromRecipe(...args)
-      case 'getRecipeTags':
-        return await db.getRecipeTags(...args)
-      case 'getRecipesWithTag':
-        return await db.getRecipesWithTag(...args)
-      case 'searchRecipes':
-        return await db.searchRecipes(...args)
+      case 'createTag': return await db.createTag(...args)
+      case 'getTags': return await db.getTags()
+      case 'getTagById': return await db.getTagById(...args)
+      case 'getTagByName': return await db.getTagByName(...args)
+      case 'updateTag': return await db.updateTag(...args)
+      case 'deleteTag': return await db.deleteTag(...args)
+      case 'addTagToRecipe': return await db.addTagToRecipe(...args)
+      case 'removeTagFromRecipe': return await db.removeTagFromRecipe(...args)
+      case 'getRecipeTags': return await db.getRecipeTags(...args)
+      case 'getRecipesWithTag': return await db.getRecipesWithTag(...args)
+      case 'searchRecipes': return await db.searchRecipes(...args)
       case 'seedDatabase':
-        // Basic seeding for Electron - tags only
         try {
-          // Create predefined tags
           const tags = [
             'Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Vegetarian', 'Vegan',
             'Dairy', 'Dairy Free', 'Meat', 'Fish', 'Chicken', 'Pork', 'Beef',
@@ -598,75 +536,6 @@ ipcMain.handle('database-operation', async (event, operation, ...args) => {
     }
   } catch (error) {
     console.error(`Database operation ${operation} failed:`, error)
-    throw error
-  }
-})
-
-// Add these new IPC handlers for drag and drop support
-
-// Handle file preview for drag and drop
-ipcMain.handle('preview-file', async (event, filePath) => {
-  try {
-    const fs = require('fs')
-    
-    if (!fs.existsSync(filePath)) {
-      throw new Error('File not found')
-    }
-    
-    const stats = fs.statSync(filePath)
-    const fileBuffer = fs.readFileSync(filePath)
-    const base64Data = fileBuffer.toString('base64')
-    
-    // Get file type from extension
-    const path = require('path')
-    const ext = path.extname(filePath).toLowerCase()
-    let mimeType = 'application/octet-stream'
-    
-    if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg'
-    else if (ext === '.png') mimeType = 'image/png'
-    else if (ext === '.gif') mimeType = 'image/gif'
-    else if (ext === '.webp') mimeType = 'image/webp'
-    else if (ext === '.pdf') mimeType = 'application/pdf'
-    else if (ext === '.txt') mimeType = 'text/plain'
-    else if (ext === '.doc') mimeType = 'application/msword'
-    else if (ext === '.docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    
-    return {
-      name: path.basename(filePath),
-      size: stats.size,
-      type: mimeType,
-      data: `data:${mimeType};base64,${base64Data}`
-    }
-  } catch (error) {
-    console.error('File preview failed:', error)
-    throw error
-  }
-})
-
-// Handle temporary file creation for drag and drop
-ipcMain.handle('create-temp-file', async (event, fileName, mimeType, data) => {
-  try {
-    const fs = require('fs')
-    const path = require('path')
-    const os = require('os')
-    
-    // Create temp directory if it doesn't exist
-    const tempDir = path.join(os.tmpdir(), 'recipe-manager')
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true })
-    }
-    
-    // Generate unique file path
-    const uniqueFileName = `${Date.now()}_${fileName}`
-    const filePath = path.join(tempDir, uniqueFileName)
-    
-    // Extract base64 data and save to file
-    const base64Data = data.replace(/^data:\w+\/\w+;base64,/, '')
-    fs.writeFileSync(filePath, base64Data, 'base64')
-    
-    return filePath
-  } catch (error) {
-    console.error('Temp file creation failed:', error)
     throw error
   }
 })
