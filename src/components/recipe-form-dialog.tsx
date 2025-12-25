@@ -16,7 +16,6 @@ import { Upload, X, Plus, Search } from 'lucide-react'
 declare global {
   interface Window {
     electronAPI: {
-      // ... your existing properties
       getFileInfo: (filePath: string) => Promise<{
         name: string;
         size: number;
@@ -107,9 +106,6 @@ export default function RecipeFormDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    console.log('🍳 RecipeForm handleSubmit - formData:', formData)
-    console.log('🍳 RecipeForm handleSubmit - cookTime:', formData.cookTime, 'type:', typeof formData.cookTime)
-    
     if (!formData.name.trim()) {
       return
     }
@@ -125,49 +121,77 @@ export default function RecipeFormDialog({
     }
   }
 
-  // *** REVISED: A smart drop handler that works on both platforms ***
   const handleDrop = async (e: React.DragEvent, isPhoto: boolean = false) => {
     e.preventDefault()
     e.stopPropagation()
     
     // Reset drag states
     isPhoto ? setPhotoDragActive(false) : setDragActive(false)
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      let file = e.dataTransfer.files[0];
 
-      // *** KEY MACOS FIX: Check if file object is a "ghost" ***
-      // On macOS, sometimes the file object exists but has no name or size.
-      // In that case, we fall back to using the file path.
-      if (!file.name && !file.size && (file as any).path) {
-        console.log('🔧 Detected macOS ghost file, using path fallback:', (file as any).path);
+    let fileToProcess: File | null = null
+
+    // Check for standard files first (from OS/Finder)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      fileToProcess = e.dataTransfer.files[0]
+      
+      // macOS ghost file check
+      if (!fileToProcess.name && !fileToProcess.size && (fileToProcess as any).path) {
+        console.log('🔧 Detected macOS ghost file, using path fallback:', (fileToProcess as any).path)
         try {
           if (!window.electronAPI?.getFileInfo) {
-            console.error("electronAPI.getFileInfo is not available");
-            return;
+            console.error("electronAPI.getFileInfo is not available")
+            return
           }
           
-          const fileInfo = await window.electronAPI.getFileInfo((file as any).path);
-          const response = await fetch(fileInfo.dataUrl);
-          const blob = await response.blob();
-          file = new File([blob], fileInfo.name, {
+          const fileInfo = await window.electronAPI.getFileInfo((fileToProcess as any).path)
+          const response = await fetch(fileInfo.dataUrl)
+          const blob = await response.blob()
+          fileToProcess = new File([blob], fileInfo.name, {
             type: fileInfo.type,
             lastModified: fileInfo.lastModified,
-          });
-          console.log('🗂️ Reconstructed File object from path:', file);
+          })
+          console.log('🗂️ Reconstructed File object from path:', fileToProcess)
         } catch (error) {
-          console.error('Error processing dropped file via path:', error);
-          return;
+          console.error('Error processing dropped file via path:', error)
+          return
         }
       }
-      
-      // Now that we have a valid file object, proceed
+    }
+    // Check for HTML/URI data (from browser)
+    else if (e.dataTransfer.items) {
+      for (const item of e.dataTransfer.items) {
+        if (item.kind === 'string' && item.type === 'text/html') {
+          const html = await new Promise<string>((resolve) => item.getAsString(resolve))
+          const tempDiv = document.createElement('div')
+          tempDiv.innerHTML = html
+          const img = tempDiv.querySelector('img')
+          
+          if (img && img.src) {
+            try {
+              const response = await fetch(img.src)
+              const blob = await response.blob()
+              const fileName = img.src.split('/').pop() || 'browser-image.png'
+              fileToProcess = new File([blob], fileName, { type: blob.type })
+              console.log('🖼️ Created File from dragged browser HTML:', fileToProcess)
+              break
+            } catch (err) {
+              console.error('Failed to fetch image from dragged HTML:', err)
+            }
+          }
+        } else if (item.kind === 'file' && item.getAsFile) {
+          fileToProcess = item.getAsFile()
+          console.log('📁 Got file from DataTransferItem:', fileToProcess)
+        }
+      }
+    }
+
+    if (fileToProcess) {
       if (isPhoto) {
-        if (file.type.startsWith('image/')) {
-          setFormData(prev => ({ ...prev, photo: file }))
+        if (fileToProcess.type.startsWith('image/')) {
+          setFormData(prev => ({ ...prev, photo: fileToProcess }))
         }
       } else {
-        setFormData(prev => ({ ...prev, file }))
+        setFormData(prev => ({ ...prev, file: fileToProcess }))
       }
     }
   }
@@ -291,12 +315,7 @@ export default function RecipeFormDialog({
                 <TimeInput
                   value={formData.cookTime}
                   onChange={(minutes) => {
-                    console.log('🍳 RecipeForm cookTime onChange - minutes:', minutes, 'type:', typeof minutes)
-                    setFormData(prev => {
-                      const newData = { ...prev, cookTime: minutes }
-                      console.log('🍳 RecipeForm cookTime onChange - new formData:', newData)
-                      return newData
-                    })
+                    setFormData(prev => ({ ...prev, cookTime: minutes }))
                   }}
                   placeholder="00:00"
                 />
