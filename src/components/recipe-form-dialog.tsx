@@ -60,6 +60,8 @@ export default function RecipeFormDialog({
   const [tagSearchTerm, setTagSearchTerm] = useState('')
   const [creatingTag, setCreatingTag] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  const fileDropZoneRef = useRef<HTMLDivElement>(null)
+  const photoDropZoneRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (initialData) {
@@ -107,24 +109,46 @@ export default function RecipeFormDialog({
     }
   }
 
-  const handleDrag = (e: React.DragEvent) => {
+  // Unified drag handler for both file and photo drop zones
+  const handleDrag = (e: React.DragEvent, isPhoto: boolean = false) => {
     e.preventDefault()
     e.stopPropagation()
+    
+    // Set the drop effect for macOS compatibility
+    e.dataTransfer.dropEffect = 'copy'
+    
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
+      isPhoto ? setPhotoDragActive(true) : setDragActive(true)
     } else if (e.type === 'dragleave') {
-      setDragActive(false)
+      // Check if the drag is actually leaving the element
+      // This is important for macOS to avoid flickering
+      if (e.currentTarget.contains(e.relatedTarget as Node)) {
+        return
+      }
+      isPhoto ? setPhotoDragActive(false) : setDragActive(false)
     }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  // Unified drop handler for both file and photo drop zones
+  const handleDrop = (e: React.DragEvent, isPhoto: boolean = false) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragActive(false)
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    // Reset drag states
+    isPhoto ? setPhotoDragActive(false) : setDragActive(false)
+    
+    // Handle file drop
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0]
-      setFormData(prev => ({ ...prev, file }))
+      
+      if (isPhoto) {
+        // Check if it's an image file
+        if (file.type.startsWith('image/')) {
+          setFormData(prev => ({ ...prev, photo: file }))
+        }
+      } else {
+        setFormData(prev => ({ ...prev, file }))
+      }
     }
   }
 
@@ -137,30 +161,6 @@ export default function RecipeFormDialog({
 
   const removeFile = () => {
     setFormData(prev => ({ ...prev, file: undefined }))
-  }
-
-  const handlePhotoDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setPhotoDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setPhotoDragActive(false)
-    }
-  }
-
-  const handlePhotoDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setPhotoDragActive(false)
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      // Check if it's an image file
-      if (file.type.startsWith('image/')) {
-        setFormData(prev => ({ ...prev, photo: file }))
-      }
-    }
   }
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -309,15 +309,18 @@ export default function RecipeFormDialog({
               <div className="space-y-1">
                 <Label>Recipe Photo</Label>
                 <div
+                  ref={photoDropZoneRef}
                   className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
                     photoDragActive
                       ? 'border-primary bg-primary/5'
                       : 'border-muted-foreground/25 hover:border-primary/50'
                   }`}
-                  onDragEnter={handlePhotoDrag}
-                  onDragLeave={handlePhotoDrag}
-                  onDragOver={handlePhotoDrag}
-                  onDrop={handlePhotoDrop}
+                  onDragEnter={(e) => handleDrag(e, true)}
+                  onDragLeave={(e) => handleDrag(e, true)}
+                  onDragOver={(e) => handleDrag(e, true)}
+                  onDrop={(e) => handleDrop(e, true)}
+                  onDragStart={(e) => e.preventDefault()}
+                  onDragEnd={(e) => e.preventDefault()}
                 >
                   {formData.photo ? (
                     <div className="space-y-2">
@@ -382,15 +385,18 @@ export default function RecipeFormDialog({
               <div className="space-y-1">
                 <Label>Recipe File</Label>
                 <div
+                  ref={fileDropZoneRef}
                   className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
                     dragActive
                       ? 'border-primary bg-primary/5'
                       : 'border-muted-foreground/25 hover:border-primary/50'
                   }`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
+                  onDragEnter={(e) => handleDrag(e, false)}
+                  onDragLeave={(e) => handleDrag(e, false)}
+                  onDragOver={(e) => handleDrag(e, false)}
+                  onDrop={(e) => handleDrop(e, false)}
+                  onDragStart={(e) => e.preventDefault()}
+                  onDragEnd={(e) => e.preventDefault()}
                 >
                   {formData.file ? (
                     <div className="space-y-1">

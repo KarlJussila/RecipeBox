@@ -43,16 +43,33 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      preload: isDev ? path.join(__dirname, 'preload.js') : path.join(process.resourcesPath, 'app', 'preload.js')
+      preload: isDev ? path.join(__dirname, 'preload.js') : path.join(process.resourcesPath, 'app', 'preload.js'),
+      // Add these settings for better drag and drop support on macOS
+      webSecurity: false, // Already present
+      allowRunningInsecureContent: true
     },
     icon: isDev ? path.join(__dirname, 'assets/icon.png') : path.join(process.resourcesPath, 'app', 'assets', 'icon.png'),
     show: false,
     titleBarStyle: 'default',
-    webSecurity: false // Allow local file access
+    // Add these properties for better drag and drop support
+    acceptFirstMouse: true,
+    titleBarOverlay: process.platform === 'darwin' ? {
+      color: '#00000000',
+      symbolColor: '#ffffff'
+    } : false
   })
 
   // Set up database
   const dbPath = setupDatabase()
+  
+  // Add this code to handle drag and drop events properly
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    const parsedUrl = new URL(navigationUrl)
+    
+    if (parsedUrl.origin !== 'file://') {
+      event.preventDefault()
+    }
+  })
   
   // Pass database path to renderer process
   mainWindow.webContents.on('did-finish-load', () => {
@@ -60,6 +77,20 @@ function createWindow() {
     if (dbPath) {
       mainWindow.webContents.send('database-ready', { dbPath })
     }
+    
+    // Add this code to enable proper drag and drop on macOS
+    mainWindow.webContents.executeJavaScript(`
+      document.addEventListener('dragover', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        event.dataTransfer.dropEffect = 'copy'
+      }, false)
+      
+      document.addEventListener('drop', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }, false)
+    `)
   })
 
   // Load the app
@@ -185,6 +216,25 @@ function createMenu() {
 }
 
 app.whenReady().then(() => {
+  // Add this for macOS
+  if (process.platform === 'darwin') {
+    // Set app activation policy for proper file handling
+    app.setAboutPanelOptions({
+      applicationName: 'Recipe Manager',
+      applicationVersion: app.getVersion(),
+      copyright: 'Copyright © 2023'
+    })
+    
+    // Handle file opening from Finder
+    app.on('open-file', (event, path) => {
+      event.preventDefault()
+      if (mainWindow) {
+        mainWindow.webContents.send('open-file', path)
+        mainWindow.show()
+      }
+    })
+  }
+  
   createWindow()
   
   // Only create menu in development
@@ -548,6 +598,75 @@ ipcMain.handle('database-operation', async (event, operation, ...args) => {
     }
   } catch (error) {
     console.error(`Database operation ${operation} failed:`, error)
+    throw error
+  }
+})
+
+// Add these new IPC handlers for drag and drop support
+
+// Handle file preview for drag and drop
+ipcMain.handle('preview-file', async (event, filePath) => {
+  try {
+    const fs = require('fs')
+    
+    if (!fs.existsSync(filePath)) {
+      throw new Error('File not found')
+    }
+    
+    const stats = fs.statSync(filePath)
+    const fileBuffer = fs.readFileSync(filePath)
+    const base64Data = fileBuffer.toString('base64')
+    
+    // Get file type from extension
+    const path = require('path')
+    const ext = path.extname(filePath).toLowerCase()
+    let mimeType = 'application/octet-stream'
+    
+    if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg'
+    else if (ext === '.png') mimeType = 'image/png'
+    else if (ext === '.gif') mimeType = 'image/gif'
+    else if (ext === '.webp') mimeType = 'image/webp'
+    else if (ext === '.pdf') mimeType = 'application/pdf'
+    else if (ext === '.txt') mimeType = 'text/plain'
+    else if (ext === '.doc') mimeType = 'application/msword'
+    else if (ext === '.docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    
+    return {
+      name: path.basename(filePath),
+      size: stats.size,
+      type: mimeType,
+      data: `data:${mimeType};base64,${base64Data}`
+    }
+  } catch (error) {
+    console.error('File preview failed:', error)
+    throw error
+  }
+})
+
+// Handle temporary file creation for drag and drop
+ipcMain.handle('create-temp-file', async (event, fileName, mimeType, data) => {
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    const os = require('os')
+    
+    // Create temp directory if it doesn't exist
+    const tempDir = path.join(os.tmpdir(), 'recipe-manager')
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+    
+    // Generate unique file path
+    const uniqueFileName = `${Date.now()}_${fileName}`
+    const filePath = path.join(tempDir, uniqueFileName)
+    
+    // Extract base64 data and save to file
+    const base64Data = data.replace(/^data:\w+\/\w+;base64,/, '')
+    fs.writeFileSync(filePath, base64Data, 'base64')
+    
+    return filePath
+  } catch (error) {
+    console.error('Temp file creation failed:', error)
     throw error
   }
 })
