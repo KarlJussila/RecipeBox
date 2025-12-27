@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File operations
   uploadFile: (fileInfo) => ipcRenderer.invoke('upload-file', fileInfo),
   downloadFile: (filePath, fileName) => ipcRenderer.invoke('download-file', filePath, fileName),
+  openFile: (filePath) => ipcRenderer.invoke('open-file', filePath), // ✅ NEW: open file in default app
   
   // Export/Import operations
   exportFiles: () => ipcRenderer.invoke('export-files'),

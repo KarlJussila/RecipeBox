@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const isDev = process.env.NODE_ENV === 'development'
@@ -331,6 +331,36 @@ ipcMain.handle('download-file', async (event, filePath, fileName) => {
   } catch (error) {
     console.error('File download failed:', error)
     throw error
+  }
+})
+
+// *** NEW: Handle open-file via shell.openPath ***
+ipcMain.handle('open-file', async (event, filePath) => {
+  try {
+    let absolutePath
+    if (filePath.startsWith('/uploads/')) {
+      const userDataPath = app.getPath('userData')
+      absolutePath = path.join(userDataPath, 'uploads', path.basename(filePath))
+    } else {
+      absolutePath = path.resolve(filePath)
+    }
+
+    if (!fs.existsSync(absolutePath)) {
+      const msg = 'File not found'
+      console.error(msg, absolutePath)
+      return msg
+    }
+
+    // shell.openPath returns an empty string on success, or an error message string on failure
+    const result = await shell.openPath(absolutePath)
+    if (result) {
+      console.error('shell.openPath failed:', result)
+      return result
+    }
+    return '' // success
+  } catch (error) {
+    console.error('Open file failed:', error)
+    return `Error: ${error.message || error}`
   }
 })
 

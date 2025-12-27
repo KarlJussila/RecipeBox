@@ -146,6 +146,21 @@ export default function RecipeDetailDialog({
     }
   }
 
+  const handleOpen = async () => {
+    if (!recipe?.filePath) return
+  
+    try {
+      const result = await (window as any).electronAPI.openFile(recipe.filePath)
+      if (result) {
+        console.error('Failed to open file:', result)
+        alert('Failed to open file:\n' + result)
+      }
+    } catch (error) {
+      console.error('Error opening file:', error)
+      alert('An error occurred while trying to open the file.')
+    }
+  }  
+
   if (!recipe) return null
 
   console.log('👁️ RecipeDetailDialog rendering recipe:', recipe)
@@ -282,12 +297,17 @@ export default function RecipeDetailDialog({
                       </div>
                       
                       {/* Download button on separate row */}
-                      <div className="flex justify-start">
-                        <Button onClick={handleDownload} className="w-full sm:w-auto">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button onClick={handleOpen} className="w-full sm:w-auto">
+                          <FileText className="w-4 h-4 mr-2" />
+                          Open File
+                        </Button>
+                        <Button onClick={handleDownload} className="w-full sm:w-auto" variant="secondary">
                           <Download className="w-4 h-4 mr-2" />
                           Download File
                         </Button>
                       </div>
+
                     </div>
                   </CardContent>
                 </Card>
