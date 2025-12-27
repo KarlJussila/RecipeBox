@@ -182,11 +182,11 @@ export default function RecipeDetailDialog({
         </DialogHeader>
 
         {/* Scrollable content area */}
-        <ScrollArea className="flex-1 overflow-y-auto px-6">
-          <div className="space-y-4 pb-4">
+        <ScrollArea className="flex-1 overflow-y-auto px-6 overflow-x-hidden max-w-full">
+          <div className="space-y-4 pb-4 overflow-x-hidden max-w-full">
             {/* Recipe Photo */}
             {recipe.photoPath && (
-              <div className="flex justify-center">
+              <div className="flex justify-center max-w-full">
                 <RecipePhoto 
                   photoPath={recipe.photoPath}
                   photoFileName={recipe.photoFileName}
@@ -259,7 +259,7 @@ export default function RecipeDetailDialog({
               </div>
             )}
 
-            {/* Recipe File Section - Enhanced */}
+            {/* Recipe File Section */}
             {recipe.filePath && (
               <div>
                 <h3 className="text-lg font-semibold mb-2">Recipe Document</h3>
@@ -267,12 +267,12 @@ export default function RecipeDetailDialog({
                   <CardContent className="p-4">
                     <div className="space-y-3">
                       {/* File info row */}
-                      <div className="flex items-start gap-4">
-                        <div className="p-2 bg-muted rounded-lg flex-shrink-0">
+                      <div className="flex items-start gap-4 w-full max-w-full overflow-hidden">
+                        <div className="p-2 bg-muted rounded-lg">
                           <FileText className="w-8 h-8 text-muted-foreground" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate" title={recipe.fileName}>
+                        <div className="flex-1 min-w-0 w-full max-w-full overflow-hidden">
+                          <p className="font-medium truncate max-w-full overflow-hidden" style={{overflowWrap: 'anywhere'}} title={recipe.fileName}>
                             {recipe.fileName}
                           </p>
                           <p className="text-sm text-muted-foreground">
