@@ -89,16 +89,21 @@ function createWindow() {
     mainWindow.show()
   })
 
+  // Ensure DB is closed and quit the app when the main window is closed (macOS behavior)
   mainWindow.on('closed', () => {
-    if (dbInstance) {
-      try {
+    try {
+      if (dbInstance) {
+        // If your dbInstance.close() is synchronous, remove the await.
         dbInstance.close()
         dbInstance = null
-      } catch (error) {
-        console.error('Error closing database:', error)
+        console.log('Database closed on window close.')
       }
+    } catch (error) {
+      console.error('Error closing database on window close:', error)
     }
-    mainWindow = null
+
+    // Quit the app so it does not remain running in the background on macOS
+    app.quit()
   })
 }
 
