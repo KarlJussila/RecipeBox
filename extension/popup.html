@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main id="card" data-state="working">
+      <div class="icon" aria-hidden="true">
+        <span class="spinner"></span>
+        <svg class="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        <svg class="alert" viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01" /></svg>
+      </div>
+      <div class="text">
+        <p id="headline">Saving recipe…</p>
+        <p id="detail"></p>
+      </div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

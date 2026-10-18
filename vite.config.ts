@@ -1,26 +1,22 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
-import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
+const host = process.env.TAURI_DEV_HOST;
+
+// https://tauri.app/start/frontend/vite/
 export default defineConfig({
-  plugins: [react()],
-  base: './',
-  build: {
-    outDir: 'dist/renderer',
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        main: path.resolve(fileURLToPath(new URL('.', import.meta.url)), 'index.html')
-      }
-    }
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(fileURLToPath(new URL('./src', import.meta.url))),
-    },
-  },
+  plugins: [react(), tailwindcss()],
+  clearScreen: false,
   server: {
-    port: 3000,
+    port: 1420,
+    strictPort: true,
+    host: host || false,
+    hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
+    watch: { ignored: ["**/src-tauri/**"] },
   },
-})
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.ts"],
+  },
+});

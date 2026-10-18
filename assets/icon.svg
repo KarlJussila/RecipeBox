@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f9a63"/>
+      <stop offset="1" stop-color="#2a6040"/>
+    </linearGradient>
+    <linearGradient id="box" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf6ea"/>
+      <stop offset="1" stop-color="#efe5cf"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#13321f" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <!-- macOS icon grid: 824px body with a 100px margin -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- recipe cards standing in the box -->
+  <g filter="url(#shadow)">
+    <rect x="300" y="236" width="440" height="360" rx="26" fill="#e9f2ea" transform="rotate(-7 520 416)"/>
+    <rect x="292" y="250" width="440" height="360" rx="26" fill="#ffffff" transform="rotate(4 512 430)"/>
+  </g>
+  <g transform="rotate(4 512 430)" stroke-linecap="round">
+    <line x1="350" y1="318" x2="560" y2="318" stroke="#3f8455" stroke-width="22"/>
+    <line x1="350" y1="378" x2="670" y2="378" stroke="#d6d0c4" stroke-width="16"/>
+    <line x1="350" y1="424" x2="640" y2="424" stroke="#d6d0c4" stroke-width="16"/>
+  </g>
+  <!-- the box -->
+  <g filter="url(#shadow)">
+    <rect x="212" y="500" width="600" height="330" rx="44" fill="url(#box)"/>
+  </g>
+  <!-- label with a sprout -->
+  <rect x="402" y="592" width="220" height="150" rx="28" fill="#2f6b46"/>
+  <g fill="#e9f5ec" transform="translate(0 12)">
+    <path d="M512 718 C512 690 512 672 512 652" stroke="#e9f5ec" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <path d="M512 662 C470 664 446 640 444 606 C482 604 508 626 512 662 Z"/>
+    <path d="M512 648 C520 610 552 592 588 596 C588 632 556 652 512 648 Z"/>
+  </g>
+</svg>

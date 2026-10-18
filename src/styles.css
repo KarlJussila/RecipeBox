@@ -1,0 +1,101 @@
+@import "@fontsource-variable/fraunces/full.css";
+@import "tailwindcss";
+
+/* Dark mode is a user choice (Settings → Appearance), applied as a class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens.
+ * Neutrals: Tailwind stone (warm grays, like paper and linen).
+ * Accent: "leaf", a calm forest green (OKLCH hue 152) used for actions,
+ * selection and the occasional flourish. Roughly 60/30/10 neutral/surface/green.
+ * Type: Fraunces for recipe titles and headings, the system UI face for everything else.
+ */
+@theme {
+  --color-leaf-50: oklch(0.975 0.016 152);
+  --color-leaf-100: oklch(0.945 0.034 152);
+  --color-leaf-200: oklch(0.89 0.06 152);
+  --color-leaf-300: oklch(0.81 0.09 152);
+  --color-leaf-400: oklch(0.72 0.11 152);
+  --color-leaf-500: oklch(0.62 0.12 152);
+  --color-leaf-600: oklch(0.53 0.11 152);
+  --color-leaf-700: oklch(0.455 0.095 152);
+  --color-leaf-800: oklch(0.38 0.077 152);
+  --color-leaf-900: oklch(0.31 0.058 152);
+  --color-leaf-950: oklch(0.22 0.04 152);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-serif: "Fraunces Variable", ui-serif, Georgia, serif;
+
+  --shadow-card: 0 1px 2px oklch(0.3 0.04 152 / 0.06), 0 1px 3px oklch(0.3 0.04 152 / 0.04);
+  --shadow-lift: 0 4px 8px oklch(0.3 0.04 152 / 0.06), 0 12px 28px oklch(0.3 0.04 152 / 0.1);
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-pop-in: pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  --animate-slide-up: slide-up 220ms ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100;
+    font-family: var(--font-sans);
+    /* A desktop app shouldn't select UI text on drag; content areas opt back in. */
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  input, textarea, .selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  button, [role="button"] {
+    cursor: default;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-leaf-600 dark:outline-leaf-400;
+  }
+  ::selection {
+    @apply bg-leaf-200 text-leaf-950;
+  }
+}
+
+/* Fraunces with soft terminals reads warm and friendly rather than formal. */
+.font-serif {
+  font-variation-settings: "SOFT" 100, "WONK" 0;
+}
+
+@utility scrollbar-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stone-300) transparent;
+  @variant dark {
+    scrollbar-color: var(--color-stone-700) transparent;
+  }
+}
+
+@media print {
+  @page { margin: 1.6cm; }
+  body { background: white !important; color: black !important; }
+  .no-print { display: none !important; }
+  .print-break-avoid { break-inside: avoid; }
+}

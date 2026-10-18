@@ -1,13 +1,19 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import { ThemeProvider } from './components/theme-provider'
-import './globals.css'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import { ToastProvider } from "./components/ui";
+import { api, applyAppearance, loadAppInfo } from "./lib/api";
+import "./styles.css";
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ThemeProvider defaultTheme="system" storageKey="recipebox-ui-theme">
-      <App />
-    </ThemeProvider>
-  </React.StrictMode>,
-)
+// Image paths depend on the app's data folder, and the theme on saved settings,
+// so load both before the first render to avoid a flash of the wrong theme.
+Promise.all([loadAppInfo(), api.getSettings().then((s) => applyAppearance(s.appearance))]).then(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </React.StrictMode>,
+  );
+});
+
