@@ -180,7 +180,14 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
   const clean = (sections: z.infer<typeof SectionSchema>[]) =>
     sections
       .map((s) => ({ heading: s.heading.trim(), items: s.items.map((i) => i.trim()).filter(Boolean) }))
-      .filter((s) => s.items.length > 0);
+      .filter((s) => s.items.length > 0)
+      // Models sometimes wrap each step in its own untitled section; fold those together.
+      .reduce<{ heading: string; items: string[] }[]>((out, s) => {
+        const last = out.at(-1);
+        if (last && !s.heading) last.items.push(...s.items);
+        else out.push(s);
+        return out;
+      }, []);
   const positive = (n: number | null) => (n && n > 0 ? n : null);
   return {
     title: reply.title.trim(),

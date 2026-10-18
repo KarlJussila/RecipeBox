@@ -74,6 +74,9 @@ describe("ingredientSections", () => {
       { heading: "For the filling", items: ["3 apples"] },
     ]);
   });
+  test("drops template placeholders sites leak into their data", () => {
+    expect(ingredientSections(["4 undefined garlic cloves", "null"])).toEqual([{ heading: "", items: ["4 garlic cloves"] }]);
+  });
   test("lines with quantities are never headings", () => {
     expect(ingredientSections(["Ratio 1:2:"])).toEqual([{ heading: "", items: ["Ratio 1:2:"] }]);
   });
@@ -164,6 +167,20 @@ describe("extractFromHtml", () => {
     expect(draft.title).toBe("Old Fashioned Pancakes");
     expect(draft.totalMinutes).toBe(20);
     expect(draft.ingredients[0].items).toEqual(["1 cup flour", "1 egg"]);
+  });
+
+  test("reads WordPress/Jetpack recipe blocks (microdata plus h-recipe classes)", () => {
+    const html = `<div class="h-recipe jetpack-recipe" itemscope itemtype="https://schema.org/Recipe">
+      <h3 class="p-name" itemprop="name">Tomato Risotto</h3>
+      <li class="p-yield" itemprop="recipeYield"><strong>Servings: </strong>4</li>
+      <time itemprop="totalTime" datetime="P0DT0H50M0S"><strong>Time:</strong> 50 minutes</time>
+      <li class="p-ingredient" itemprop="recipeIngredient">1 cup rice</li>
+      <div class="e-instructions"><p><strong>Heat oven:</strong> To 350°F.</p><p>Grate the tomatoes.</p></div>
+    </div>`;
+    const { draft, complete } = extractFromHtml(html, "https://blog.example/risotto");
+    expect(complete).toBe(true);
+    expect(draft).toMatchObject({ title: "Tomato Risotto", yields: "4 servings", totalMinutes: 50 });
+    expect(draft.instructions).toEqual([{ heading: "", items: ["Heat oven: To 350°F.", "Grate the tomatoes."] }]);
   });
 
   test("falls back to page metadata when there is no recipe data", () => {

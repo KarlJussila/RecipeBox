@@ -58,10 +58,13 @@ function cleanHeading(value: Json): string {
     : heading;
 }
 
+// Placeholders some sites' templates leak into their data ("4 undefined garlic cloves").
+const LEAKED = /\b(?:undefined|null)\b\s*/gi;
+
 function names(value: Json): string[] {
   return asArray(value)
     .map((item) => (isNode(item) ? cleanLine(item.name) : cleanLine(item)))
-    .filter(Boolean);
+    .filter((name) => name && !/^(?:undefined|null)$/i.test(name));
 }
 
 function resolveUrl(url: string, base: string | null): string | null {
@@ -162,7 +165,7 @@ export function ingredientSections(value: Json): Section[] {
   const sections: Section[] = [];
   let current: Section = { heading: "", items: [] };
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = raw.replace(LEAKED, "").trim();
     if (!line) continue;
     if (looksLikeHeading(line)) {
       if (current.items.length || current.heading) sections.push(current);
@@ -180,7 +183,8 @@ function pickYield(value: Json): string | null {
   if (options.length === 0) return null;
   // Prefer "4 dozen cookies" over a bare "48".
   const descriptive = options.find((o) => /[a-z]/i.test(o));
-  const chosen = descriptive ?? options[0];
+  // Drop labels like "Servings:" or "Yield:" that leak in from page markup.
+  const chosen = (descriptive ?? options[0]).replace(/^(servings|yields?|serves|makes)\s*:\s*/i, "");
   return /^\d+$/.test(chosen) ? `${chosen} servings` : chosen;
 }
 

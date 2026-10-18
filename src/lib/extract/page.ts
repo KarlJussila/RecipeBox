@@ -54,27 +54,40 @@ function score(draft: RecipeDraft): number {
   return count(draft.ingredients) + count(draft.instructions);
 }
 
-/** Reads microdata (itemprop attributes), which some older sites use instead of JSON-LD. */
-function microdataRecipe(doc: Document): Record<string, unknown> | null {
-  const root = doc.querySelector('[itemtype*="schema.org/Recipe" i]');
+// Properties whose markup carries structure (paragraphs, list items) worth keeping.
+const RICH_PROPS = new Set(["recipeInstructions", "description"]);
+const LIST_PROPS = new Set(["recipeIngredient", "ingredients", "recipeInstructions", "image", "recipeCategory", "recipeCuisine"]);
+
+function itemValue(el: Element, prop: string): string | null {
+  return (
+    el.getAttribute("content") ??
+    el.getAttribute("datetime") ??
+    (el.tagName === "IMG" ? (el.getAttribute("src") ?? el.getAttribute("data-src")) : null) ??
+    (el.tagName === "META" ? null : RICH_PROPS.has(prop) ? el.innerHTML : el.textContent)
+  );
+}
+
+/**
+ * Reads recipes marked up in HTML rather than JSON-LD: schema.org microdata
+ * (itemprop attributes) and the h-recipe microformat (p-name, p-ingredient,
+ * e-instructions classes). WordPress recipe blocks often use one or both.
+ */
+function markupRecipe(doc: Document): Record<string, unknown> | null {
+  const root = doc.querySelector('[itemtype*="schema.org/Recipe" i], .h-recipe, .hrecipe');
   if (!root) return null;
   const node: Record<string, unknown> = { "@type": "Recipe" };
-  const multi = new Set(["recipeIngredient", "ingredients", "recipeInstructions", "image", "recipeCategory", "recipeCuisine"]);
-  for (const el of root.querySelectorAll<HTMLElement>("[itemprop]")) {
+  for (const el of root.querySelectorAll("[itemprop]")) {
     const prop = el.getAttribute("itemprop")!;
-    const value =
-      el.getAttribute("content") ??
-      (el.tagName === "IMG" ? el.getAttribute("src") : null) ??
-      (el.tagName === "META" ? null : el.innerText ?? el.textContent);
+    const value = itemValue(el, prop);
     if (!value) continue;
-    if (multi.has(prop)) {
-      const list = (node[prop] as unknown[] | undefined) ?? [];
-      list.push(value);
-      node[prop] = list;
-    } else if (!(prop in node)) {
-      node[prop] = value;
-    }
+    if (LIST_PROPS.has(prop)) node[prop] = [...((node[prop] as unknown[] | undefined) ?? []), value];
+    else if (!(prop in node)) node[prop] = value;
   }
+  const byClass = (selector: string) => [...root.querySelectorAll(selector)];
+  node.name ??= byClass(".p-name")[0]?.textContent;
+  node.recipeIngredient ??= byClass(".p-ingredient").map((el) => el.textContent);
+  node.recipeInstructions ??= byClass(".e-instructions").map((el) => el.innerHTML);
+  node.recipeYield ??= byClass(".p-yield")[0]?.textContent;
   return node;
 }
 
@@ -85,8 +98,8 @@ export function extractFromHtml(html: string, url: string | null): Extraction {
   const nodes = [...doc.querySelectorAll('script[type="application/ld+json" i]')].flatMap((script) =>
     findRecipes(parseJsonLd(script.textContent ?? "")),
   );
-  const micro = microdataRecipe(doc);
-  if (micro) nodes.push(micro);
+  const markup = markupRecipe(doc);
+  if (markup) nodes.push(markup);
 
   const drafts = nodes.map((node) => draftFromSchema(node, page)).sort((a, b) => score(b) - score(a));
   const best = drafts[0];
@@ -126,7 +139,11 @@ export function readableText(doc: Document, limit = 60_000): string {
   const clone = doc.body?.cloneNode(true) as HTMLElement | undefined;
   if (!clone) return "";
   clone
-    .querySelectorAll("script, style, noscript, svg, iframe, nav, footer, header, aside, form, button, [aria-hidden=true]")
+    .querySelectorAll(
+      "script, style, noscript, svg, iframe, nav, footer, header, aside, form, button, [aria-hidden=true], " +
+        // Reader comments can dwarf the recipe itself (hundreds of thousands of characters on popular blogs).
+        "#comments, #respond, .comments, .comments-area, .comment-list, .commentlist, .comment",
+    )
     .forEach((el) => el.remove());
   const main = clone.querySelector("main, article, [role=main]") ?? clone;
   const text = (main.textContent ?? "")

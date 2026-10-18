@@ -36,6 +36,12 @@ pub async fn fetch_page(url: &str) -> Result<Page, String> {
         .await
         .map_err(|e| format!("Couldn't reach that page ({e})"))?;
     let status = response.status();
+    if matches!(status.as_u16(), 401 | 403 | 429) {
+        // Paywalls and bot protection. The user's own browser gets through.
+        return Err("This website doesn't let Recipe Box read it directly. Open the recipe in Chrome and \
+                    click the Recipe Box button instead."
+            .into());
+    }
     if !status.is_success() {
         return Err(format!("The website answered with an error ({status})"));
     }
