@@ -28,7 +28,7 @@ const VARIANTS: Record<Variant, string> = {
   primary: "bg-leaf text-white shadow-soft hover:bg-leaf-strong dark:text-spine-deep",
   secondary: "bg-card text-ink ring-1 ring-line shadow-soft hover:bg-paper-deep",
   ghost: "text-ink-soft hover:bg-ink/6 hover:text-ink",
-  danger: "bg-tomato text-white shadow-soft hover:brightness-95",
+  danger: "bg-tomato text-white shadow-soft hover:brightness-95 dark:text-spine-deep",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -275,11 +275,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             className={cx(
               "pointer-events-auto flex w-full animate-rise items-center gap-3 rounded-2xl px-5 py-3.5 text-[15px] shadow-lift",
-              t.tone === "error" ? "bg-tomato text-white" : "bg-spine text-cream",
+              t.tone === "error" ? "bg-tomato text-white dark:text-spine-deep" : "bg-spine text-cream",
             )}
           >
             {t.busy && <Spinner className="border-cream/30 border-t-cream" />}
-            {!t.busy && t.tone === "success" && <span className="size-2 shrink-0 rounded-full bg-[#a8d1a2]" />}
+            {!t.busy && t.tone === "success" && <span className="size-2 shrink-0 rounded-full bg-[#9aab55]" />}
             <p className="flex-1 leading-snug">{t.message}</p>
             {t.action && (
               <button

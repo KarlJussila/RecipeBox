@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ArrowLeft, ChefHat, ExternalLink, Heart, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, Heart, Pencil, Printer, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { formatMinutes } from "../lib/extract/duration";
@@ -46,7 +46,19 @@ function Ornament() {
   );
 }
 
-function Ingredients({ sections, yields }: { sections: Section[]; yields: string | null }) {
+const COLLAPSED_KEY = "recipebox.ingredientsCollapsed";
+
+function Ingredients({
+  sections,
+  yields,
+  collapsed,
+  onCollapsedChange,
+}: {
+  sections: Section[];
+  yields: string | null;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+}) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (key: string) =>
     setChecked((prev) => {
@@ -56,46 +68,79 @@ function Ingredients({ sections, yields }: { sections: Section[]; yields: string
       return next;
     });
 
+  const count = sections.reduce((n, s) => n + s.items.length, 0);
+
   return (
-    <div className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
-      <div className="mb-4 flex items-baseline justify-between gap-4 border-b-2 border-tomato/50 pb-3">
-        <h2 className="font-serif text-[28px] font-semibold tracking-tight">Ingredients</h2>
-        {yields && <span className="text-sm text-ink-faint">{yields}</span>}
-      </div>
-      {sections.length === 0 && <p className="text-ink-faint">No ingredients listed.</p>}
-      <div className="space-y-5">
-        {sections.map((section, si) => (
-          <div key={si} className="print-break-avoid">
-            {section.heading && <Eyebrow className="mb-1 pt-2">{section.heading}</Eyebrow>}
-            <ul className="divide-y divide-leaf/12">
-              {section.items.map((item, i) => {
-                const key = `${si}-${i}`;
-                const done = checked.has(key);
-                return (
-                  <li key={key}>
-                    <label className="group flex cursor-pointer items-start gap-3 py-2.5">
-                      <input type="checkbox" checked={done} onChange={() => toggle(key)} className="peer sr-only" />
-                      <span
-                        aria-hidden
-                        className={cx(
-                          "no-print mt-[3px] flex size-[18px] shrink-0 items-center justify-center rounded-full ring-[1.5px] transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-leaf",
-                          done ? "bg-leaf ring-leaf" : "ring-ink-faint/60 group-hover:ring-leaf",
-                        )}
-                      >
-                        {done && <span className="size-1.5 rounded-full bg-card" />}
-                      </span>
-                      <span className={cx("selectable text-[17px] leading-snug transition-colors", done ? "text-ink-faint line-through decoration-ink-faint/50" : "text-ink-soft")}>
-                        <IngredientText line={item} />
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
+    <>
+      {collapsed && (
+        <button
+          type="button"
+          onClick={() => onCollapsedChange(false)}
+          aria-expanded={false}
+          className="no-print group flex w-full items-center gap-4 rounded-3xl bg-card py-4 pr-4 pl-7 text-left shadow-soft ring-1 ring-black/5"
+        >
+          <h2 className="font-serif text-2xl font-semibold tracking-tight">Ingredients</h2>
+          <span className="flex-1 text-[15px] text-ink-faint">
+            {count} {count === 1 ? "item" : "items"}
+            {yields && ` · ${yields}`}
+          </span>
+          <span className="inline-flex h-10 items-center gap-2 rounded-full bg-leaf px-5 text-[15px] font-semibold text-white shadow-soft group-hover:bg-leaf-strong dark:text-spine-deep">
+            Show ingredients <ChevronDown className="size-4" />
+          </span>
+        </button>
+      )}
+      {/* Printing always includes the list, even while it's collapsed on screen. */}
+      <div className={cx("rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5", collapsed && "hidden print:block")}>
+        <div className="mb-4 flex items-center justify-between gap-3 border-b-2 border-tomato/50 pb-3">
+          <div>
+            <h2 className="font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
+            {yields && <p className="text-sm text-ink-faint">{yields}</p>}
           </div>
-        ))}
+          <button
+            type="button"
+            onClick={() => onCollapsedChange(true)}
+            aria-expanded
+            title="Hide the ingredients so the steps can use the full width"
+            className="no-print inline-flex h-8 items-center gap-1 rounded-full px-3 text-sm font-semibold text-ink-soft ring-1 ring-line hover:bg-paper-deep hover:text-ink"
+          >
+            Hide <ChevronUp className="size-4" />
+          </button>
+        </div>
+        {sections.length === 0 && <p className="text-ink-faint">No ingredients listed.</p>}
+        <div className="space-y-5">
+          {sections.map((section, si) => (
+            <div key={si} className="print-break-avoid">
+              {section.heading && <Eyebrow className="mb-1 pt-2">{section.heading}</Eyebrow>}
+              <ul className="divide-y divide-leaf/12">
+                {section.items.map((item, i) => {
+                  const key = `${si}-${i}`;
+                  const done = checked.has(key);
+                  return (
+                    <li key={key}>
+                      <label className="group flex cursor-pointer items-start gap-3 py-2.5">
+                        <input type="checkbox" checked={done} onChange={() => toggle(key)} className="peer sr-only" />
+                        <span
+                          aria-hidden
+                          className={cx(
+                            "no-print mt-[3px] flex size-[18px] shrink-0 items-center justify-center rounded-full ring-[1.5px] transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-leaf",
+                            done ? "bg-leaf ring-leaf" : "ring-ink-faint/60 group-hover:ring-leaf",
+                          )}
+                        >
+                          {done && <span className="size-1.5 rounded-full bg-card" />}
+                        </span>
+                        <span className={cx("selectable text-[17px] leading-snug transition-colors", done ? "text-ink-faint line-through decoration-ink-faint/50" : "text-ink-soft")}>
+                          <IngredientText line={item} />
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -122,7 +167,7 @@ function Steps({ sections }: { sections: Section[] }) {
                       onClick={() => setCurrent(active ? null : key)}
                       aria-pressed={active}
                       className={cx(
-                        "-mx-5 grid w-[calc(100%+2.5rem)] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded-2xl px-5 py-4 text-left transition-colors duration-200",
+                        "-mx-5 grid max-w-[50rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded-2xl px-5 py-4 text-left transition-colors duration-200",
                         active ? "bg-butter" : "hover:bg-ink/4",
                       )}
                     >
@@ -192,6 +237,7 @@ export function RecipeView({
   const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cooking, setCooking] = useState(false);
+  const [ingredientsCollapsed, setIngredientsCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -321,18 +367,27 @@ export function RecipeView({
           <figure className="rotate-[1.4deg] rounded-[4px] bg-[#fffdf8] p-3 pb-12 shadow-photo transition-transform duration-500 hover:rotate-0 dark:bg-[#e9e4d6]">
             <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full rounded-[2px]" />
             {recipe.sourceName && (
-              <figcaption className="mt-3 text-center font-serif text-[17px] text-[#5c5f50] italic">from {recipe.sourceName}</figcaption>
+              <figcaption className="mt-3 text-center font-serif text-[17px] text-[#6b5a4c] italic">from {recipe.sourceName}</figcaption>
             )}
           </figure>
         </section>
 
         <Ornament />
 
-        <section className="grid gap-14 @4xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <div>
-            <div className="@4xl:sticky @4xl:top-20">
-              <Ingredients key={recipe.id} sections={recipe.ingredients} yields={recipe.yields} />
-            </div>
+        {/* Steps sit beside the ingredients, then take the full width below them. Each step
+            is its own formatting context, so it never wraps partway around the card. */}
+        <section className="flow-root">
+          <div className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}>
+            <Ingredients
+              key={recipe.id}
+              sections={recipe.ingredients}
+              yields={recipe.yields}
+              collapsed={ingredientsCollapsed}
+              onCollapsedChange={(collapsed) => {
+                setIngredientsCollapsed(collapsed);
+                localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+              }}
+            />
           </div>
           <Steps key={recipe.id} sections={recipe.instructions} />
         </section>

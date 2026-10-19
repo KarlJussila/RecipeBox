@@ -84,7 +84,7 @@ export function LibraryView({
           </Button>
         </div>
 
-        <div className="relative mt-7 max-w-3xl">
+        <div className="relative mt-7">
           <Search className="pointer-events-none absolute top-1/2 left-5 size-5 -translate-y-1/2 text-ink-faint" />
           <input
             ref={searchRef}
