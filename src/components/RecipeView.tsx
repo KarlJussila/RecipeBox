@@ -244,9 +244,9 @@ export function RecipeView({
       <header
         data-tauri-drag-region
         className={cx(
-          "no-print sticky top-0 z-10 flex items-center gap-1 px-8 transition-colors duration-200",
+          "no-print sticky top-0 z-10 flex items-center gap-1 border-b px-8",
           isMac ? "h-16 pt-2" : "h-16",
-          scrolled && "border-b border-line bg-paper/90 backdrop-blur-md",
+          scrolled ? "border-line bg-paper" : "border-transparent",
         )}
       >
         <Button variant="ghost" icon={<ArrowLeft className="size-[18px]" />} onClick={onBack} className="-ml-3">
@@ -318,7 +318,7 @@ export function RecipeView({
           </div>
 
           {/* The photo, pinned like a snapshot tucked into a recipe box. */}
-          <figure className="rotate-[1.4deg] rounded-[4px] bg-[#fffdf8] p-3 pb-12 shadow-photo transition-transform duration-500 hover:rotate-0 dark:bg-[#e9e4d6]">
+          <figure className="rotate-[1.4deg] rounded-[4px] bg-[#fffdf8] p-3 pb-12 shadow-photo dark:bg-[#e9e4d6]">
             <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full rounded-[2px]" />
             {recipe.sourceName && (
               <figcaption className="mt-3 text-center font-serif text-[17px] text-[#55604f] italic">from {recipe.sourceName}</figcaption>

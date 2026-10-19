@@ -205,7 +205,7 @@ export function Dialog({
         if (e.target === ref.current) onClose();
       }}
       className={cx(
-        "paper-grain m-auto w-[calc(100%-3rem)] rounded-3xl bg-paper p-0 text-ink shadow-lift ring-1 ring-black/5 backdrop:bg-spine-deep/45 backdrop:backdrop-blur-[3px] open:animate-pop-in dark:ring-white/10",
+        "paper-grain m-auto w-[calc(100%-3rem)] rounded-3xl bg-paper p-0 text-ink shadow-lift ring-1 ring-black/5 backdrop:bg-spine-deep/50 open:animate-pop-in dark:ring-white/10",
         width,
       )}
     >

@@ -126,7 +126,7 @@ export function RecipeEditor({
     >
       <header
         data-tauri-drag-region
-        className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-line bg-paper/90 px-6 backdrop-blur-md"
+        className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-line bg-paper px-6"
       >
         <h1 className="font-serif text-xl font-semibold tracking-tight" data-tauri-drag-region>
           {id ? "Edit recipe" : "New recipe"}
