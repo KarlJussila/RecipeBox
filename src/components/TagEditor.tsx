@@ -92,8 +92,6 @@ export function TagEditor({
               } else if (e.key === "Escape") {
                 e.stopPropagation();
                 setAdding(false);
-              } else if (e.key === "Backspace" && !text && tags.length) {
-                onChange(tags.slice(0, -1));
               }
             }}
             placeholder="Add a tag"
