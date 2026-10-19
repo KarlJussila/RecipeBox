@@ -161,13 +161,16 @@ function Steps({ sections }: { sections: Section[] }) {
                 const key = `${si}-${i}`;
                 const active = current === key;
                 return (
-                  <li key={key} className="print-break-avoid">
+                  // The list item sits beside the ingredients and shrinks to the width left
+                  // over. WebKit only does that for a block with auto width and no negative
+                  // margins, so the highlight's bleed lives on the button inside.
+                  <li key={key} className="print-break-avoid flow-root">
                     <button
                       type="button"
                       onClick={() => setCurrent(active ? null : key)}
                       aria-pressed={active}
                       className={cx(
-                        "-mx-5 grid max-w-[50rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded-2xl px-5 py-4 text-left transition-colors duration-200",
+                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded-2xl px-5 py-4 text-left transition-colors duration-200",
                         active ? "bg-butter" : "hover:bg-ink/4",
                       )}
                     >
