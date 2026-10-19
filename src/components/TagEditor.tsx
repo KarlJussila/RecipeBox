@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { headlineCase } from "../lib/extract/text";
 import { CATEGORY_NAMES, OTHER } from "../lib/tags";
 import { cx, TagPill } from "./ui";
 
@@ -30,12 +31,26 @@ export function TagEditor({
     const available = allTags.filter((t) => !has(t));
     const matches = q ? available.filter((t) => t.toLowerCase().includes(q)) : available;
     // Prefix matches first.
-    return matches.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q))).slice(0, 8);
+    // A short list: typing narrows it faster than scrolling would.
+    return matches.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q))).slice(0, 6);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, allTags, tags]);
   const exact = allTags.find((t) => t.toLowerCase() === text.trim().toLowerCase());
-  const canCreate = text.trim() !== "" && !exact && !has(text.trim());
-  const options = [...suggestions, ...(canCreate ? [text.trim()] : [])];
+  // New tags are title-cased: "christmas eve" becomes "Christmas Eve".
+  const newName = headlineCase(text.trim().replace(/\s+/g, " "));
+  const canCreate = newName !== "" && !exact && !has(newName);
+  const options = [...suggestions, ...(canCreate ? [newName] : [])];
+
+  // The page shouldn't scroll underneath the open menu.
+  const menuRef = useRef<HTMLUListElement>(null);
+  const menuOpen = options.length > 0;
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const stop = (e: WheelEvent) => e.preventDefault();
+    menu.addEventListener("wheel", stop, { passive: false });
+    return () => menu.removeEventListener("wheel", stop);
+  }, [menuOpen, adding]);
 
   const add = (name: string) => {
     const existing = allTags.find((t) => t.toLowerCase() === name.toLowerCase());
@@ -87,8 +102,9 @@ export function TagEditor({
           />
           {options.length > 0 && (
             <ul
+              ref={menuRef}
               role="listbox"
-              className="absolute top-full left-0 z-20 mt-1.5 max-h-64 w-72 animate-fade-in overflow-y-auto rounded-2xl bg-card p-1.5 shadow-lift ring-1 ring-line"
+              className="absolute top-full left-0 z-20 mt-1.5 w-72 animate-fade-in rounded-xl bg-card p-1 shadow-lift ring-1 ring-line"
             >
               {options.map((o, i) => (
                 <li key={o} role="option" aria-selected={i === highlight}>
@@ -98,13 +114,13 @@ export function TagEditor({
                     onClick={() => add(o)}
                     onMouseEnter={() => setHighlight(i)}
                     className={cx(
-                      "flex w-full items-center gap-2 rounded-[10px] px-3 py-1.5 text-left text-sm",
+                      "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm",
                       i === highlight ? "bg-leaf-wash text-leaf-strong" : "text-ink-soft",
                     )}
                   >
                     {canCreate && i === options.length - 1 ? (
                       <>
-                        <Plus className="size-3.5" /> Create “{o}” in {newCategory}
+                        <Plus className="size-3.5 shrink-0" /> Add “{o}” as a new tag
                       </>
                     ) : (
                       o
@@ -113,7 +129,8 @@ export function TagEditor({
                 </li>
               ))}
               {canCreate && (
-                <li className="flex flex-wrap gap-1 border-t border-line px-2 pt-2 pb-1.5" aria-label="Category for the new tag">
+                <li className="flex flex-wrap items-center gap-1 px-3 pt-1 pb-2" aria-label="Category for the new tag">
+                  <span className="mr-0.5 text-xs text-ink-faint">in</span>
                   {[...CATEGORY_NAMES, OTHER].map((c) => (
                     <button
                       key={c}

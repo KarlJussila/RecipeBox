@@ -1,6 +1,7 @@
 import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
+import { headlineCase } from "../lib/extract/text";
 import { CATEGORY_NAMES, groupTags, OTHER, type Tag } from "../lib/tags";
 import { Button, cx, Dialog, Eyebrow, IconButton, Input, useToast } from "./ui";
 
@@ -29,15 +30,16 @@ function NewTagForm({ tags, onChanged }: { tags: Tag[]; onChanged: () => void })
   const toast = useToast();
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Occasion");
-  const exists = tags.some((t) => t.name.toLowerCase() === name.trim().toLowerCase());
+  const newName = headlineCase(name.trim().replace(/\s+/g, " "));
+  const exists = tags.some((t) => t.name.toLowerCase() === newName.toLowerCase());
   return (
     <form
       className="mb-6 flex gap-2"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!name.trim() || exists) return;
-        await api.createTag(name.trim(), category || null);
-        toast({ message: `Added the “${name.trim()}” tag`, tone: "success" });
+        if (!newName || exists) return;
+        await api.createTag(newName, category || null);
+        toast({ message: `Added the “${newName}” tag`, tone: "success" });
         setName("");
         onChanged();
       }}
