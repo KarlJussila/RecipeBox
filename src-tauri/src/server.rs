@@ -81,7 +81,7 @@ fn handle(app: AppHandle, mut request: Request) {
         (Method::Get, "/tags") => app.state::<AppState>().db.lock().unwrap().all_tags().map(|t| json!(t)),
         (Method::Post, "/import") => read_json::<ImportRequest>(&mut request).map(|body| import(&app, body)),
         (Method::Post, "/recipe-tags") => read_json::<TagsBody>(&mut request).and_then(|body| {
-            let tags = app.state::<AppState>().db.lock().unwrap().set_tags(&body.id, &body.tags)?;
+            let tags = app.state::<AppState>().db.lock().unwrap().set_tags(&body.id, &body.tags, &Default::default())?;
             let _ = app.emit("library-changed", &body.id);
             Ok(json!(tags))
         }),

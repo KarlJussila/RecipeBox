@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { cx, TagChip } from "./ui";
+import { cx, TagPill } from "./ui";
 
 /** Tag chips with removal, plus an autocompleting field to add existing or new tags. */
 export function TagEditor({
@@ -41,7 +41,7 @@ export function TagEditor({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {tags.map((t) => (
-        <TagChip key={t} name={t} onRemove={() => onChange(tags.filter((x) => x !== t))} />
+        <TagPill key={t} name={t} onRemove={() => onChange(tags.filter((x) => x !== t))} />
       ))}
       {adding ? (
         <div className="relative">
@@ -73,12 +73,12 @@ export function TagEditor({
             }}
             placeholder="Add a tag"
             aria-label="Add a tag"
-            className="h-7 w-40 rounded-full bg-white px-3 text-[13px] ring-1 ring-leaf-300 focus:ring-2 focus:ring-leaf-600 focus:outline-none dark:bg-stone-900 dark:ring-leaf-800"
+            className="h-8 w-44 rounded-full bg-card px-3.5 text-sm text-ink ring-1 ring-leaf-tint placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none"
           />
           {options.length > 0 && (
             <ul
               role="listbox"
-              className="absolute top-full left-0 z-20 mt-1.5 max-h-64 w-56 animate-fade-in overflow-y-auto rounded-xl bg-white p-1 shadow-lift ring-1 ring-stone-200 dark:bg-stone-800 dark:ring-stone-700"
+              className="absolute top-full left-0 z-20 mt-1.5 max-h-64 w-56 animate-fade-in overflow-y-auto rounded-2xl bg-card p-1 shadow-lift ring-1 ring-line"
             >
               {options.map((o, i) => (
                 <li key={o} role="option" aria-selected={i === highlight}>
@@ -89,7 +89,7 @@ export function TagEditor({
                     onMouseEnter={() => setHighlight(i)}
                     className={cx(
                       "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm",
-                      i === highlight ? "bg-leaf-50 text-leaf-900 dark:bg-leaf-900/50 dark:text-leaf-100" : "text-stone-700 dark:text-stone-200",
+                      i === highlight ? "bg-leaf-wash text-leaf-strong" : "text-ink-soft",
                     )}
                   >
                     {canCreate && i === options.length - 1 ? (
@@ -109,7 +109,7 @@ export function TagEditor({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="inline-flex h-7 items-center gap-1 rounded-full px-3 text-[13px] font-medium border border-dashed border-stone-300 text-stone-600 hover:border-leaf-400 hover:bg-white hover:text-leaf-800 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
+          className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-ink-faint/50 px-3.5 text-sm font-medium text-ink-soft hover:border-leaf hover:bg-card hover:text-leaf-strong"
         >
           <Plus className="size-3.5" />
           Add tag

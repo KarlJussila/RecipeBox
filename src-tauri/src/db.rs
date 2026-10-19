@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -47,6 +48,12 @@ pub struct Recipe {
     pub updated_at: String,
 }
 
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Tag {
+    pub name: String,
+    pub category: Option<String>,
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RecipeSummary {
@@ -64,7 +71,7 @@ pub struct RecipeSummary {
     pub created_at: String,
 }
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 pub struct Db {
     conn: Connection,
@@ -135,6 +142,12 @@ impl Db {
                         prefix = '2 3'
                     );",
                 )
+                .map_err(err)?;
+        }
+        if version < 2 {
+            // Groups tags in the sidebar: Dish, Ingredient, Cuisine, ... (see TAG_CATEGORIES in the frontend).
+            self.conn
+                .execute_batch("ALTER TABLE tags ADD COLUMN category TEXT")
                 .map_err(err)?;
         }
         self.conn
@@ -333,9 +346,17 @@ impl Db {
     }
 
     /// Replaces a recipe's tags. Once tags are set, the recipe no longer needs automatic tagging.
-    pub fn set_tags(&mut self, id: &str, tags: &[String]) -> Result<Vec<String>> {
+    /// `categories` fills in the category of tags that don't have one yet.
+    pub fn set_tags(&mut self, id: &str, tags: &[String], categories: &HashMap<String, String>) -> Result<Vec<String>> {
         let tx = self.conn.transaction().map_err(err)?;
         set_tags(&tx, id, tags)?;
+        for (name, category) in categories {
+            tx.execute(
+                "UPDATE tags SET category = ?2 WHERE name = ?1 AND category IS NULL",
+                params![name.trim(), category],
+            )
+            .map_err(err)?;
+        }
         tx.execute("UPDATE recipes SET needs_tags = 0 WHERE id = ?1", [id]).map_err(err)?;
         let tags = tags_for(&tx, id)?;
         index_recipe(&tx, id)?;
@@ -371,13 +392,22 @@ impl Db {
             .map_err(err)
     }
 
-    pub fn all_tags(&self) -> Result<Vec<String>> {
+    pub fn all_tags(&self) -> Result<Vec<Tag>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT name FROM tags ORDER BY name COLLATE NOCASE")
+            .prepare("SELECT name, category FROM tags ORDER BY name COLLATE NOCASE")
             .map_err(err)?;
-        let rows = stmt.query_map([], |r| r.get(0)).map_err(err)?;
+        let rows = stmt
+            .query_map([], |r| Ok(Tag { name: r.get(0)?, category: r.get(1)? }))
+            .map_err(err)?;
         rows.collect::<rusqlite::Result<_>>().map_err(err)
+    }
+
+    pub fn set_tag_category(&self, name: &str, category: Option<&str>) -> Result<()> {
+        self.conn
+            .execute("UPDATE tags SET category = ?2 WHERE name = ?1", params![name, category])
+            .map_err(err)?;
+        Ok(())
     }
 
     /// Renames a tag. If another tag already has the new name, the two are merged.
@@ -597,7 +627,8 @@ mod tests {
         db.save(&mut b).unwrap();
 
         // Tag names are case-insensitive and keep the first spelling.
-        assert_eq!(db.all_tags().unwrap(), vec!["Dinner", "Dips", "vegetarian"]);
+        let names = |db: &Db| db.all_tags().unwrap().into_iter().map(|t| t.name).collect::<Vec<_>>();
+        assert_eq!(names(&db), vec!["Dinner", "Dips", "vegetarian"]);
         assert_eq!(db.search("chick").unwrap().len(), 2);
         assert_eq!(db.search("hummus lemon").unwrap(), vec![a.id.clone()]);
         assert_eq!(db.search("dips").unwrap(), vec![a.id.clone()]);
@@ -608,8 +639,30 @@ mod tests {
 
         db.delete(&b.id).unwrap();
         db.delete_tag("vegetarian").unwrap();
-        assert_eq!(db.all_tags().unwrap(), vec!["Dinner"]);
+        assert_eq!(names(&db), vec!["Dinner"]);
         assert_eq!(db.list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn tag_categories_fill_in_but_do_not_overwrite() {
+        let mut db = temp_db();
+        let mut r = recipe("Soup", &[]);
+        db.save(&mut r).unwrap();
+        let tags = vec!["Soup".to_string(), "Beans".to_string()];
+        let first = HashMap::from([("Soup".to_string(), "Dish".to_string())]);
+        db.set_tags(&r.id, &tags, &first).unwrap();
+        let second = HashMap::from([
+            ("Soup".to_string(), "Other".to_string()),
+            ("Beans".to_string(), "Ingredient".to_string()),
+        ]);
+        db.set_tags(&r.id, &tags, &second).unwrap();
+        assert_eq!(
+            db.all_tags().unwrap(),
+            vec![
+                Tag { name: "Beans".into(), category: Some("Ingredient".into()) },
+                Tag { name: "Soup".into(), category: Some("Dish".into()) },
+            ]
+        );
     }
 
     #[test]

@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./lib/api";
+import type { Tag } from "./lib/tags";
 import type { RecipeSummary } from "./lib/types";
 
 export type Sort = "newest" | "oldest" | "title";
@@ -22,8 +23,11 @@ export function hasFilters(f: Filters): boolean {
 /** All recipe summaries, refreshed whenever something changes them. */
 export function useLibrary() {
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
+  const [tags, setTags] = useState<Tag[]>([]);
   const reload = useCallback(async () => {
-    setRecipes(await api.listRecipes());
+    const [list, tagList] = await Promise.all([api.listRecipes(), api.allTags()]);
+    setRecipes(list);
+    setTags(tagList);
   }, []);
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export function useLibrary() {
     return () => void unlisten.then((fn) => fn());
   }, [reload]);
 
-  return { recipes, reload };
+  return { recipes, tags, reload };
 }
 
 function useDebounced<T>(value: T, ms: number): T {

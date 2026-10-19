@@ -38,7 +38,7 @@ function minutesText(minutes: number | null): string {
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="grid gap-6 border-t border-stone-200 py-8 first:border-t-0 first:pt-0 @3xl:grid-cols-[12rem_minmax(0,1fr)] dark:border-stone-800">
+    <section className="grid gap-6 border-t border-line py-8 first:border-t-0 first:pt-0 @3xl:grid-cols-[12rem_minmax(0,1fr)]">
       <h2 className="font-serif text-xl font-semibold tracking-tight">{title}</h2>
       <div className="space-y-5">{children}</div>
     </section>
@@ -111,7 +111,7 @@ export function RecipeEditor({
 
   return (
     <div
-      className="scrollbar-quiet @container h-full overflow-y-auto"
+      className="paper-grain scrollbar-quiet @container h-full overflow-y-auto"
       onPaste={(e) => {
         const file = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
         if (file) {
@@ -122,7 +122,7 @@ export function RecipeEditor({
     >
       <header
         data-tauri-drag-region
-        className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-stone-200/70 bg-stone-50/85 px-6 backdrop-blur-md dark:border-stone-800 dark:bg-stone-950/85"
+        className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-line bg-paper/90 px-6 backdrop-blur-md"
       >
         <h1 className="font-serif text-xl font-semibold tracking-tight" data-tauri-drag-region>
           {id ? "Edit recipe" : "New recipe"}
@@ -166,7 +166,7 @@ export function RecipeEditor({
               }}
               className="flex items-center gap-5"
             >
-              <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-48 shrink-0 rounded-xl ring-1 ring-stone-200 dark:ring-stone-800" />
+              <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-48 shrink-0 rounded-2xl shadow-soft ring-1 ring-black/5" />
               <div className="flex flex-col gap-2">
                 <Button icon={<ImagePlus className="size-4" />} onClick={() => fileRef.current?.click()}>
                   {recipe.image ? "Replace photo" : "Choose photo"}

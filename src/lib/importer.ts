@@ -1,5 +1,6 @@
 import { api, type LlmSettings } from "./api";
 import { extractFromHtml, readableText } from "./extract/page";
+import { headlineCase } from "./extract/text";
 import { extractRecipe, llmConfigured, suggestTags } from "./llm";
 import { emptyRecipe, type Recipe } from "./types";
 
@@ -63,7 +64,8 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
 
   const recipe: Recipe = {
     ...emptyRecipe(),
-    title: draft.title,
+    // Some blogs (Smitten Kitchen) style their titles in lowercase.
+    title: draft.title === draft.title.toLowerCase() ? headlineCase(draft.title) : draft.title,
     description: draft.description,
     sourceUrl,
     sourceName: draft.sourceName,
@@ -100,7 +102,7 @@ export async function tagRecipe(id: string, llm: LlmSettings): Promise<string[] 
   const suggested = await suggestTags(llm, recipe, await api.allTags());
   const merged = [...recipe.tags];
   for (const tag of suggested) {
-    if (!merged.some((t) => t.toLowerCase() === tag.toLowerCase())) merged.push(tag);
+    if (!merged.some((t) => t.toLowerCase() === tag.name.toLowerCase())) merged.push(tag.name);
   }
-  return api.setRecipeTags(id, merged);
+  return api.setRecipeTags(id, merged, Object.fromEntries(suggested.map((t) => [t.name, t.category])));
 }

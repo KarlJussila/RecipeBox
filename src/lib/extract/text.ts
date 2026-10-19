@@ -44,6 +44,15 @@ export function splitList(value: unknown): string[] {
   return out;
 }
 
+const SMALL_WORDS = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"]);
+
+/** Headline case for titles a site writes all in lowercase. */
+export function headlineCase(value: string): string {
+  return value.replace(/\p{L}[\p{L}'’]*/gu, (word, offset: number) =>
+    offset > 0 && SMALL_WORDS.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1),
+  );
+}
+
 export function titleCase(value: string): string {
   return value.replace(/(^|[\s-])(\p{Ll})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
 }

@@ -1,41 +1,34 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ArrowLeft, ExternalLink, Heart, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, ChefHat, ExternalLink, Heart, Pencil, Printer, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { formatMinutes } from "../lib/extract/duration";
+import { splitAmount } from "../lib/ingredients";
+import type { Tag } from "../lib/tags";
 import type { Recipe, Section } from "../lib/types";
+import { CookingMode } from "./CookingMode";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
-import { Button, cx, Dialog, IconButton, Spinner } from "./ui";
+import { Button, cx, Dialog, Eyebrow, IconButton, isMac, Spinner, Sprig } from "./ui";
 
-function Stat({ label, value }: { label: string; value: string }) {
+export function IngredientText({ line }: { line: string }) {
+  const [amount, rest] = splitAmount(line);
   return (
-    <div className="min-w-0 px-5 first:pl-0 last:pr-0">
-      <dt className="text-xs font-semibold tracking-wider text-stone-500 uppercase dark:text-stone-400">{label}</dt>
-      <dd className="mt-1 truncate text-lg font-semibold text-stone-900 tabular-nums dark:text-stone-100">{value}</dd>
-    </div>
+    <>
+      {amount && <strong className="font-semibold text-ink">{amount}</strong>}
+      {rest}
+    </>
   );
 }
 
 function Description({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
-  const long = text.length > 320;
+  const long = text.length > 300;
   return (
     <div className="selectable">
-      <p
-        className={cx(
-          "text-[17px] leading-relaxed whitespace-pre-line text-stone-600 dark:text-stone-300",
-          long && !expanded && "line-clamp-4",
-        )}
-      >
-        {text}
-      </p>
+      <p className={cx("text-[17px] leading-relaxed whitespace-pre-line text-ink-soft", long && !expanded && "line-clamp-4")}>{text}</p>
       {long && (
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="no-print mt-1 text-sm font-semibold text-leaf-700 hover:text-leaf-900 dark:text-leaf-400"
-        >
+        <button type="button" onClick={() => setExpanded(!expanded)} className="no-print mt-1 text-sm font-semibold text-leaf hover:underline">
           {expanded ? "Show less" : "Read more"}
         </button>
       )}
@@ -43,7 +36,17 @@ function Description({ text }: { text: string }) {
   );
 }
 
-function Ingredients({ sections }: { sections: Section[] }) {
+function Ornament() {
+  return (
+    <div className="my-14 flex items-center gap-5 text-leaf/50" aria-hidden>
+      <span className="h-px flex-1 bg-line" />
+      <Sprig className="size-7" />
+      <span className="h-px flex-1 bg-line" />
+    </div>
+  );
+}
+
+function Ingredients({ sections, yields }: { sections: Section[]; yields: string | null }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (key: string) =>
     setChecked((prev) => {
@@ -54,86 +57,85 @@ function Ingredients({ sections }: { sections: Section[] }) {
     });
 
   return (
-    <div className="space-y-6">
-      {sections.map((section, si) => (
-        <div key={si} className="print-break-avoid">
-          {section.heading && (
-            <h3 className="mb-2 font-serif text-lg font-semibold text-stone-800 dark:text-stone-200">{section.heading}</h3>
-          )}
-          <ul className="space-y-0.5">
-            {section.items.map((item, i) => {
-              const key = `${si}-${i}`;
-              const done = checked.has(key);
-              return (
-                <li key={key}>
-                  <label className="group flex gap-3 rounded-lg px-2 py-1.5 -mx-2 hover:bg-stone-100/80 dark:hover:bg-stone-800/50">
-                    <input
-                      type="checkbox"
-                      checked={done}
-                      onChange={() => toggle(key)}
-                      className="no-print mt-[5px] size-[18px] shrink-0 accent-leaf-700"
-                    />
-                    <span
-                      className={cx(
-                        "selectable text-[17px] leading-relaxed transition-colors",
-                        done ? "text-stone-400 line-through decoration-stone-300 dark:text-stone-600" : "text-stone-800 dark:text-stone-200",
-                      )}
-                    >
-                      {item}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+    <div className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
+      <div className="mb-4 flex items-baseline justify-between gap-4 border-b-2 border-tomato/50 pb-3">
+        <h2 className="font-serif text-[28px] font-semibold tracking-tight">Ingredients</h2>
+        {yields && <span className="text-sm text-ink-faint">{yields}</span>}
+      </div>
+      {sections.length === 0 && <p className="text-ink-faint">No ingredients listed.</p>}
+      <div className="space-y-5">
+        {sections.map((section, si) => (
+          <div key={si} className="print-break-avoid">
+            {section.heading && <Eyebrow className="mb-1 pt-2">{section.heading}</Eyebrow>}
+            <ul className="divide-y divide-leaf/12">
+              {section.items.map((item, i) => {
+                const key = `${si}-${i}`;
+                const done = checked.has(key);
+                return (
+                  <li key={key}>
+                    <label className="group flex cursor-pointer items-start gap-3 py-2.5">
+                      <input type="checkbox" checked={done} onChange={() => toggle(key)} className="peer sr-only" />
+                      <span
+                        aria-hidden
+                        className={cx(
+                          "no-print mt-[3px] flex size-[18px] shrink-0 items-center justify-center rounded-full ring-[1.5px] transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-leaf",
+                          done ? "bg-leaf ring-leaf" : "ring-ink-faint/60 group-hover:ring-leaf",
+                        )}
+                      >
+                        {done && <span className="size-1.5 rounded-full bg-card" />}
+                      </span>
+                      <span className={cx("selectable text-[17px] leading-snug transition-colors", done ? "text-ink-faint line-through decoration-ink-faint/50" : "text-ink-soft")}>
+                        <IngredientText line={item} />
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function Instructions({ sections }: { sections: Section[] }) {
+function Steps({ sections }: { sections: Section[] }) {
   const [current, setCurrent] = useState<string | null>(null);
   let number = 0;
   return (
-    <div className="space-y-8">
-      {sections.map((section, si) => (
-        <div key={si}>
-          {section.heading && (
-            <h3 className="mb-3 font-serif text-lg font-semibold text-stone-800 dark:text-stone-200">{section.heading}</h3>
-          )}
-          <ol className="space-y-2">
-            {section.items.map((step, i) => {
-              number += 1;
-              const key = `${si}-${i}`;
-              const active = current === key;
-              return (
-                <li key={key} className="print-break-avoid">
-                  <button
-                    type="button"
-                    onClick={() => setCurrent(active ? null : key)}
-                    aria-pressed={active}
-                    className={cx(
-                      "-mx-4 flex w-[calc(100%+2rem)] gap-4 rounded-xl px-4 py-3 text-left transition-colors duration-150",
-                      active ? "bg-leaf-50 ring-1 ring-leaf-200 dark:bg-leaf-950/60 dark:ring-leaf-900" : "hover:bg-stone-100/70 dark:hover:bg-stone-800/40",
-                    )}
-                  >
-                    <span
+    <div>
+      <h2 className="mb-6 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
+      {sections.length === 0 && <p className="text-ink-faint">No steps listed.</p>}
+      <div className="space-y-8">
+        {sections.map((section, si) => (
+          <div key={si}>
+            {section.heading && <Eyebrow className="mb-3">{section.heading}</Eyebrow>}
+            <ol className="space-y-1.5">
+              {section.items.map((step, i) => {
+                number += 1;
+                const key = `${si}-${i}`;
+                const active = current === key;
+                return (
+                  <li key={key} className="print-break-avoid">
+                    <button
+                      type="button"
+                      onClick={() => setCurrent(active ? null : key)}
+                      aria-pressed={active}
                       className={cx(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full font-serif text-base font-semibold tabular-nums transition-colors",
-                        active ? "bg-leaf-700 text-white dark:bg-leaf-600" : "bg-leaf-100 text-leaf-800 dark:bg-leaf-900/60 dark:text-leaf-200",
+                        "-mx-5 grid w-[calc(100%+2.5rem)] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded-2xl px-5 py-4 text-left transition-colors duration-200",
+                        active ? "bg-butter" : "hover:bg-ink/4",
                       )}
                     >
-                      {number}
-                    </span>
-                    <span className="selectable pt-0.5 text-[17px] leading-relaxed text-stone-800 dark:text-stone-200">{step}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      ))}
+                      <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums">{number}</span>
+                      <span className="selectable pt-1 text-[18px] leading-[1.65] text-ink">{step}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -152,16 +154,16 @@ function Notes({ recipe, onSave }: { recipe: Recipe; onSave: (notes: string) => 
   }, [text]);
 
   return (
-    <section className="mt-14 print-break-avoid">
-      <h2 className="font-serif text-2xl font-semibold tracking-tight">Notes</h2>
+    <section className="print-break-avoid mx-auto mt-16 max-w-2xl -rotate-[0.6deg] rounded-sm bg-butter px-8 pt-6 pb-7 shadow-photo">
+      <h2 className="font-serif text-xl font-semibold italic">Kitchen notes</h2>
       <textarea
         ref={ref}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => text !== recipe.notes && onSave(text)}
-        placeholder="Add your own notes, like changes you made or who loved it…"
+        placeholder="What you changed, what you’d do next time, who loved it…"
         rows={3}
-        className="mt-3 w-full resize-none rounded-xl bg-amber-50/60 px-5 py-4 text-[17px] leading-relaxed text-stone-800 ring-1 ring-amber-200/70 placeholder:text-stone-400 focus:ring-2 focus:ring-leaf-600 focus:outline-none dark:bg-stone-900 dark:text-stone-200 dark:ring-stone-700"
+        className="mt-2 w-full resize-none bg-transparent font-serif text-[19px] leading-relaxed text-ink italic placeholder:text-ink/40 focus:outline-none"
       />
     </section>
   );
@@ -179,8 +181,8 @@ export function RecipeView({
 }: {
   id: string;
   refreshKey: number;
-  allTags: string[];
-  /** True while the LLM is choosing tags for this recipe. */
+  allTags: Tag[];
+  /** True while the AI is choosing tags for this recipe. */
   tagging: boolean;
   onBack: () => void;
   onEdit: () => void;
@@ -189,6 +191,8 @@ export function RecipeView({
 }) {
   const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [cooking, setCooking] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -204,7 +208,7 @@ export function RecipeView({
   if (recipe === undefined) return null;
   if (recipe === null) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 text-stone-500">
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-ink-soft">
         <p>This recipe no longer exists.</p>
         <Button onClick={onBack}>Back to recipes</Button>
       </div>
@@ -233,19 +237,24 @@ export function RecipeView({
     recipe.totalMinutes !== null && { label: "Total", value: formatMinutes(recipe.totalMinutes) },
     recipe.yields && { label: "Makes", value: recipe.yields.replace(/^(makes|serves|yield:?)\s+/i, "") },
   ].filter((s): s is { label: string; value: string } => Boolean(s));
+  const hasSteps = recipe.instructions.some((s) => s.items.length > 0);
 
   return (
-    <div ref={scrollRef} className="scrollbar-quiet @container h-full overflow-y-auto">
+    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="paper-grain scrollbar-quiet @container h-full overflow-y-auto">
       <header
         data-tauri-drag-region
-        className="no-print sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-transparent bg-stone-50/85 px-6 backdrop-blur-md dark:bg-stone-950/85"
+        className={cx(
+          "no-print sticky top-0 z-10 flex items-center gap-1 px-8 transition-colors duration-200",
+          isMac ? "h-16 pt-2" : "h-16",
+          scrolled && "border-b border-line bg-paper/90 backdrop-blur-md",
+        )}
       >
-        <Button variant="ghost" icon={<ArrowLeft className="size-[18px]" />} onClick={onBack} className="-ml-2">
-          Recipes
+        <Button variant="ghost" icon={<ArrowLeft className="size-[18px]" />} onClick={onBack} className="-ml-3">
+          All recipes
         </Button>
         <div className="flex-1" data-tauri-drag-region />
-        <IconButton label={recipe.favorite ? "Remove from favorites" : "Add to favorites"} active={recipe.favorite} onClick={toggleFavorite}>
-          <Heart className={cx("size-5", recipe.favorite && "text-rose-600")} fill={recipe.favorite ? "currentColor" : "none"} />
+        <IconButton label={recipe.favorite ? "Remove from favorites" : "Add to favorites"} onClick={toggleFavorite}>
+          <Heart className={cx("size-5", recipe.favorite && "text-tomato")} fill={recipe.favorite ? "currentColor" : "none"} />
         </IconButton>
         <IconButton label="Print" onClick={() => window.print()}>
           <Printer className="size-5" />
@@ -258,83 +267,93 @@ export function RecipeView({
         </Button>
       </header>
 
-      <article className="mx-auto max-w-6xl animate-fade-in px-10 pt-4 pb-24">
-        <section className="grid items-center gap-10 @4xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-          <RecipeImage
-            file={recipe.image}
-            title={recipe.title}
-            className="aspect-[4/3] w-full rounded-2xl shadow-lift ring-1 ring-stone-900/5 @4xl:order-none"
-          />
+      <article className="mx-auto max-w-6xl animate-fade-in px-12 pt-4 pb-24">
+        <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
           <div className="min-w-0">
             {(recipe.sourceName || recipe.author) && (
-              <p className="text-sm font-semibold tracking-wide text-leaf-700 uppercase dark:text-leaf-400">
+              <Eyebrow>
                 {recipe.sourceName}
-                {recipe.sourceName && recipe.author && <span className="text-stone-400"> · </span>}
-                {recipe.author && <span className="normal-case tracking-normal text-stone-500 dark:text-stone-400">By {recipe.author}</span>}
-              </p>
+                {recipe.sourceName && recipe.author && <span className="text-ink-faint"> · </span>}
+                {recipe.author && <span className="tracking-normal text-ink-faint normal-case">by {recipe.author}</span>}
+              </Eyebrow>
             )}
-            <h1 className="selectable mt-3 font-serif text-4xl leading-[1.1] font-semibold tracking-tight text-balance text-stone-900 @4xl:text-5xl dark:text-stone-50">
+            <h1 className="selectable mt-4 font-serif text-[44px] leading-[1.04] font-semibold tracking-tight text-balance text-ink @4xl:text-[56px]">
               {recipe.title}
             </h1>
             {recipe.description && (
-              <div className="mt-5">
+              <div className="mt-6">
                 <Description text={recipe.description} />
               </div>
             )}
             {stats.length > 0 && (
-              <dl className="mt-7 flex divide-x divide-stone-200 border-y border-stone-200 py-4 dark:divide-stone-800 dark:border-stone-800">
+              <dl
+                className={cx(
+                  "mt-8 grid gap-y-4 rounded-2xl bg-leaf-wash py-4 ring-1 ring-leaf-tint",
+                  stats.length > 3 ? "grid-cols-2 [&>*:nth-child(odd)]:border-l-0" : "auto-cols-fr grid-flow-col [&>*:first-child]:border-l-0",
+                )}
+              >
                 {stats.map((s) => (
-                  <Stat key={s.label} {...s} />
+                  <div key={s.label} className="min-w-0 border-l border-leaf-tint px-5">
+                    <dt className="text-[11px] font-bold tracking-[0.14em] text-leaf uppercase">{s.label}</dt>
+                    <dd className="mt-1 font-serif text-xl leading-tight font-semibold text-ink tabular-nums">{s.value}</dd>
+                  </div>
                 ))}
               </dl>
             )}
+            <div className="no-print mt-8 flex flex-wrap items-center gap-4">
+              {hasSteps && (
+                <Button variant="primary" size="lg" icon={<ChefHat className="size-5" />} onClick={() => setCooking(true)}>
+                  Start cooking
+                </Button>
+              )}
+            </div>
             <div className="no-print mt-6 flex items-start gap-3">
-              <TagEditor tags={recipe.tags} allTags={allTags} onChange={setTags} />
+              <TagEditor tags={recipe.tags} allTags={allTags.map((t) => t.name)} onChange={setTags} />
               {tagging && (
-                <span className="inline-flex h-7 items-center gap-2 text-sm text-stone-500">
+                <span className="inline-flex h-8 items-center gap-2 text-sm text-ink-faint">
                   <Spinner /> Choosing tags…
                 </span>
               )}
             </div>
           </div>
+
+          {/* The photo, pinned like a snapshot tucked into a recipe box. */}
+          <figure className="rotate-[1.4deg] rounded-[4px] bg-[#fffdf8] p-3 pb-12 shadow-photo transition-transform duration-500 hover:rotate-0 dark:bg-[#e9e4d6]">
+            <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full rounded-[2px]" />
+            {recipe.sourceName && (
+              <figcaption className="mt-3 text-center font-serif text-[17px] text-[#55604f] italic">from {recipe.sourceName}</figcaption>
+            )}
+          </figure>
         </section>
 
-        <section className="mt-14 grid gap-12 @4xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <Ornament />
+
+        <section className="grid gap-14 @4xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <div>
             <div className="@4xl:sticky @4xl:top-20">
-              <h2 className="mb-5 font-serif text-2xl font-semibold tracking-tight">Ingredients</h2>
-              {recipe.ingredients.length > 0 ? (
-                <Ingredients key={recipe.id} sections={recipe.ingredients} />
-              ) : (
-                <p className="text-stone-500">No ingredients listed.</p>
-              )}
+              <Ingredients key={recipe.id} sections={recipe.ingredients} yields={recipe.yields} />
             </div>
           </div>
-          <div>
-            <h2 className="mb-5 font-serif text-2xl font-semibold tracking-tight">Steps</h2>
-            {recipe.instructions.length > 0 ? (
-              <Instructions key={recipe.id} sections={recipe.instructions} />
-            ) : (
-              <p className="text-stone-500">No steps listed.</p>
-            )}
-          </div>
+          <Steps key={recipe.id} sections={recipe.instructions} />
         </section>
 
         <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
 
         {recipe.sourceUrl && (
-          <p className="no-print mt-10 border-t border-stone-200 pt-6 text-[15px] text-stone-500 dark:border-stone-800">
+          <p className="no-print mt-16 text-center text-[15px]">
             <button
               type="button"
               onClick={() => openUrl(recipe.sourceUrl!)}
-              className="inline-flex items-center gap-1.5 font-medium text-leaf-700 hover:text-leaf-900 hover:underline dark:text-leaf-400"
+              className="inline-flex items-center gap-1.5 font-semibold text-leaf hover:underline"
             >
-              View the original{recipe.sourceName ? ` on ${recipe.sourceName}` : ""}
+              See the original{recipe.sourceName ? ` on ${recipe.sourceName}` : ""}
               <ExternalLink className="size-3.5" />
             </button>
           </p>
         )}
       </article>
+
+      {cooking && <CookingMode recipe={recipe} onClose={() => setCooking(false)} />}
 
       <Dialog
         open={confirmDelete}
@@ -356,9 +375,9 @@ export function RecipeView({
           </>
         }
       >
-        <p className="text-[15px] leading-relaxed text-stone-600 dark:text-stone-300">
-          “{recipe.title}” will be removed from your recipe box, along with your notes. You can always import it
-          again from the original website.
+        <p className="text-[16px] leading-relaxed text-ink-soft">
+          “{recipe.title}” will be removed from your recipe box, along with your notes. You can always save it again
+          from the original website.
         </p>
       </Dialog>
     </div>

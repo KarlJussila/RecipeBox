@@ -7,14 +7,14 @@ print-friendly layout.
 - **Tauri 2** app (Rust backend, React + Tailwind frontend), so it's small and native on macOS and Linux.
 - Recipes live in a local **SQLite** database with full-text search. Photos are downloaded, so everything works offline.
 - A **Chrome extension** sends the page you're looking at to the app. Because it reads the page from your own logged-in browser, subscription sites like NYT Cooking work.
-- An optional **AI service** (any OpenAI-compatible API) picks tags and reads pages that lack structured recipe data.
+- An **AI model** sorts recipes into categorized tags (dish, ingredient, cuisine, dietary, occasion, method) and reads pages that lack structured recipe data. By default it runs through the [opencode](https://opencode.ai) CLI with its free `opencode/mimo-v2.6-flash-free` model; any OpenAI-compatible API works instead.
 
 ## How importing works
 
 1. The extension (or a pasted link) hands the app a page's HTML.
 2. The app looks for schema.org `Recipe` data (JSON-LD or microdata). Nearly every recipe site publishes it for Google, including NYT Cooking, Serious Eats, Bon Appétit, Allrecipes, and America's Test Kitchen, so there's no per-site scraping code to maintain.
 3. If a page has no structured data and an AI service is configured, the page text goes to the model for extraction.
-4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. If the service is unreachable, the recipe is tagged on a later retry.
+4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. Each new tag gets a category, which groups it in the sidebar. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
 
 Pasting a link only works for pages that are publicly readable and don't block automated requests. For subscription sites, and for sites like Food52 that block them, use the browser button.
 
@@ -41,8 +41,10 @@ Pasting a link only works for pages that are publicly readable and don't block a
      ```
 
    Updates work the same way. Downloading the `.dmg` with `curl -LO <url>` in Terminal skips the quarantine flag entirely.
-4. Set up the browser button: **Settings → Browser button** walks through it. In short: `chrome://extensions` → Developer mode → **Load unpacked** → choose the extension folder (**Show extension folder** opens it; it ships inside the app), then pin the button.
-5. Optional: **Settings → AI service**. Pick a preset (OpenRouter, opencode Zen, or Ollama), paste a key, enter a model name, and click **Check and save**. A small, cheap model is enough. A local 8B model works but tags noticeably less accurately.
+4. Set up the browser button: **Settings → Chrome button** walks through it. In short: `chrome://extensions` → Developer mode → **Load unpacked** → choose the extension folder (**Show extension folder** opens it; it ships inside the app), then pin the button.
+5. Install opencode for tagging: `curl -fsSL https://opencode.ai/install | bash` in Terminal. The free models need no account. Recipe Box finds it in `~/.opencode/bin` (and other usual places) on its own; **Settings → AI service** shows whether it was found and has a **Check and save** button.
+
+   Recipe Box runs `opencode run --pure --agent plan` in its own empty folder. The plan agent can't edit files or run commands, and the instructions travel in the message, because Zen's free tier only accepts requests that look like opencode's own. To use another provider, pick **Another service** and enter an OpenAI-compatible address, key, and model (OpenRouter and Ollama presets are there). A local 8B model works but tags noticeably less accurately.
 
 ## Data and backups
 
@@ -77,12 +79,14 @@ Layout:
 src/                  React frontend
   lib/extract/        schema.org recipe extraction (pure TS, unit tested)
   lib/importer.ts     page → saved recipe pipeline
-  lib/llm.ts          OpenAI-compatible client, tagging and extraction prompts
+  lib/llm.ts          opencode and OpenAI-compatible clients, tagging and extraction prompts
+  lib/tags.ts         tag categories
   components/         UI
 src-tauri/src/
   db.rs               SQLite schema, queries, full-text search
   server.rs           localhost server the extension talks to (127.0.0.1:47811)
   fetch.rs            page/image downloads, AI request proxy
+  opencode.rs         runs the opencode CLI for tagging and extraction
   backup.rs           zip export/restore, daily snapshots
 extension/            Chrome extension (Manifest V3, no build step)
 ```

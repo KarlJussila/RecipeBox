@@ -25,12 +25,10 @@ export const isMac = navigator.userAgent.includes("Mac");
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    "bg-leaf-700 text-white shadow-sm hover:bg-leaf-800 active:bg-leaf-900 dark:bg-leaf-600 dark:hover:bg-leaf-500",
-  secondary:
-    "bg-white text-stone-800 ring-1 ring-stone-300/80 shadow-sm hover:bg-stone-50 active:bg-stone-100 dark:bg-stone-800 dark:text-stone-100 dark:ring-stone-700 dark:hover:bg-stone-700",
-  ghost: "text-stone-700 hover:bg-stone-200/60 active:bg-stone-200 dark:text-stone-300 dark:hover:bg-stone-800",
-  danger: "bg-red-700 text-white shadow-sm hover:bg-red-800 active:bg-red-900",
+  primary: "bg-leaf text-white shadow-soft hover:bg-leaf-strong dark:text-spine-deep",
+  secondary: "bg-card text-ink ring-1 ring-line shadow-soft hover:bg-paper-deep",
+  ghost: "text-ink-soft hover:bg-ink/6 hover:text-ink",
+  danger: "bg-tomato text-white shadow-soft hover:brightness-95",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -48,9 +46,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50",
-        size === "sm" && "h-8 px-3 text-sm",
-        size === "md" && "h-10 px-4 text-[15px]",
+        "inline-flex items-center justify-center gap-2 rounded-full font-semibold whitespace-nowrap transition duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
+        size === "sm" && "h-8 px-3.5 text-sm",
+        size === "md" && "h-10 px-5 text-[15px]",
         size === "lg" && "h-12 px-6 text-base",
         VARIANTS[variant],
         className,
@@ -75,10 +73,8 @@ export function IconButton({ label, active, className, children, type = "button"
       aria-label={label}
       title={label}
       className={cx(
-        "inline-flex size-10 items-center justify-center rounded-lg transition-colors duration-150",
-        active
-          ? "bg-leaf-100 text-leaf-800 dark:bg-leaf-900/60 dark:text-leaf-200"
-          : "text-stone-600 hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100",
+        "inline-flex size-10 items-center justify-center rounded-full transition-colors duration-150",
+        active ? "bg-leaf-tint text-leaf" : "text-ink-soft hover:bg-ink/6 hover:text-ink",
         className,
       )}
       {...props}
@@ -92,77 +88,72 @@ export function IconButton({ label, active, className, children, type = "button"
 // Form fields
 
 const FIELD =
-  "w-full rounded-lg bg-white px-3 text-[15px] text-stone-900 ring-1 ring-stone-300/80 placeholder:text-stone-400 transition-shadow focus:ring-2 focus:ring-leaf-600 focus:outline-none dark:bg-stone-900 dark:text-stone-100 dark:ring-stone-700 dark:focus:ring-leaf-500";
+  "w-full rounded-xl bg-card px-3.5 text-[15px] text-ink ring-1 ring-line placeholder:text-ink-faint transition-shadow focus:ring-2 focus:ring-leaf focus:outline-none";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...props },
   ref,
 ) {
-  return <input ref={ref} className={cx(FIELD, "h-10", className)} {...props} />;
+  return <input ref={ref} className={cx(FIELD, "h-11", className)} {...props} />;
 });
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function Textarea({ className, ...props }, ref) {
-    return <textarea ref={ref} className={cx(FIELD, "py-2.5 leading-relaxed", className)} {...props} />;
+    return <textarea ref={ref} className={cx(FIELD, "py-3 leading-relaxed", className)} {...props} />;
   },
 );
 
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold text-ink-soft">{label}</span>
       {children}
-      {hint && <span className="mt-1.5 block text-sm text-stone-500 dark:text-stone-400">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-sm text-ink-faint">{hint}</span>}
     </label>
   );
+}
+
+/** Small-caps label used above groups of content. */
+export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cx("text-xs font-bold tracking-[0.14em] text-leaf uppercase", className)}>{children}</p>;
 }
 
 // ---------------------------------------------------------------------------
 // Tags
 
-export function TagChip({
+export function TagPill({
   name,
   selected,
   onClick,
   onRemove,
-  size = "md",
 }: {
   name: string;
   selected?: boolean;
   onClick?: () => void;
   onRemove?: () => void;
-  size?: "sm" | "md";
 }) {
   const base = cx(
-    "inline-flex items-center gap-1 rounded-full font-medium transition-colors duration-150",
-    size === "sm" ? "h-6 px-2.5 text-xs" : "h-7 px-3 text-[13px]",
-    selected
-      ? "bg-leaf-700 text-white dark:bg-leaf-600"
-      : "bg-leaf-50 text-leaf-800 ring-1 ring-leaf-200/80 ring-inset dark:bg-leaf-950/60 dark:text-leaf-200 dark:ring-leaf-800/60",
+    "inline-flex h-8 items-center gap-1 rounded-full px-3.5 text-sm font-medium transition-colors duration-150",
+    selected ? "bg-leaf text-white dark:text-spine-deep" : "bg-leaf-wash text-leaf-strong ring-1 ring-leaf-tint ring-inset",
   );
   if (onRemove) {
     return (
-      <span className={cx(base, "group/chip pr-1")}>
+      <span className={cx(base, "group/pill pr-1.5")}>
         {name}
         <button
           type="button"
           onClick={onRemove}
           aria-label={`Remove tag ${name}`}
-          className={cx(
-            "inline-flex size-5 items-center justify-center rounded-full transition-opacity",
-            selected ? "hover:bg-white/20" : "hover:bg-leaf-200/70 dark:hover:bg-leaf-800",
-            // Quiet until needed, so a recipe's tags read as labels rather than a form.
-            !selected && "opacity-40 group-hover/chip:opacity-100 focus-visible:opacity-100",
-          )}
+          className="inline-flex size-5 items-center justify-center rounded-full opacity-40 transition-opacity group-hover/pill:opacity-100 hover:bg-black/10 focus-visible:opacity-100"
         >
-          <X className="size-3" strokeWidth={2.5} />
+          <X className="size-3" strokeWidth={2.75} />
         </button>
       </span>
     );
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={cx(base, !selected && "hover:bg-leaf-100 dark:hover:bg-leaf-900")}>
+      <button type="button" onClick={onClick} className={cx(base, !selected && "hover:bg-leaf-tint")}>
         {name}
       </button>
     );
@@ -207,22 +198,20 @@ export function Dialog({
         if (e.target === ref.current) onClose();
       }}
       className={cx(
-        "m-auto w-[calc(100%-3rem)] rounded-2xl bg-stone-50 p-0 text-stone-900 shadow-2xl ring-1 ring-stone-900/5 backdrop:bg-stone-950/40 backdrop:backdrop-blur-[2px] open:animate-pop-in dark:bg-stone-900 dark:text-stone-100 dark:ring-white/10",
+        "paper-grain m-auto w-[calc(100%-3rem)] rounded-3xl bg-paper p-0 text-ink shadow-lift ring-1 ring-black/5 backdrop:bg-spine-deep/45 backdrop:backdrop-blur-[3px] open:animate-pop-in dark:ring-white/10",
         width,
       )}
     >
       {open && (
         <div className="flex max-h-[85vh] flex-col">
-          <div className="flex items-center justify-between gap-4 px-6 pt-5 pb-3">
-            <h2 className="font-serif text-2xl font-semibold tracking-tight">{title}</h2>
+          <div className="flex items-center justify-between gap-4 px-7 pt-6 pb-3">
+            <h2 className="font-serif text-[28px] leading-tight font-semibold tracking-tight">{title}</h2>
             <IconButton label="Close" onClick={onClose} className="-mr-2">
               <X className="size-5" />
             </IconButton>
           </div>
-          <div className="scrollbar-quiet overflow-y-auto px-6 pb-6">{children}</div>
-          {footer && (
-            <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4 dark:border-stone-800">{footer}</div>
-          )}
+          <div className="scrollbar-quiet overflow-y-auto px-7 pb-7">{children}</div>
+          {footer && <div className="flex justify-end gap-3 border-t border-line px-7 py-4">{footer}</div>}
         </div>
       )}
     </dialog>
@@ -255,13 +244,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback<ShowToast>((toast, durationMs = 5000) => {
     const id = nextId.current++;
     const dismiss = () => setToasts((list) => list.filter((t) => t.id !== id));
-    setToasts((list) => [...list, { ...toast, id }]);
+    // Keep the stack short when many recipes arrive at once.
+    setToasts((list) => [...list.slice(-2), { ...toast, id }]);
     let timer = durationMs > 0 ? window.setTimeout(dismiss, durationMs) : 0;
     return {
       dismiss,
       update: (patch) => {
         setToasts((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-        // A toast that finished its work should go away on its own.
         if (patch.busy === false) {
           window.clearTimeout(timer);
           timer = window.setTimeout(dismiss, 5000);
@@ -273,24 +262,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div className="no-print pointer-events-none fixed right-6 bottom-6 z-50 flex w-96 flex-col gap-3" aria-live="polite">
+      <div className="no-print pointer-events-none fixed bottom-6 left-1/2 z-50 flex w-[28rem] -translate-x-1/2 flex-col items-center gap-2" aria-live="polite">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cx(
-              "pointer-events-auto flex animate-slide-up items-start gap-3 rounded-xl px-4 py-3 text-[15px] shadow-lift ring-1",
-              t.tone === "error"
-                ? "bg-red-50 text-red-900 ring-red-200 dark:bg-red-950 dark:text-red-100 dark:ring-red-900"
-                : "bg-white text-stone-800 ring-stone-200 dark:bg-stone-800 dark:text-stone-100 dark:ring-stone-700",
+              "pointer-events-auto flex w-full animate-rise items-center gap-3 rounded-2xl px-5 py-3.5 text-[15px] shadow-lift",
+              t.tone === "error" ? "bg-tomato text-white" : "bg-spine text-cream",
             )}
           >
-            {t.busy && <Spinner className="mt-0.5" />}
-            {!t.busy && t.tone === "success" && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-leaf-500" />}
+            {t.busy && <Spinner className="border-cream/30 border-t-cream" />}
+            {!t.busy && t.tone === "success" && <span className="size-2 shrink-0 rounded-full bg-[#9fd4ae]" />}
             <p className="flex-1 leading-snug">{t.message}</p>
             {t.action && (
               <button
                 type="button"
-                className="font-semibold text-leaf-700 hover:text-leaf-900 dark:text-leaf-300"
+                className="font-semibold underline-offset-2 hover:underline"
                 onClick={() => {
                   t.action!.run();
                   setToasts((list) => list.filter((x) => x.id !== t.id));
@@ -309,11 +296,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export function Spinner({ className }: { className?: string }) {
   return (
     <span
-      className={cx(
-        "inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-leaf-600/25 border-t-leaf-600 dark:border-leaf-400/25 dark:border-t-leaf-400",
-        className,
-      )}
+      className={cx("inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-leaf/25 border-t-leaf", className)}
       aria-hidden
     />
+  );
+}
+
+/** A small hand-drawn sprig, used as the brand mark and as an ornament. */
+export function Sprig({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M16 29c0-7 .5-13 3-19" />
+      <path d="M16.6 20c-4.5.4-7.6-2-8.6-6.5 4.3-.6 7.6 1.7 8.6 6.5Z" fill="currentColor" fillOpacity="0.18" />
+      <path d="M17.6 14.5c3.6-1.4 6.6-.6 8.6 2.4-3.4 1.6-6.5.8-8.6-2.4Z" fill="currentColor" fillOpacity="0.18" />
+      <path d="M18.6 9.5c-1.8-3-1.3-5.7 1.2-7.5 1.6 2.8 1.2 5.5-1.2 7.5Z" fill="currentColor" fillOpacity="0.18" />
+    </svg>
   );
 }

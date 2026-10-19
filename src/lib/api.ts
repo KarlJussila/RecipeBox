@@ -1,6 +1,7 @@
 // Typed wrappers around the Rust commands in src-tauri/src/lib.rs.
 
 import { invoke } from "@tauri-apps/api/core";
+import type { Tag } from "./tags";
 import type { Recipe, RecipeSummary } from "./types";
 
 export interface AppInfo {
@@ -18,6 +19,8 @@ export interface ImportRequest {
 }
 
 export interface LlmSettings {
+  /** "opencode" runs the opencode CLI; "api" calls an OpenAI-compatible endpoint. */
+  provider: "opencode" | "api";
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -64,10 +67,12 @@ export const api = {
   saveRecipe: (recipe: Recipe) => invoke<Recipe>("save_recipe", { recipe }),
   deleteRecipe: (id: string) => invoke<void>("delete_recipe", { id }),
   setFavorite: (id: string, favorite: boolean) => invoke<void>("set_favorite", { id, favorite }),
-  setRecipeTags: (id: string, tags: string[]) => invoke<string[]>("set_recipe_tags", { id, tags }),
+  setRecipeTags: (id: string, tags: string[], categories?: Record<string, string>) =>
+    invoke<string[]>("set_recipe_tags", { id, tags, categories }),
+  setTagCategory: (name: string, category: string | null) => invoke<void>("set_tag_category", { name, category }),
   searchRecipes: (query: string) => invoke<string[]>("search_recipes", { query }),
   findBySourceUrl: (url: string) => invoke<string | null>("find_by_source_url", { url }),
-  allTags: () => invoke<string[]>("all_tags"),
+  allTags: () => invoke<Tag[]>("all_tags"),
   renameTag: (from: string, to: string) => invoke<void>("rename_tag", { from, to }),
   deleteTag: (name: string) => invoke<void>("delete_tag", { name }),
   fetchPage: (url: string) => invoke<{ url: string; html: string }>("fetch_page", { url }),
@@ -75,6 +80,8 @@ export const api = {
   saveImageBytes: (bytes: Uint8Array) => invoke<string>("save_image_bytes", bytes),
   llmPost: (url: string, apiKey: string, body: unknown) =>
     invoke<{ status: number; body: string }>("llm_post", { url, apiKey, body }),
+  opencodeStatus: () => invoke<{ path: string | null; version: string | null }>("opencode_status"),
+  opencodeRun: (model: string, prompt: string) => invoke<string>("opencode_run", { model, prompt }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<void>("save_settings", { settings }),
   takePendingImports: () => invoke<ImportRequest[]>("take_pending_imports"),

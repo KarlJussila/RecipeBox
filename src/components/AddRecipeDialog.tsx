@@ -58,8 +58,8 @@ export function AddRecipeDialog({
           void submit();
         }}
       >
-        <label htmlFor="recipe-url" className="flex items-center gap-2 text-[15px] font-medium text-stone-700 dark:text-stone-300">
-          <Link2 className="size-4 text-leaf-700 dark:text-leaf-400" />
+        <label htmlFor="recipe-url" className="flex items-center gap-2 text-[15px] font-semibold text-ink-soft">
+          <Link2 className="size-4 text-leaf" />
           Paste a link to a recipe
         </label>
         <div className="mt-2 flex gap-2">
@@ -70,22 +70,22 @@ export function AddRecipeDialog({
             placeholder="https://cooking.nytimes.com/recipes/…"
             autoFocus
             disabled={busy}
-            className="h-12 text-base"
+            className="h-12 rounded-2xl text-base"
           />
           <Button type="submit" variant="primary" size="lg" disabled={busy || !url.trim()}>
-            {busy ? <Spinner className="border-white/30 border-t-white" /> : "Add"}
+            {busy ? <Spinner className="border-current/30 border-t-current" /> : "Add"}
           </Button>
         </div>
-        {error && <p className="mt-2 text-[15px] leading-snug text-red-700 dark:text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-[15px] leading-snug text-tomato">{error}</p>}
       </form>
 
-      <div className="mt-6 rounded-xl bg-leaf-50 p-4 ring-1 ring-leaf-200/70 dark:bg-leaf-950/50 dark:ring-leaf-900">
-        <p className="flex items-start gap-3 text-[15px] leading-relaxed text-leaf-900 dark:text-leaf-100">
-          <Puzzle className="mt-0.5 size-5 shrink-0 text-leaf-700 dark:text-leaf-400" />
+      <div className="mt-6 rounded-2xl bg-leaf-wash p-4 ring-1 ring-leaf-tint">
+        <p className="flex items-start gap-3 text-[15px] leading-relaxed text-ink">
+          <Puzzle className="mt-0.5 size-5 shrink-0 text-leaf" />
           <span>
             For subscription sites like NYT Cooking, use the <strong>Recipe Box button</strong> in Chrome while you’re
             looking at the recipe. It saves the recipe exactly as you see it.{" "}
-            <button type="button" onClick={onShowExtensionHelp} className="font-semibold underline underline-offset-2">
+            <button type="button" onClick={onShowExtensionHelp} className="font-semibold text-leaf-strong underline underline-offset-2">
               Set it up
             </button>
           </span>

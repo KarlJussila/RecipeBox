@@ -1,51 +1,85 @@
 @import "@fontsource-variable/fraunces/full.css";
+@import "@fontsource-variable/fraunces/full-italic.css";
+@import "@fontsource-variable/figtree/index.css";
 @import "tailwindcss";
 
 /* Dark mode is a user choice (Settings → Appearance), applied as a class on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Design tokens.
- * Neutrals: Tailwind stone (warm grays, like paper and linen).
- * Accent: "leaf", a calm forest green (OKLCH hue 152) used for actions,
- * selection and the occasional flourish. Roughly 60/30/10 neutral/surface/green.
- * Type: Fraunces for recipe titles and headings, the system UI face for everything else.
+ * "Family cookbook" design system.
+ *
+ * - The sidebar is the book's cloth spine: deep forest green with cream type.
+ * - Pages are warm paper, text is green-black ink rather than gray.
+ * - Green carries actions and selection; tomato is a rare accent (favorites, new).
+ * - Fraunces (soft, slightly wonky) for titles and numerals; Figtree for reading and UI.
+ *
+ * Colors are variables so dark mode can swap them wholesale (see .dark below).
  */
 @theme {
-  --color-leaf-50: oklch(0.975 0.016 152);
-  --color-leaf-100: oklch(0.945 0.034 152);
-  --color-leaf-200: oklch(0.89 0.06 152);
-  --color-leaf-300: oklch(0.81 0.09 152);
-  --color-leaf-400: oklch(0.72 0.11 152);
-  --color-leaf-500: oklch(0.62 0.12 152);
-  --color-leaf-600: oklch(0.53 0.11 152);
-  --color-leaf-700: oklch(0.455 0.095 152);
-  --color-leaf-800: oklch(0.38 0.077 152);
-  --color-leaf-900: oklch(0.31 0.058 152);
-  --color-leaf-950: oklch(0.22 0.04 152);
+  --color-paper: #f6f1e6;
+  --color-paper-deep: #ede5d4;
+  --color-card: #fcfaf5;
+  --color-line: #e0d6c3;
+  --color-ink: #1d2a21;
+  --color-ink-soft: #4b5a4f;
+  --color-ink-faint: #7a867b;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+  --color-spine: #1f3b2c;
+  --color-spine-deep: #172e21;
+  --color-spine-line: #2e4c3b;
+  --color-cream: #f1ebdc;
+  --color-cream-soft: #b9c7b5;
+
+  --color-leaf: #2f6b46;
+  --color-leaf-strong: #245638;
+  --color-leaf-tint: #dfe9d8;
+  --color-leaf-wash: #edf3e7;
+  --color-tomato: #c4532f;
+  --color-butter: #f6e7b4;
+
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-serif: "Fraunces Variable", ui-serif, Georgia, serif;
 
-  --shadow-card: 0 1px 2px oklch(0.3 0.04 152 / 0.06), 0 1px 3px oklch(0.3 0.04 152 / 0.04);
-  --shadow-lift: 0 4px 8px oklch(0.3 0.04 152 / 0.06), 0 12px 28px oklch(0.3 0.04 152 / 0.1);
+  --shadow-soft: 0 1px 2px rgb(40 50 30 / 0.06), 0 2px 8px rgb(40 50 30 / 0.06);
+  --shadow-lift: 0 6px 14px rgb(40 50 30 / 0.08), 0 18px 40px rgb(40 50 30 / 0.12);
+  --shadow-photo: 0 2px 4px rgb(40 30 20 / 0.1), 0 14px 34px rgb(40 30 20 / 0.18);
 
-  --animate-fade-in: fade-in 160ms ease-out;
-  --animate-pop-in: pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-  --animate-slide-up: slide-up 220ms ease-out;
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-pop-in: pop-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  --animate-rise: rise 260ms cubic-bezier(0.2, 0.8, 0.3, 1);
 
   @keyframes fade-in {
     from { opacity: 0; }
   }
   @keyframes pop-in {
-    from { opacity: 0; transform: scale(0.96) translateY(4px); }
+    from { opacity: 0; transform: scale(0.97) translateY(6px); }
   }
-  @keyframes slide-up {
-    from { opacity: 0; transform: translateY(8px); }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
   }
 }
 
 @layer base {
+  .dark {
+    --color-paper: #141b16;
+    --color-paper-deep: #1a231d;
+    --color-card: #1c251f;
+    --color-line: #2c3830;
+    --color-ink: #ebe6d8;
+    --color-ink-soft: #b8bfb2;
+    --color-ink-faint: #85907f;
+    --color-spine: #0e1a12;
+    --color-spine-deep: #0a140d;
+    --color-spine-line: #1e2f24;
+    --color-leaf: #6fae84;
+    --color-leaf-strong: #8cc49e;
+    --color-leaf-tint: #24382b;
+    --color-leaf-wash: #1b2a20;
+    --color-tomato: #e07a57;
+    --color-butter: #3b3522;
+  }
+
   html {
     color-scheme: light;
     -webkit-font-smoothing: antialiased;
@@ -58,8 +92,10 @@
     height: 100%;
   }
   body {
-    @apply bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
     font-family: var(--font-sans);
+    font-size: 16px;
     /* A desktop app shouldn't select UI text on drag; content areas opt back in. */
     user-select: none;
     -webkit-user-select: none;
@@ -73,24 +109,40 @@
     cursor: default;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-leaf-600 dark:outline-leaf-400;
+    outline: 2px solid var(--color-leaf);
+    outline-offset: 2px;
   }
   ::selection {
-    @apply bg-leaf-200 text-leaf-950;
+    background: var(--color-leaf-tint);
   }
 }
 
 /* Fraunces with soft terminals reads warm and friendly rather than formal. */
 .font-serif {
-  font-variation-settings: "SOFT" 100, "WONK" 0;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
 }
 
+/* Faint paper grain behind the pages. */
+@utility paper-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .3 0 0 0 0 .2 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Woven cloth for the spine. */
+@utility linen {
+  background-image:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.05) 0 1px, transparent 1px 3px);
+}
+
+/* Index-card rules behind the ingredient list. */
 @utility scrollbar-quiet {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-stone-300) transparent;
-  @variant dark {
-    scrollbar-color: var(--color-stone-700) transparent;
-  }
+  scrollbar-color: color-mix(in srgb, var(--color-ink) 18%, transparent) transparent;
+}
+
+@utility scrollbar-spine {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.15) transparent;
 }
 
 @media print {

@@ -1,8 +1,10 @@
 mod backup;
 mod db;
 mod fetch;
+mod opencode;
 mod server;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
@@ -87,8 +89,18 @@ fn set_favorite(state: State<AppState>, id: String, favorite: bool) -> Result<()
 }
 
 #[tauri::command]
-fn set_recipe_tags(state: State<AppState>, id: String, tags: Vec<String>) -> Result<Vec<String>> {
-    state.db.lock().unwrap().set_tags(&id, &tags)
+fn set_recipe_tags(
+    state: State<AppState>,
+    id: String,
+    tags: Vec<String>,
+    categories: Option<HashMap<String, String>>,
+) -> Result<Vec<String>> {
+    state.db.lock().unwrap().set_tags(&id, &tags, &categories.unwrap_or_default())
+}
+
+#[tauri::command]
+fn set_tag_category(state: State<AppState>, name: String, category: Option<String>) -> Result<()> {
+    state.db.lock().unwrap().set_tag_category(&name, category.as_deref())
 }
 
 #[tauri::command]
@@ -102,7 +114,7 @@ fn find_by_source_url(state: State<AppState>, url: String) -> Result<Option<Stri
 }
 
 #[tauri::command]
-fn all_tags(state: State<AppState>) -> Result<Vec<String>> {
+fn all_tags(state: State<AppState>) -> Result<Vec<db::Tag>> {
     state.db.lock().unwrap().all_tags()
 }
 
@@ -138,6 +150,27 @@ fn save_image_bytes(state: State<AppState>, request: Request) -> Result<String> 
 #[tauri::command]
 async fn llm_post(url: String, api_key: String, body: Value) -> Result<fetch::LlmResponse> {
     fetch::llm_post(&url, &api_key, &body).await
+}
+
+#[derive(Serialize)]
+struct OpencodeStatus {
+    path: Option<PathBuf>,
+    version: Option<String>,
+}
+
+#[tauri::command]
+async fn opencode_status() -> OpencodeStatus {
+    let path = opencode::find_binary();
+    let version = match &path {
+        Some(p) => opencode::version(p).await,
+        None => None,
+    };
+    OpencodeStatus { path, version }
+}
+
+#[tauri::command]
+async fn opencode_run(state: State<'_, AppState>, model: String, prompt: String) -> Result<String> {
+    opencode::run(&state.data_dir.join("opencode-sandbox"), &model, &prompt).await
 }
 
 /// App settings live in a small JSON file next to the database (not in backups,
@@ -303,6 +336,7 @@ pub fn run() {
             delete_recipe,
             set_favorite,
             set_recipe_tags,
+            set_tag_category,
             search_recipes,
             find_by_source_url,
             all_tags,
@@ -312,6 +346,8 @@ pub fn run() {
             download_image,
             save_image_bytes,
             llm_post,
+            opencode_status,
+            opencode_run,
             get_settings,
             save_settings,
             take_pending_imports,
