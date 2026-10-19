@@ -21,20 +21,20 @@
   --color-paper-deep: #ede5d4;
   --color-card: #fcfaf5;
   --color-line: #e0d6c3;
-  --color-ink: #1d2a21;
-  --color-ink-soft: #4b5a4f;
-  --color-ink-faint: #7a867b;
+  --color-ink: #1f291e;
+  --color-ink-soft: #4e594c;
+  --color-ink-faint: #7e857b;
 
-  --color-spine: #1f3b2c;
-  --color-spine-deep: #172e21;
-  --color-spine-line: #2e4c3b;
+  --color-spine: #203a22;
+  --color-spine-deep: #182d19;
+  --color-spine-line: #304a30;
   --color-cream: #f1ebdc;
-  --color-cream-soft: #b9c7b5;
+  --color-cream-soft: #c0c6b6;
 
-  --color-leaf: #2f6b46;
-  --color-leaf-strong: #245638;
-  --color-leaf-tint: #dfe9d8;
-  --color-leaf-wash: #edf3e7;
+  --color-leaf: #346832;
+  --color-leaf-strong: #275426;
+  --color-leaf-tint: #e6e8d9;
+  --color-leaf-wash: #f2f2e8;
   --color-tomato: #c4532f;
   --color-butter: #f6e7b4;
 
@@ -62,20 +62,20 @@
 
 @layer base {
   .dark {
-    --color-paper: #141b16;
-    --color-paper-deep: #1a231d;
-    --color-card: #1c251f;
-    --color-line: #2c3830;
+    --color-paper: #151b14;
+    --color-paper-deep: #1b231a;
+    --color-card: #1d251c;
+    --color-line: #2d372d;
     --color-ink: #ebe6d8;
-    --color-ink-soft: #b8bfb2;
-    --color-ink-faint: #85907f;
-    --color-spine: #0e1a12;
-    --color-spine-deep: #0a140d;
-    --color-spine-line: #1e2f24;
-    --color-leaf: #6fae84;
-    --color-leaf-strong: #8cc49e;
-    --color-leaf-tint: #24382b;
-    --color-leaf-wash: #1b2a20;
+    --color-ink-soft: #bdbeb3;
+    --color-ink-faint: #8c8f80;
+    --color-spine: #10190f;
+    --color-spine-deep: #0c140a;
+    --color-spine-line: #202e1f;
+    --color-leaf: #77ab72;
+    --color-leaf-strong: #94c18f;
+    --color-leaf-tint: #263725;
+    --color-leaf-wash: #1d291c;
     --color-tomato: #e07a57;
     --color-butter: #3b3522;
   }

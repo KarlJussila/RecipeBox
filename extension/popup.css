@@ -1,7 +1,7 @@
 :root {
   color-scheme: light dark;
-  --green: #2f6b46;
-  --green-soft: #e6f2e9;
+  --green: #346832;
+  --green-soft: #e8f1e7;
   --red: #b91c1c;
   --red-soft: #fdecec;
   --text: #1c1917;
@@ -10,7 +10,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --green-soft: #1d3326;
+    --green-soft: #1e321e;
     --red-soft: #3a1717;
     --text: #f5f5f4;
     --muted: #a8a29e;

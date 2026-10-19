@@ -279,7 +279,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             )}
           >
             {t.busy && <Spinner className="border-cream/30 border-t-cream" />}
-            {!t.busy && t.tone === "success" && <span className="size-2 shrink-0 rounded-full bg-[#9fd4ae]" />}
+            {!t.busy && t.tone === "success" && <span className="size-2 shrink-0 rounded-full bg-[#a8d1a2]" />}
             <p className="flex-1 leading-snug">{t.message}</p>
             {t.action && (
               <button

@@ -108,7 +108,7 @@ export function Sidebar({
       <div data-tauri-drag-region className={isMac ? "h-11 shrink-0" : "h-4 shrink-0"} />
 
       <div className="flex items-center gap-2.5 px-6 pt-2 pb-6" data-tauri-drag-region>
-        <Sprig className="size-8 text-[#9fd4ae]" />
+        <Sprig className="size-8 text-[#a8d1a2]" />
         <span className="font-serif text-[27px] leading-none font-medium tracking-tight italic" data-tauri-drag-region>
           Recipe Box
         </span>
