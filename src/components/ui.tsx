@@ -124,17 +124,24 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
 export function TagPill({
   name,
   selected,
+  excluded,
   onClick,
   onRemove,
 }: {
   name: string;
   selected?: boolean;
+  /** Shown as a "hide these" filter. */
+  excluded?: boolean;
   onClick?: () => void;
   onRemove?: () => void;
 }) {
   const base = cx(
     "inline-flex h-8 items-center gap-1 rounded-full px-3.5 text-sm font-medium transition-colors duration-150",
-    selected ? "bg-leaf text-white dark:text-spine-deep" : "bg-leaf-wash text-leaf-strong ring-1 ring-leaf-tint ring-inset",
+    excluded
+      ? "bg-tomato/12 text-tomato ring-1 ring-tomato/35 ring-inset"
+      : selected
+        ? "bg-leaf text-white dark:text-spine-deep"
+        : "bg-leaf-wash text-leaf-strong ring-1 ring-leaf-tint ring-inset",
   );
   if (onRemove) {
     return (
@@ -204,13 +211,13 @@ export function Dialog({
     >
       {open && (
         <div className="flex max-h-[85vh] flex-col">
-          <div className="flex items-center justify-between gap-4 px-7 pt-6 pb-3">
+          <div className="flex items-center justify-between gap-4 px-7 pt-6 pb-2">
             <h2 className="font-serif text-[28px] leading-tight font-semibold tracking-tight">{title}</h2>
             <IconButton label="Close" onClick={onClose} className="-mr-2">
               <X className="size-5" />
             </IconButton>
           </div>
-          <div className="scrollbar-quiet overflow-y-auto px-7 pb-7">{children}</div>
+          <div className="scrollbar-quiet overflow-y-auto px-7 pt-1 pb-7">{children}</div>
           {footer && <div className="flex justify-end gap-3 border-t border-line px-7 py-4">{footer}</div>}
         </div>
       )}

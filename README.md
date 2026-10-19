@@ -14,7 +14,7 @@ print-friendly layout.
 1. The extension (or a pasted link) hands the app a page's HTML.
 2. The app looks for schema.org `Recipe` data (JSON-LD or microdata). Nearly every recipe site publishes it for Google, including NYT Cooking, Serious Eats, Bon Appétit, Allrecipes, and America's Test Kitchen, so there's no per-site scraping code to maintain.
 3. If a page has no structured data and an AI service is configured, the page text goes to the model for extraction.
-4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. Each new tag gets a category, which groups it in the sidebar. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
+4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. Each new tag gets a category, which groups it in the sidebar. Tags describe the dish only, never timing or effort (there's a time filter for that), and a starter set of common tags (Poultry, Red Meat, Fish, Pasta, Rice, Mexican, Indian…) keeps names consistent from the first recipe. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
 
 Pasting a link only works for pages that are publicly readable and don't block automated requests. For subscription sites, and for sites like Food52 that block them, use the browser button.
 

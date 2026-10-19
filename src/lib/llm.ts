@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import { api, type LlmSettings } from "./api";
-import { CATEGORY_NAMES, TAG_CATEGORIES, type Tag } from "./tags";
+import { CATEGORY_NAMES, SEED_TAGS, TAG_CATEGORIES, TIME_TAG, type Tag } from "./tags";
 import type { RecipeDraft } from "./types";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
@@ -147,9 +147,9 @@ How to choose:
 - Always include one Dish tag, and an Ingredient tag when the recipe has a clear main ingredient.
 - Add a Cuisine only when it's distinctive, not for everyday American food.
 - Add Dietary tags only when clearly true. Vegetarian and Vegan mean no meat, poultry, fish or seafood at all (check every ingredient, including broth and gelatin).
-- Add Method tags only for a notable appliance or technique the recipe really uses, never for ordinary baking, roasting or stovetop cooking. Make Ahead means the recipe itself says it can be prepared in advance.
+- Add Method tags only for a notable appliance or technique the recipe really uses, never for ordinary baking, roasting or stovetop cooking.
 - Add Occasion tags only when the recipe itself ties it to that holiday, season or event.
-- Don't tag by cooking time or difficulty (no "Quick" or "Easy"); the app already filters by time.
+- Tags describe the dish itself. Never tag timing, effort or planning (no "Quick", "Easy", "Weeknight" or "Make Ahead"); the app already filters by time.
 - Reuse the collection's existing tags, spelled exactly as given, whenever one fits. Never use an existing tag that doesn't describe this recipe.
 - New tags are short (one or two words) and in Title Case.`;
 
@@ -166,7 +166,9 @@ export interface SuggestedTag {
   category: string;
 }
 
-export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, existingTags: Tag[]): Promise<SuggestedTag[]> {
+export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, collectionTags: Tag[]): Promise<SuggestedTag[]> {
+  const inCollection = new Set(collectionTags.map((t) => t.name.toLowerCase()));
+  const existingTags = [...collectionTags, ...SEED_TAGS.filter((t) => !inCollection.has(t.name.toLowerCase()))].filter((t) => !TIME_TAG.test(t.name));
   const byCategory = CATEGORY_NAMES.map((c) => {
     const names = existingTags.filter((t) => t.category === c).map((t) => t.name);
     return names.length ? `- ${c}: ${names.join(", ")}` : null;
@@ -180,7 +182,6 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, exis
     "",
     `Recipe: ${recipe.title}`,
     recipe.description && `Description: ${recipe.description.slice(0, 600)}`,
-    recipe.totalMinutes && `Total time: ${recipe.totalMinutes} minutes`,
     recipe.keywords.length > 0 && `Website keywords: ${recipe.keywords.join(", ")}`,
     `Ingredients:\n${ingredients.map((i) => `- ${i}`).join("\n")}`,
   ]
@@ -194,7 +195,7 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, exis
   for (const raw of reply.tags) {
     const name = raw.name.trim();
     const key = name.toLowerCase();
-    if (!name || name.length > 40 || seen.has(key) || /^(quick|easy)\b/i.test(name)) continue;
+    if (!name || name.length > 40 || seen.has(key) || TIME_TAG.test(name)) continue;
     seen.add(key);
     const known = existing.get(key);
     tags.push({ name: known?.name ?? name, category: known?.category ?? raw.category });

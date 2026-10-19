@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, Flame, Globe, Heart, PartyPopper, Salad, Settings, Sprout, Tag as TagIcon, UtensilsCrossed, Wheat } from "lucide-react";
+import { BookOpen, ChevronDown, EyeOff, Flame, Globe, Heart, PartyPopper, Salad, Settings, Sprout, Tag as TagIcon, UtensilsCrossed, Wheat } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { groupTags, type Tag } from "../lib/tags";
 import type { RecipeSummary } from "../lib/types";
@@ -79,18 +79,28 @@ export function Sidebar({
 }) {
   const [collapsed, toggleCollapsed] = useCollapsed();
   const set = (patch: Partial<Filters>) => onFiltersChange({ ...filters, ...patch });
-  const narrowed = filters.tags.length > 0 || filters.favorites || filters.maxMinutes || filters.query.trim();
+  const narrowed = filters.tags.length > 0 || filters.excludedTags.length > 0 || filters.favorites || filters.maxMinutes || filters.query.trim();
 
   const totals = new Map<string, number>();
   for (const r of recipes) for (const t of r.tags) totals.set(t, (totals.get(t) ?? 0) + 1);
   // While filtering, only offer tags that would still match something.
   const visible = tags
-    .map((t) => ({ ...t, count: narrowed ? (filteredTagCounts.get(t.name) ?? 0) : (totals.get(t.name) ?? 0) }))
-    .filter((t) => t.count > 0 || filters.tags.includes(t.name));
+    .map((t) => ({
+      ...t,
+      // A hidden tag shows how many recipes it's hiding.
+      count: narrowed && !filters.excludedTags.includes(t.name) ? (filteredTagCounts.get(t.name) ?? 0) : (totals.get(t.name) ?? 0),
+    }))
+    .filter((t) => t.count > 0 || filters.tags.includes(t.name) || filters.excludedTags.includes(t.name));
   const groups = groupTags(visible, (t) => t.category);
 
-  const toggleTag = (name: string) =>
-    set({ tags: filters.tags.includes(name) ? filters.tags.filter((t) => t !== name) : [...filters.tags, name] });
+  // Each click moves a tag along: off → show only these → hide these → off.
+  const cycleTag = (name: string) => {
+    const tags = filters.tags.filter((t) => t !== name);
+    const excludedTags = filters.excludedTags.filter((t) => t !== name);
+    if (filters.tags.includes(name)) excludedTags.push(name);
+    else if (!filters.excludedTags.includes(name)) tags.push(name);
+    set({ tags, excludedTags });
+  };
 
   return (
     <aside className="linen no-print relative flex h-full w-72 shrink-0 flex-col bg-spine text-cream">
@@ -152,6 +162,7 @@ export function Sidebar({
             </button>
           )}
         </div>
+        {groups.length > 0 && <p className="px-3 pb-1 text-xs text-cream-soft/80">Click a tag to show only those recipes, again to hide them.</p>}
         {groups.length === 0 && (
           <p className="flex items-start gap-2 px-3 pt-2 text-sm leading-relaxed text-cream-soft">
             <Sprout className="mt-0.5 size-4 shrink-0" />
@@ -176,19 +187,22 @@ export function Sidebar({
                 <div className="flex animate-fade-in flex-wrap gap-1.5 px-2 pt-0.5 pb-3">
                   {list.map((t) => {
                     const selected = filters.tags.includes(t.name);
+                    const hidden = filters.excludedTags.includes(t.name);
                     return (
                       <button
                         key={t.name}
                         type="button"
-                        onClick={() => toggleTag(t.name)}
-                        aria-pressed={selected}
+                        onClick={() => cycleTag(t.name)}
+                        aria-label={hidden ? `${t.name}, hidden` : selected ? `${t.name}, showing only these` : t.name}
+                        title={hidden ? "Hidden. Click to stop hiding." : selected ? "Click again to hide these recipes" : undefined}
                         className={cx(
                           "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm transition-colors duration-150",
-                          selected
-                            ? "bg-cream font-semibold text-spine"
-                            : "bg-white/7 text-cream/90 ring-1 ring-white/8 ring-inset hover:bg-white/14",
+                          selected && "bg-cream font-semibold text-spine",
+                          hidden && "bg-tomato/30 text-cream/80 line-through decoration-cream/50 ring-1 ring-tomato/70 ring-inset",
+                          !selected && !hidden && "bg-white/7 text-cream/90 ring-1 ring-white/8 ring-inset hover:bg-white/14",
                         )}
                       >
+                        {hidden && <EyeOff className="size-3.5 shrink-0" />}
                         {t.name}
                         <span className={cx("text-xs tabular-nums", selected ? "text-spine/55" : "text-cream-soft/70")}>{t.count}</span>
                       </button>

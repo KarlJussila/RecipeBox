@@ -9,15 +9,17 @@ export type Sort = "newest" | "oldest" | "title";
 export interface Filters {
   query: string;
   tags: string[];
+  /** Tags whose recipes are hidden. */
+  excludedTags: string[];
   favorites: boolean;
   maxMinutes: number | null;
   sort: Sort;
 }
 
-export const NO_FILTERS: Filters = { query: "", tags: [], favorites: false, maxMinutes: null, sort: "newest" };
+export const NO_FILTERS: Filters = { query: "", tags: [], excludedTags: [], favorites: false, maxMinutes: null, sort: "newest" };
 
 export function hasFilters(f: Filters): boolean {
-  return Boolean(f.query.trim() || f.tags.length || f.favorites || f.maxMinutes);
+  return Boolean(f.query.trim() || f.tags.length || f.excludedTags.length || f.favorites || f.maxMinutes);
 }
 
 /** All recipe summaries, refreshed whenever something changes them. */
@@ -76,11 +78,12 @@ export function useFilteredRecipes(recipes: RecipeSummary[], filters: Filters) {
       list = ranked.map((id) => byId.get(id)).filter((r): r is RecipeSummary => Boolean(r));
     }
     const wanted = filters.tags.map((t) => t.toLowerCase());
+    const unwanted = filters.excludedTags.map((t) => t.toLowerCase());
     list = list.filter((r) => {
       if (filters.favorites && !r.favorite) return false;
       if (filters.maxMinutes && (r.totalMinutes === null || r.totalMinutes > filters.maxMinutes)) return false;
       const tags = r.tags.map((t) => t.toLowerCase());
-      return wanted.every((t) => tags.includes(t));
+      return wanted.every((t) => tags.includes(t)) && !unwanted.some((t) => tags.includes(t));
     });
     // Search results stay in relevance order; otherwise use the chosen sort.
     if (!ranked) {

@@ -17,6 +17,7 @@ function heading(filters: Filters): string {
   if (filters.query.trim()) return `“${filters.query.trim()}”`;
   if (filters.favorites) return "Favorites";
   if (filters.tags.length) return filters.tags.join(" & ");
+  if (filters.excludedTags.length) return `Everything but ${filters.excludedTags.join(" & ")}`;
   if (filters.maxMinutes) return `Ready in ${filters.maxMinutes === 60 ? "an hour" : `${filters.maxMinutes} minutes`}`;
   return "All recipes";
 }
@@ -90,7 +91,7 @@ export function LibraryView({
             type="search"
             value={filters.query}
             onChange={(e) => onFiltersChange({ ...filters, query: e.target.value })}
-            placeholder={library.length ? `Search ${library.length} recipes by name, ingredient, or note` : "Search recipes"}
+            placeholder="Search by name, ingredient, or note"
             aria-label="Search recipes"
             className="h-14 w-full rounded-2xl bg-card pr-14 pl-13 text-[17px] text-ink shadow-soft ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none [&::-webkit-search-cancel-button]:hidden"
           />
@@ -142,6 +143,14 @@ export function LibraryView({
               </span>
               {filters.tags.map((t) => (
                 <TagPill key={t} name={t} selected onRemove={() => onFiltersChange({ ...filters, tags: filters.tags.filter((x) => x !== t) })} />
+              ))}
+              {filters.excludedTags.map((t) => (
+                <TagPill
+                  key={t}
+                  name={`Not ${t}`}
+                  excluded
+                  onRemove={() => onFiltersChange({ ...filters, excludedTags: filters.excludedTags.filter((x) => x !== t) })}
+                />
               ))}
               {filtered && (
                 <button type="button" onClick={clearAll} className="text-sm font-semibold text-ink-faint hover:text-ink">

@@ -2,12 +2,26 @@
 
 export const TAG_CATEGORIES = [
   { name: "Dish", hint: "the kind of dish or course", examples: "Main Course, Side Dish, Soup, Salad, Dessert, Breakfast, Appetizer, Bread, Drink, Sauce" },
-  { name: "Ingredient", hint: "the main ingredient or protein", examples: "Chicken, Beef, Pork, Seafood, Pasta, Beans, Eggs, Chocolate" },
+  { name: "Ingredient", hint: "the main ingredient, as a broad group (Poultry not Chicken, Red Meat for beef, lamb or pork, Fish not Cod)", examples: "Poultry, Red Meat, Fish, Seafood, Pasta, Rice, Beans, Eggs, Chocolate" },
   { name: "Cuisine", hint: "a distinctive regional cuisine", examples: "Italian, Mexican, Thai, Indian, French" },
   { name: "Dietary", hint: "dietary fit", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free" },
-  { name: "Occasion", hint: "holidays, seasons and events", examples: "Thanksgiving, Christmas, Summer, Party, Weeknight" },
-  { name: "Method", hint: "a notable appliance or technique", examples: "Slow Cooker, Grilling, Instant Pot, Make Ahead, One Pot" },
+  { name: "Occasion", hint: "holidays, seasons and events", examples: "Thanksgiving, Christmas, Easter, Summer, Party" },
+  { name: "Method", hint: "a notable appliance or technique", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer, No-Bake" },
 ] as const;
+
+/**
+ * Offered to the model as if already in the collection, so the common tags are
+ * spelled one way from the very first recipe.
+ */
+export const SEED_TAGS: Tag[] = [
+  ...["Main Course", "Side Dish", "Soup", "Salad", "Dessert", "Breakfast", "Appetizer", "Bread", "Sauce"].map((name) => ({ name, category: "Dish" })),
+  ...["Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Chocolate"].map((name) => ({ name, category: "Ingredient" })),
+  ...["Italian", "Mexican", "Indian", "French", "Chinese", "Thai"].map((name) => ({ name, category: "Cuisine" })),
+  ...["Vegetarian", "Vegan", "Gluten-Free"].map((name) => ({ name, category: "Dietary" })),
+];
+
+/** Tags about timing or effort rather than the dish. The app filters by time instead. */
+export const TIME_TAG = /^(quick|easy|fast|simple|make[- ]ahead|weeknight|weekday|\d+[- ]?(minute|min|hour)s?)\b/i;
 
 export type TagCategory = (typeof TAG_CATEGORIES)[number]["name"];
 export const CATEGORY_NAMES: TagCategory[] = TAG_CATEGORIES.map((c) => c.name);
