@@ -156,11 +156,9 @@ export function Sidebar({
 
         <div className="mt-8 mb-1 flex items-center justify-between px-3">
           <h3 className="text-[11px] font-bold tracking-[0.16em] text-cream-soft uppercase">Tags</h3>
-          {tags.length > 0 && (
-            <button type="button" onClick={onManageTags} className="text-xs font-semibold text-cream-soft hover:text-cream">
-              Organize
-            </button>
-          )}
+          <button type="button" onClick={onManageTags} className="text-xs font-semibold text-cream-soft hover:text-cream">
+            Organize
+          </button>
         </div>
         {groups.length > 0 && <p className="px-3 pb-1 text-xs text-cream-soft/80">Click a tag to show only those recipes, again to hide them.</p>}
         {groups.length === 0 && (

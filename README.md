@@ -7,14 +7,14 @@ print-friendly layout.
 - **Tauri 2** app (Rust backend, React + Tailwind frontend), so it's small and native on macOS and Linux.
 - Recipes live in a local **SQLite** database with full-text search. Photos are downloaded, so everything works offline.
 - A **Chrome extension** sends the page you're looking at to the app. Because it reads the page from your own logged-in browser, subscription sites like NYT Cooking work.
-- An **AI model** sorts recipes into categorized tags (dish, ingredient, cuisine, dietary, occasion, method) and reads pages that lack structured recipe data. By default it runs through the [opencode](https://opencode.ai) CLI with its free `opencode/mimo-v2.6-flash-free` model; any OpenAI-compatible API works instead.
+- An **AI model** sorts recipes into categorized tags (dish, ingredient, cuisine, dietary, method) and reads pages that lack structured recipe data. By default it runs through the [opencode](https://opencode.ai) CLI with its free `opencode/mimo-v2.6-flash-free` model; any OpenAI-compatible API works instead.
 
 ## How importing works
 
 1. The extension (or a pasted link) hands the app a page's HTML.
 2. The app looks for schema.org `Recipe` data (JSON-LD or microdata). Nearly every recipe site publishes it for Google, including NYT Cooking, Serious Eats, Bon Appétit, Allrecipes, and America's Test Kitchen, so there's no per-site scraping code to maintain.
 3. If a page has no structured data and an AI service is configured, the page text goes to the model for extraction.
-4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. Each new tag gets a category, which groups it in the sidebar. Tags describe the dish only, never timing or effort (there's a time filter for that), and a starter set of common tags (Poultry, Red Meat, Fish, Pasta, Rice, Mexican, Indian…) keeps names consistent from the first recipe. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
+4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. Each new tag gets a category, which groups it in the sidebar. Tags describe the dish only, never timing or effort (there's a time filter for that). Occasion tags (Thanksgiving, Christmas…) are left for you to add: a new tag is filed under Occasion unless you pick another group, and a starter set of common tags (Poultry, Red Meat, Fish, Pasta, Rice, Mexican, Indian…) keeps names consistent from the first recipe. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
 
 Pasting a link only works for pages that are publicly readable and don't block automated requests. For subscription sites, and for sites like Food52 that block them, use the browser button.
 

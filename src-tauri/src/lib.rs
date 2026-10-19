@@ -99,6 +99,11 @@ fn set_recipe_tags(
 }
 
 #[tauri::command]
+fn create_tag(state: State<AppState>, name: String, category: Option<String>) -> Result<()> {
+    state.db.lock().unwrap().create_tag(&name, category.as_deref())
+}
+
+#[tauri::command]
 fn set_tag_category(state: State<AppState>, name: String, category: Option<String>) -> Result<()> {
     state.db.lock().unwrap().set_tag_category(&name, category.as_deref())
 }
@@ -336,6 +341,7 @@ pub fn run() {
             delete_recipe,
             set_favorite,
             set_recipe_tags,
+            create_tag,
             set_tag_category,
             search_recipes,
             find_by_source_url,

@@ -15,6 +15,9 @@ use tokio::process::Command;
 
 const TIMEOUT: Duration = Duration::from_secs(240);
 
+/// One opencode session at a time: tagging and page reading queue up behind each other.
+static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 fn exe_name() -> &'static str {
     if cfg!(windows) { "opencode.exe" } else { "opencode" }
 }
@@ -45,10 +48,16 @@ pub async fn version(binary: &Path) -> Option<String> {
 pub async fn run(sandbox: &Path, model: &str, prompt: &str) -> Result<String, String> {
     let binary = find_binary().ok_or("opencode isn't installed on this computer")?;
     std::fs::create_dir_all(sandbox).map_err(|e| e.to_string())?;
+    let _turn = ONE_AT_A_TIME.lock().await;
 
     let mut child = Command::new(binary)
-        .args(["run", "--pure", "--agent", "plan", "--format", "json", "-m", model, prompt])
+        .args(["run", "--pure", "--agent", "plan", "--format", "json", "-m", model, "--dir"])
+        .arg(sandbox)
+        .arg(prompt)
+        // opencode takes its project folder from PWD when set, which is inherited
+        // from whatever launched the app. Keep it in the empty sandbox.
         .current_dir(sandbox)
+        .env("PWD", sandbox)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

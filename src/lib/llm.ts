@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import { api, type LlmSettings } from "./api";
-import { CATEGORY_NAMES, SEED_TAGS, TAG_CATEGORIES, TIME_TAG, type Tag } from "./tags";
+import { AI_CATEGORIES, AI_CATEGORY_NAMES, SEED_TAGS, TIME_TAG, type Tag } from "./tags";
 import type { RecipeDraft } from "./types";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
@@ -134,13 +134,13 @@ function askJson<T>(llm: LlmSettings, system: string, user: string, schema: z.Zo
 // Tagging
 
 const TagReply = z.strictObject({
-  tags: z.array(z.strictObject({ name: z.string(), category: z.enum(CATEGORY_NAMES as [string, ...string[]]) })),
+  tags: z.array(z.strictObject({ name: z.string(), category: z.enum(AI_CATEGORY_NAMES as [string, ...string[]]) })),
 });
 
 const TAG_SYSTEM = `You organize a home cook's personal recipe collection by choosing tags for one recipe.
 
 Tags make the collection easy to browse and filter, so they must be accurate and consistent. Every tag belongs to one category:
-${TAG_CATEGORIES.map((c) => `- ${c.name}: ${c.hint} (e.g. ${c.examples})`).join("\n")}
+${AI_CATEGORIES.map((c) => `- ${c.name}: ${c.hint} (e.g. ${c.examples})`).join("\n")}
 
 How to choose:
 - Pick 3 to 5 tags that a cook would use to find this recipe.
@@ -148,7 +148,7 @@ How to choose:
 - Add a Cuisine only when it's distinctive, not for everyday American food.
 - Add Dietary tags only when clearly true. Vegetarian and Vegan mean no meat, poultry, fish or seafood at all (check every ingredient, including broth and gelatin).
 - Add Method tags only for a notable appliance or technique the recipe really uses, never for ordinary baking, roasting or stovetop cooking.
-- Add Occasion tags only when the recipe itself ties it to that holiday, season or event.
+- Never tag holidays, seasons or events (the cook adds those herself), even when the website's keywords mention them.
 - Tags describe the dish itself. Never tag timing, effort or planning (no "Quick", "Easy", "Weeknight" or "Make Ahead"); the app already filters by time.
 - Reuse the collection's existing tags, spelled exactly as given, whenever one fits. Never use an existing tag that doesn't describe this recipe.
 - New tags are short (one or two words) and in Title Case.`;
@@ -167,14 +167,16 @@ export interface SuggestedTag {
 }
 
 export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, collectionTags: Tag[]): Promise<SuggestedTag[]> {
+  // Only tags in the AI's own categories are offered. Occasion and uncategorized
+  // tags are the cook's, so the model never sees or reuses them.
   const inCollection = new Set(collectionTags.map((t) => t.name.toLowerCase()));
-  const existingTags = [...collectionTags, ...SEED_TAGS.filter((t) => !inCollection.has(t.name.toLowerCase()))].filter((t) => !TIME_TAG.test(t.name));
-  const byCategory = CATEGORY_NAMES.map((c) => {
-    const names = existingTags.filter((t) => t.category === c).map((t) => t.name);
+  const offered = [...collectionTags, ...SEED_TAGS.filter((t) => !inCollection.has(t.name.toLowerCase()))].filter(
+    (t) => t.category && AI_CATEGORY_NAMES.includes(t.category) && !TIME_TAG.test(t.name),
+  );
+  const byCategory = AI_CATEGORY_NAMES.map((c) => {
+    const names = offered.filter((t) => t.category === c).map((t) => t.name);
     return names.length ? `- ${c}: ${names.join(", ")}` : null;
   }).filter(Boolean);
-  const uncategorized = existingTags.filter((t) => !t.category || !CATEGORY_NAMES.includes(t.category as never));
-  if (uncategorized.length) byCategory.push(`- Other: ${uncategorized.map((t) => t.name).join(", ")}`);
 
   const ingredients = recipe.ingredients.flatMap((s) => s.items).slice(0, 40);
   const user = [
@@ -189,7 +191,7 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
     .join("\n");
 
   const reply = await askJson(llm, TAG_SYSTEM, user, TagReply, "recipe_tags");
-  const existing = new Map(existingTags.map((t) => [t.name.toLowerCase(), t]));
+  const existing = new Map([...SEED_TAGS, ...collectionTags].map((t) => [t.name.toLowerCase(), t]));
   const seen = new Set<string>();
   const tags: SuggestedTag[] = [];
   for (const raw of reply.tags) {
@@ -198,6 +200,8 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
     if (!name || name.length > 40 || seen.has(key) || TIME_TAG.test(name)) continue;
     seen.add(key);
     const known = existing.get(key);
+    // Leave the cook's own categories, like Occasion, to her.
+    if (known?.category && !AI_CATEGORY_NAMES.includes(known.category)) continue;
     tags.push({ name: known?.name ?? name, category: known?.category ?? raw.category });
   }
   return tags.slice(0, 5);

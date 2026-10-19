@@ -1,8 +1,12 @@
 import { Plus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { CATEGORY_NAMES, OTHER } from "../lib/tags";
 import { cx, TagPill } from "./ui";
 
-/** Tag chips with removal, plus an autocompleting field to add existing or new tags. */
+/**
+ * Tag chips with removal, plus an autocompleting field to add existing or new
+ * tags. A new tag is filed under a category chosen as it's created.
+ */
 export function TagEditor({
   tags,
   allTags,
@@ -10,9 +14,12 @@ export function TagEditor({
 }: {
   tags: string[];
   allTags: string[];
-  onChange: (tags: string[]) => void;
+  /** `categories` holds the category of each newly created tag. */
+  onChange: (tags: string[], categories?: Record<string, string>) => void;
 }) {
   const [adding, setAdding] = useState(false);
+  // The AI fills in the other categories, so occasions are what people add most.
+  const [newCategory, setNewCategory] = useState<string>("Occasion");
   const [text, setText] = useState("");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,8 +38,11 @@ export function TagEditor({
   const options = [...suggestions, ...(canCreate ? [text.trim()] : [])];
 
   const add = (name: string) => {
-    const tag = allTags.find((t) => t.toLowerCase() === name.toLowerCase()) ?? name.trim();
-    if (tag && !has(tag)) onChange([...tags, tag]);
+    const existing = allTags.find((t) => t.toLowerCase() === name.toLowerCase());
+    const tag = existing ?? name.trim();
+    if (tag && !has(tag)) {
+      onChange([...tags, tag], existing || newCategory === OTHER ? undefined : { [tag]: newCategory });
+    }
     setText("");
     setHighlight(0);
     inputRef.current?.focus();
@@ -78,7 +88,7 @@ export function TagEditor({
           {options.length > 0 && (
             <ul
               role="listbox"
-              className="absolute top-full left-0 z-20 mt-1.5 max-h-64 w-56 animate-fade-in overflow-y-auto rounded-2xl bg-card p-1 shadow-lift ring-1 ring-line"
+              className="absolute top-full left-0 z-20 mt-1.5 max-h-64 w-72 animate-fade-in overflow-y-auto rounded-2xl bg-card p-1.5 shadow-lift ring-1 ring-line"
             >
               {options.map((o, i) => (
                 <li key={o} role="option" aria-selected={i === highlight}>
@@ -88,13 +98,13 @@ export function TagEditor({
                     onClick={() => add(o)}
                     onMouseEnter={() => setHighlight(i)}
                     className={cx(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm",
+                      "flex w-full items-center gap-2 rounded-[10px] px-3 py-1.5 text-left text-sm",
                       i === highlight ? "bg-leaf-wash text-leaf-strong" : "text-ink-soft",
                     )}
                   >
                     {canCreate && i === options.length - 1 ? (
                       <>
-                        <Plus className="size-3.5" /> Create “{o}”
+                        <Plus className="size-3.5" /> Create “{o}” in {newCategory}
                       </>
                     ) : (
                       o
@@ -102,6 +112,25 @@ export function TagEditor({
                   </button>
                 </li>
               ))}
+              {canCreate && (
+                <li className="flex flex-wrap gap-1 border-t border-line px-2 pt-2 pb-1.5" aria-label="Category for the new tag">
+                  {[...CATEGORY_NAMES, OTHER].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setNewCategory(c)}
+                      aria-pressed={newCategory === c}
+                      className={cx(
+                        "h-6 rounded-full px-2.5 text-xs font-medium transition-colors",
+                        newCategory === c ? "bg-leaf text-white dark:text-spine-deep" : "bg-paper-deep text-ink-soft hover:text-ink",
+                      )}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </li>
+              )}
             </ul>
           )}
         </div>

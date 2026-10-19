@@ -1,8 +1,55 @@
-import { Check, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { CATEGORY_NAMES, groupTags, OTHER, type Tag } from "../lib/tags";
-import { Button, Dialog, Eyebrow, IconButton, Input, useToast } from "./ui";
+import { Button, cx, Dialog, Eyebrow, IconButton, Input, useToast } from "./ui";
+
+function CategorySelect({ value, onChange, label, className }: { value: string; onChange: (category: string) => void; label: string; className?: string }) {
+  return (
+    <label className={cx("relative", className)}>
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-full w-full appearance-none rounded-full bg-card pr-8 pl-3.5 text-sm text-ink-soft ring-1 ring-line hover:bg-paper-deep focus:ring-2 focus:ring-leaf focus:outline-none"
+      >
+        {CATEGORY_NAMES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+        <option value="">{OTHER}</option>
+      </select>
+      <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-ink-faint" />
+    </label>
+  );
+}
+
+function NewTagForm({ tags, onChanged }: { tags: Tag[]; onChanged: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("Occasion");
+  const exists = tags.some((t) => t.name.toLowerCase() === name.trim().toLowerCase());
+  return (
+    <form
+      className="mb-6 flex gap-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!name.trim() || exists) return;
+        await api.createTag(name.trim(), category || null);
+        toast({ message: `Added the “${name.trim()}” tag`, tone: "success" });
+        setName("");
+        onChanged();
+      }}
+    >
+      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New tag, like Thanksgiving" aria-label="New tag name" className="flex-1 rounded-full! px-4!" />
+      <CategorySelect value={category} onChange={setCategory} label="Category for the new tag" className="h-11 w-36 shrink-0" />
+      <Button type="submit" variant="primary" icon={<Plus className="size-4" />} className="h-11" disabled={!name.trim() || exists} title={exists ? "There's already a tag with this name" : undefined}>
+        Add
+      </Button>
+    </form>
+  );
+}
 
 function TagRow({ tag, count, onChanged }: { tag: Tag; count: number; onChanged: () => void }) {
   const toast = useToast();
@@ -58,25 +105,15 @@ function TagRow({ tag, count, onChanged }: { tag: Tag; count: number; onChanged:
         <>
           <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{name}</span>
           <span className="w-8 text-right text-sm text-ink-faint tabular-nums">{count}</span>
-          <label className="relative">
-            <span className="sr-only">Category for {name}</span>
-            <select
-              value={tag.category ?? ""}
-              onChange={async (e) => {
-                await api.setTagCategory(name, e.target.value || null);
-                onChanged();
-              }}
-              className="h-8 appearance-none rounded-full bg-transparent pr-8 pl-3 text-sm text-ink-soft ring-1 ring-line hover:bg-ink/4 focus:ring-2 focus:ring-leaf focus:outline-none"
-            >
-              {CATEGORY_NAMES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-              <option value="">{OTHER}</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-ink-faint" />
-          </label>
+          <CategorySelect
+            value={tag.category ?? ""}
+            onChange={async (category) => {
+              await api.setTagCategory(name, category || null);
+              onChanged();
+            }}
+            label={`Category for ${name}`}
+            className="h-8 w-32 shrink-0"
+          />
           <IconButton label={`Rename ${name}`} onClick={() => setEditing(true)}>
             <Pencil className="size-4" />
           </IconButton>
@@ -107,8 +144,9 @@ export function ManageTagsDialog({
   return (
     <Dialog open={open} onClose={onClose} title="Organize tags" width="max-w-xl">
       <p className="mb-4 text-[15px] leading-relaxed text-ink-soft">
-        Move a tag to another group, or rename it to the name of another tag to combine them.
+        Add your own tags, move a tag to another group, or rename it to the name of another tag to combine them.
       </p>
+      <NewTagForm tags={tags} onChanged={onChanged} />
       <div className="space-y-6">
         {groups.map(([category, list]) => (
           <section key={category}>

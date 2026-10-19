@@ -71,7 +71,7 @@ pub struct RecipeSummary {
     pub created_at: String,
 }
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 pub struct Db {
     conn: Connection,
@@ -148,6 +148,12 @@ impl Db {
             // Groups tags in the sidebar: Dish, Ingredient, Cuisine, ... (see TAG_CATEGORIES in the frontend).
             self.conn
                 .execute_batch("ALTER TABLE tags ADD COLUMN category TEXT")
+                .map_err(err)?;
+        }
+        if version < 3 {
+            // Tags created on their own, before any recipe uses them, survive pruning.
+            self.conn
+                .execute_batch("ALTER TABLE tags ADD COLUMN kept INTEGER NOT NULL DEFAULT 0")
                 .map_err(err)?;
         }
         self.conn
@@ -403,6 +409,22 @@ impl Db {
         rows.collect::<rusqlite::Result<_>>().map_err(err)
     }
 
+    /// Adds a tag that stays until deleted, even while no recipe uses it.
+    pub fn create_tag(&self, name: &str, category: Option<&str>) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("Tag name can't be empty".into());
+        }
+        self.conn
+            .execute(
+                "INSERT INTO tags (name, category, kept) VALUES (?1, ?2, 1)
+                 ON CONFLICT (name) DO UPDATE SET kept = 1, category = coalesce(?2, category)",
+                params![name, category],
+            )
+            .map_err(err)?;
+        Ok(())
+    }
+
     pub fn set_tag_category(&self, name: &str, category: Option<&str>) -> Result<()> {
         self.conn
             .execute("UPDATE tags SET category = ?2 WHERE name = ?1", params![name, category])
@@ -434,6 +456,11 @@ impl Db {
                 tx.execute(
                     "INSERT OR IGNORE INTO recipe_tags (recipe_id, tag_id)
                      SELECT recipe_id, ?2 FROM recipe_tags WHERE tag_id = ?1",
+                    params![from_id, to_id],
+                )
+                .map_err(err)?;
+                tx.execute(
+                    "UPDATE tags SET kept = max(kept, (SELECT kept FROM tags WHERE id = ?1)) WHERE id = ?2",
                     params![from_id, to_id],
                 )
                 .map_err(err)?;
@@ -532,10 +559,10 @@ fn set_tags(tx: &Transaction, recipe_id: &str, tags: &[String]) -> Result<()> {
     prune_tags(tx)
 }
 
-/// Tags only exist while at least one recipe uses them.
+/// Tags only exist while at least one recipe uses them, unless created on their own.
 fn prune_tags(tx: &Transaction) -> Result<()> {
     tx.execute(
-        "DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM recipe_tags)",
+        "DELETE FROM tags WHERE kept = 0 AND id NOT IN (SELECT DISTINCT tag_id FROM recipe_tags)",
         [],
     )
     .map_err(err)?;
@@ -663,6 +690,17 @@ mod tests {
                 Tag { name: "Soup".into(), category: Some("Dish".into()) },
             ]
         );
+    }
+
+    #[test]
+    fn created_tags_survive_pruning() {
+        let mut db = temp_db();
+        db.create_tag("Thanksgiving", Some("Occasion")).unwrap();
+        let mut r = recipe("Soup", &[]);
+        db.save(&mut r).unwrap();
+        db.set_tags(&r.id, &["Soup".to_string()], &HashMap::new()).unwrap();
+        db.set_tags(&r.id, &[], &HashMap::new()).unwrap();
+        assert_eq!(db.all_tags().unwrap(), vec![Tag { name: "Thanksgiving".into(), category: Some("Occasion".into()) }]);
     }
 
     #[test]

@@ -62,6 +62,7 @@ export function RecipeEditor({
   const [instructions, setInstructions] = useState("");
   const [times, setTimes] = useState({ prep: "", cook: "", total: "" });
   const [saving, setSaving] = useState(false);
+  const [newCategories, setNewCategories] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -102,6 +103,9 @@ export function RecipeEditor({
         sourceUrl: recipe.sourceUrl?.trim() || null,
         yields: recipe.yields?.trim() || null,
       });
+      for (const tag of saved.tags) {
+        if (newCategories[tag]) await api.setTagCategory(tag, newCategories[tag]);
+      }
       onSaved(saved.id);
     } catch (e) {
       toast({ message: `Couldn't save: ${e}`, tone: "error" });
@@ -191,7 +195,11 @@ export function RecipeEditor({
             </div>
           </Field>
           <Field label="Tags">
-            <TagEditor tags={recipe.tags} allTags={allTags} onChange={(tags) => set({ tags, needsTags: false })} />
+            <TagEditor tags={recipe.tags} allTags={allTags} onChange={(tags, categories) => {
+                set({ tags, needsTags: false });
+                if (categories) setNewCategories({ ...newCategories, ...categories });
+              }}
+            />
           </Field>
         </FormSection>
 

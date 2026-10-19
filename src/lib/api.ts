@@ -69,6 +69,7 @@ export const api = {
   setFavorite: (id: string, favorite: boolean) => invoke<void>("set_favorite", { id, favorite }),
   setRecipeTags: (id: string, tags: string[], categories?: Record<string, string>) =>
     invoke<string[]>("set_recipe_tags", { id, tags, categories }),
+  createTag: (name: string, category: string | null) => invoke<void>("create_tag", { name, category }),
   setTagCategory: (name: string, category: string | null) => invoke<void>("set_tag_category", { name, category }),
   searchRecipes: (query: string) => invoke<string[]>("search_recipes", { query }),
   findBySourceUrl: (url: string) => invoke<string | null>("find_by_source_url", { url }),

@@ -1,12 +1,13 @@
-// Tags are grouped into a few categories so the sidebar stays browsable.
+// Tags are grouped into a few categories so the sidebar stays browsable. The AI
+// picks tags in the "auto" categories; the rest are left to the cook.
 
 export const TAG_CATEGORIES = [
-  { name: "Dish", hint: "the kind of dish or course", examples: "Main Course, Side Dish, Soup, Salad, Dessert, Breakfast, Appetizer, Bread, Drink, Sauce" },
-  { name: "Ingredient", hint: "the main ingredient, as a broad group (Poultry not Chicken, Red Meat for beef, lamb or pork, Fish not Cod)", examples: "Poultry, Red Meat, Fish, Seafood, Pasta, Rice, Beans, Eggs, Chocolate" },
-  { name: "Cuisine", hint: "a distinctive regional cuisine", examples: "Italian, Mexican, Thai, Indian, French" },
-  { name: "Dietary", hint: "dietary fit", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free" },
-  { name: "Occasion", hint: "holidays, seasons and events", examples: "Thanksgiving, Christmas, Easter, Summer, Party" },
-  { name: "Method", hint: "a notable appliance or technique", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer, No-Bake" },
+  { name: "Dish", hint: "the kind of dish or course", examples: "Main Course, Side Dish, Soup, Salad, Dessert, Breakfast, Appetizer, Bread, Drink, Sauce", auto: true },
+  { name: "Ingredient", hint: "the main ingredient, as a broad group (Poultry not Chicken, Red Meat for beef, lamb or pork, Fish not Cod)", examples: "Poultry, Red Meat, Fish, Seafood, Pasta, Rice, Beans, Eggs, Chocolate", auto: true },
+  { name: "Cuisine", hint: "a distinctive regional cuisine", examples: "Italian, Mexican, Thai, Indian, French", auto: true },
+  { name: "Dietary", hint: "dietary fit", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free", auto: true },
+  { name: "Occasion", hint: "holidays, seasons and events", examples: "Thanksgiving, Christmas, Easter, Summer, Party", auto: false },
+  { name: "Method", hint: "a notable appliance or technique", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer, No-Bake", auto: true },
 ] as const;
 
 /**
@@ -25,6 +26,8 @@ export const TIME_TAG = /^(quick|easy|fast|simple|make[- ]ahead|weeknight|weekda
 
 export type TagCategory = (typeof TAG_CATEGORIES)[number]["name"];
 export const CATEGORY_NAMES: TagCategory[] = TAG_CATEGORIES.map((c) => c.name);
+export const AI_CATEGORIES = TAG_CATEGORIES.filter((c) => c.auto);
+export const AI_CATEGORY_NAMES: string[] = AI_CATEGORIES.map((c) => c.name);
 export const OTHER = "Other";
 
 export interface Tag {

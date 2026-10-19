@@ -220,9 +220,9 @@ export function RecipeView({
     setRecipe(saved);
     onChanged();
   };
-  const setTags = async (tags: string[]) => {
+  const setTags = async (tags: string[], categories?: Record<string, string>) => {
     setRecipe({ ...recipe, tags, needsTags: false });
-    await api.setRecipeTags(recipe.id, tags);
+    await api.setRecipeTags(recipe.id, tags, categories);
     onChanged();
   };
   const toggleFavorite = async () => {
