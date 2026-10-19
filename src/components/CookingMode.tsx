@@ -90,7 +90,7 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
         </div>
 
         <div className="flex flex-1 flex-col justify-center">
-          <div key={index} className="mx-auto w-full max-w-4xl animate-fade-in">
+          <div key={index} className="mx-auto w-full max-w-4xl animate-rise">
             <p className="font-serif text-2xl text-leaf italic">
               Step {index + 1} <span className="text-ink-faint">of {steps.length}</span>
               {step.heading && <span className="text-ink-faint"> · {step.heading}</span>}

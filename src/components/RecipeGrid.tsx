@@ -12,7 +12,7 @@ function FavoriteButton({ recipe, onToggle, className }: { recipe: RecipeSummary
       aria-label={recipe.favorite ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={recipe.favorite}
       className={cx(
-        "flex size-10 items-center justify-center rounded-full bg-card shadow-soft transition-opacity duration-150",
+        "flex size-10 items-center justify-center rounded-full bg-card/90 shadow-soft backdrop-blur transition duration-150 hover:scale-105",
         recipe.favorite ? "text-tomato" : "text-ink-soft opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
         className,
       )}
@@ -36,8 +36,8 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: { recipe: Recip
   return (
     <article className="group relative">
       <button type="button" onClick={onOpen} className="block w-full text-left" aria-label={recipe.title}>
-        <div className="overflow-hidden rounded-2xl bg-paper-deep shadow-soft ring-1 ring-black/5 transition-shadow duration-200 group-hover:shadow-lift">
-          <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
+        <div className="overflow-hidden rounded-2xl bg-paper-deep shadow-soft ring-1 ring-black/5 transition duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-lift">
+          <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full transition duration-500 ease-out group-hover:scale-[1.04]" />
         </div>
         <div className="px-1 pt-3.5">
           {recipe.sourceName && <Eyebrow className="truncate text-[11px]">{recipe.sourceName}</Eyebrow>}
@@ -55,15 +55,15 @@ export function RecipeCard({ recipe, onOpen, onToggleFavorite }: { recipe: Recip
 /** The newest recipe, set large like a magazine cover. */
 export function FeaturedRecipe({ recipe, onOpen, onToggleFavorite }: { recipe: RecipeSummary; onOpen: () => void; onToggleFavorite: () => void }) {
   return (
-    <article className="group relative">
+    <article className="group relative animate-rise">
       <button
         type="button"
         onClick={onOpen}
         aria-label={recipe.title}
-        className="grid w-full overflow-hidden rounded-3xl bg-card text-left shadow-soft ring-1 ring-black/5 transition-shadow duration-200 hover:shadow-lift @3xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]"
+        className="grid w-full overflow-hidden rounded-3xl bg-card text-left shadow-soft ring-1 ring-black/5 transition duration-300 hover:shadow-lift @3xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]"
       >
         <div className="overflow-hidden">
-          <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[16/10] size-full" />
+          <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[16/10] size-full transition duration-700 ease-out group-hover:scale-[1.03]" />
         </div>
         <div className="flex flex-col justify-center gap-4 p-8 @3xl:p-10">
           <p className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.16em] text-tomato uppercase">
