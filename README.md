@@ -73,6 +73,13 @@ cargo test --manifest-path src-tauri/Cargo.toml   # database tests
 npm run tauri build    # build an installer for this platform
 ```
 
+On Linux, startup defaults `WEBKIT_USE_SKIA_FOR_COMPOSITION` to `0` to use
+WebKitGTK's accelerated TextureMapper compositor. WebKitGTK 2.54.1's default
+Skia compositor caused one-frame flashes during hover transitions in repeated
+recorded comparisons; switching compositors preserved the effects and removed
+the flicker. Set `WEBKIT_USE_SKIA_FOR_COMPOSITION=1` when checking whether a
+newer WebKitGTK release fixes it. The app respects an explicitly set value.
+
 Layout:
 
 ```
