@@ -167,30 +167,20 @@ export async function testConnection(llm: LlmSettings): Promise<void> {
 // ---------------------------------------------------------------------------
 // Reading pages without structured recipe data
 
-const READ_INSTRUCTIONS = `You read web pages for a home cook's recipe collection. The page is in the message, as Markdown.
+const READ_INSTRUCTIONS = `Extract the recipe from the page, which is in the message as Markdown.
 
-If the page has a recipe (ingredients and steps), save it piece by piece:
-1. add_ingredients for the ingredients. When the recipe splits them into sections, like "For the sauce", call it once per section with the section's heading; otherwise call it once, without a heading.
-2. add_steps for the steps, the same way.
-3. add_tips for the recipe's own notes, variations, make-ahead and storage advice, if it has any.
-4. done, with the recipe's title and whatever other details the page gives.
+Copy the ingredients, steps, and notes verbatim. Do not summarize, reword, omit details, or invent anything. Ignore comments, ads, navigation, and other recipes.
 
-If the page has no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.
-
-- Copy the page's text word for word; fix only obvious formatting problems. Never summarize, reword, or invent anything.
-- Each step is one item, without its step number.
-- The description is the recipe's own introduction, word for word: its first few sentences at most.
-- Times are whole minutes. Leave them out when the page doesn't state them.
-- Ignore comments, ads, navigation, and other recipes linked from the page.`;
+Call add_ingredients and add_steps, then add_tips if there are notes. Call done with the title and any other details the page states. If there is no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.`;
 
 const DetailsInput = z.strictObject({
   title: z.string(),
-  description: z.string().nullish(),
+  description: z.string().nullish().describe("The recipe’s own introduction, copied verbatim, at most a few sentences."),
   author: z.string().nullish(),
   yields: z.string().nullish().describe('How much it makes, e.g. "4 servings"'),
-  prepMinutes: z.number().int().nullish(),
-  cookMinutes: z.number().int().nullish(),
-  totalMinutes: z.number().int().nullish(),
+  prepMinutes: z.number().int().nullish().describe("Preparation time in whole minutes, if stated."),
+  cookMinutes: z.number().int().nullish().describe("Cooking or baking time in whole minutes, if stated."),
+  totalMinutes: z.number().int().nullish().describe("Total time in whole minutes, only if the page states a total."),
 });
 const SectionInput = z.strictObject({
   heading: z.string().nullish().describe('The section\'s heading, like "For the sauce". Leave it out when the recipe has no sections.'),
@@ -223,8 +213,8 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
   let result: PageRecipe | null | undefined;
   const positive = (n: number | null | undefined) => (n && n > 0 ? n : null);
 
-  const adder = (part: keyof typeof parts, noun: string) =>
-    tool(`add_${part}`, `Adds the recipe's ${part}, one section at a time.`, SectionInput, (input) => {
+  const adder = (part: keyof typeof parts, noun: string, description: string) =>
+    tool(`add_${part}`, description, SectionInput, (input) => {
       const section = { heading: input.heading?.trim() ?? "", items: input.items.map((i) => i.trim()).filter(Boolean) };
       if (section.items.length === 0) throw new Error(`No ${part} were given.`);
       // A model repeating a call it already made, e.g. after done reported a problem.
@@ -235,9 +225,9 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
     });
 
   const tools = [
-    adder("ingredients", "ingredient"),
-    adder("steps", "step"),
-    adder("tips", "tip"),
+    adder("ingredients", "ingredient", "Copy every ingredient verbatim, including optional ingredients and parenthetical details. Call once per section with its heading, or without a heading if there are no sections."),
+    adder("steps", "step", "Copy every instruction verbatim, including the final cooling and serving directions. Each step is one item without its number. Call once per section with its heading, or without a heading if there are no sections."),
+    adder("tips", "tip", "Copy the recipe's notes, variations, make-ahead, and storage advice verbatim. Call once per section with its heading, or without a heading if there are no sections."),
     tool("done", "Saves the recipe with its title and details, once its ingredients and steps are added.", DetailsInput, (details) => {
       const ingredients = cleanSections(parts.ingredients);
       const instructions = cleanSections(parts.steps);
