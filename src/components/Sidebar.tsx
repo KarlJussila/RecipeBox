@@ -1,19 +1,9 @@
-import { BookOpen, ChevronDown, EyeOff, Flame, Globe, Heart, PartyPopper, Salad, Settings, Sprout, Tag as TagIcon, UtensilsCrossed, Wheat } from "lucide-react";
+import { BookOpen, ChevronDown, EyeOff, Heart, Settings, Sprout } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { groupTags, type Tag } from "../lib/tags";
 import type { RecipeSummary } from "../lib/types";
 import type { Filters } from "../state";
-import { cx, isMac, Sprig } from "./ui";
-
-const CATEGORY_ICONS: Record<string, ReactNode> = {
-  Dish: <UtensilsCrossed className="size-4" />,
-  Ingredient: <Wheat className="size-4" />,
-  Cuisine: <Globe className="size-4" />,
-  Dietary: <Salad className="size-4" />,
-  Occasion: <PartyPopper className="size-4" />,
-  Method: <Flame className="size-4" />,
-  Other: <TagIcon className="size-4" />,
-};
+import { CATEGORY_ICONS, cx, isMac, Sprig } from "./ui";
 
 const TIME_OPTIONS: { label: string; minutes: number | null }[] = [
   { label: "Any time", minutes: null },

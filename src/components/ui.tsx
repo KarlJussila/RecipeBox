@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Flame, Globe, PartyPopper, Salad, Tag as TagIcon, UtensilsCrossed, Wheat, X } from "lucide-react";
 import {
   createContext,
   forwardRef,
@@ -120,6 +120,16 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
 
 // ---------------------------------------------------------------------------
 // Tags
+
+export const CATEGORY_ICONS: Record<string, ReactNode> = {
+  Dish: <UtensilsCrossed className="size-4" />,
+  Ingredient: <Wheat className="size-4" />,
+  Cuisine: <Globe className="size-4" />,
+  Dietary: <Salad className="size-4" />,
+  Occasion: <PartyPopper className="size-4" />,
+  Method: <Flame className="size-4" />,
+  Other: <TagIcon className="size-4" />,
+};
 
 export function TagPill({
   name,

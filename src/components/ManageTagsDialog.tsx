@@ -29,7 +29,7 @@ function CategorySelect({ value, onChange, label, className }: { value: string; 
 function NewTagForm({ tags, onChanged }: { tags: Tag[]; onChanged: () => void }) {
   const toast = useToast();
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Occasion");
+  const [category, setCategory] = useState("");
   const newName = headlineCase(name.trim().replace(/\s+/g, " "));
   const exists = tags.some((t) => t.name.toLowerCase() === newName.toLowerCase());
   return (
