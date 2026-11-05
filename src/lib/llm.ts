@@ -40,16 +40,15 @@ function tool<S extends z.ZodType>(name: string, description: string, input: S, 
   return { name, description, input, run };
 }
 
-const NO_INPUT = z.strictObject({});
-
-function answer(tool: Tool | undefined, args: unknown): { text: string; isError: boolean } {
-  if (!tool) return { text: "Unknown tool", isError: true };
+/** The tool's answer, or what went wrong, which the model reads either way. */
+function answer(tool: Tool | undefined, args: unknown): string {
+  if (!tool) return "Unknown tool";
   const parsed = tool.input.safeParse(args);
-  if (!parsed.success) return { text: z.prettifyError(parsed.error), isError: true };
+  if (!parsed.success) return z.prettifyError(parsed.error);
   try {
-    return { text: tool.run(parsed.data as never), isError: false };
+    return tool.run(parsed.data as never);
   } catch (e) {
-    return { text: e instanceof Error ? e.message : String(e), isError: true };
+    return e instanceof Error ? e.message : String(e);
   }
 }
 
@@ -58,11 +57,11 @@ async function runJob(llm: LlmSettings, instructions: string, message: string, t
   const id = crypto.randomUUID();
   const unlisten = await listen<ToolCall>("ai-tool-call", ({ payload }) => {
     if (payload.job !== id) return;
-    const result = answer(
+    const text = answer(
       tools.find((t) => t.name === payload.name),
       payload.arguments,
     );
-    void api.resolveToolCall(payload.call, result);
+    void api.resolveToolCall(payload.call, { text });
   });
   try {
     return await api.opencodeRun(
@@ -171,17 +170,16 @@ export async function testConnection(llm: LlmSettings): Promise<void> {
 const READ_INSTRUCTIONS = `You read web pages for a home cook's recipe collection. The page is in the message, as Markdown.
 
 If the page has a recipe (ingredients and steps), save it piece by piece:
-1. set_details with the title and whatever else the page gives.
-2. add_ingredients for the ingredients. When the recipe splits them into sections, like "For the sauce", call it once per section with the section's heading; otherwise call it once, without a heading.
-3. add_steps for the steps, the same way.
-4. add_tips for the recipe's own notes, variations, make-ahead and storage advice, if it has any.
-5. done.
+1. add_ingredients for the ingredients. When the recipe splits them into sections, like "For the sauce", call it once per section with the section's heading; otherwise call it once, without a heading.
+2. add_steps for the steps, the same way.
+3. add_tips for the recipe's own notes, variations, make-ahead and storage advice, if it has any.
+4. done, with the recipe's title and whatever other details the page gives.
 
 If the page has no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.
 
-- Copy the text faithfully; fix only obvious formatting problems. Never invent or "improve" content.
+- Copy the page's text word for word; fix only obvious formatting problems. Never summarize, reword, or invent anything.
 - Each step is one item, without its step number.
-- The description is the recipe's short introduction, at most a few sentences.
+- The description is the recipe's own introduction, word for word: its first few sentences at most.
 - Times are whole minutes. Leave them out when the page doesn't state them.
 - Ignore comments, ads, navigation, and other recipes linked from the page.`;
 
@@ -221,7 +219,6 @@ type PageRecipe = Pick<
 
 /** Reads a recipe from a page's text, or returns null when the page has none. */
 export async function extractRecipe(llm: LlmSettings, pageText: string, title: string | null, url: string | null): Promise<PageRecipe | null> {
-  let details: z.infer<typeof DetailsInput> | null = null;
   const parts = { ingredients: [] as Section[], steps: [] as Section[], tips: [] as Section[] };
   let result: PageRecipe | null | undefined;
   const positive = (n: number | null | undefined) => (n && n > 0 ? n : null);
@@ -237,43 +234,33 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
       return `Added ${section.items.length} ${section.items.length === 1 ? noun : part}.`;
     });
 
-  /** The recipe from the parts added so far; throws to say what's missing. */
-  const assemble = (): PageRecipe => {
-    const ingredients = cleanSections(parts.ingredients);
-    const instructions = cleanSections(parts.steps);
-    const missing = [
-      ...(details ? [] : ["Call set_details with the recipe's title."]),
-      ...(ingredients.length > 0 ? [] : ["Add the ingredients with add_ingredients."]),
-      ...(instructions.length > 0 ? [] : ["Add the steps with add_steps."]),
-    ];
-    if (missing.length > 0 || !details) {
-      throw new Error(`The recipe isn't finished:\n${missing.join("\n")}\nIf the page doesn't have a recipe, call no_recipe instead.`);
-    }
-    return {
-      title: details.title.trim(),
-      description: details.description?.trim() ?? "",
-      author: details.author?.trim() || null,
-      yields: details.yields?.trim() || null,
-      prepMinutes: positive(details.prepMinutes),
-      cookMinutes: positive(details.cookMinutes),
-      totalMinutes: positive(details.totalMinutes),
-      ingredients,
-      instructions,
-      tips: cleanSections(parts.tips),
-    };
-  };
-
   const tools = [
-    tool("set_details", "Saves the recipe's title and details, replacing any saved before.", DetailsInput, (input) => {
-      if (!input.title.trim()) throw new Error("The title is empty.");
-      details = input;
-      return "Saved.";
-    }),
     adder("ingredients", "ingredient"),
     adder("steps", "step"),
     adder("tips", "tip"),
-    tool("done", "Finishes the recipe once its details, ingredients and steps are added.", NO_INPUT, () => {
-      result = assemble();
+    tool("done", "Saves the recipe with its title and details, once its ingredients and steps are added.", DetailsInput, (details) => {
+      const ingredients = cleanSections(parts.ingredients);
+      const instructions = cleanSections(parts.steps);
+      const missing = [
+        ...(details.title.trim() ? [] : ["The title is empty."]),
+        ...(ingredients.length > 0 ? [] : ["Add the ingredients with add_ingredients."]),
+        ...(instructions.length > 0 ? [] : ["Add the steps with add_steps."]),
+      ];
+      if (missing.length > 0) {
+        throw new Error(`Nothing was saved:\n${missing.join("\n")}\nIf the page doesn't have a recipe, call no_recipe instead.`);
+      }
+      result = {
+        title: details.title.trim(),
+        description: details.description?.trim() ?? "",
+        author: details.author?.trim() || null,
+        yields: details.yields?.trim() || null,
+        prepMinutes: positive(details.prepMinutes),
+        cookMinutes: positive(details.cookMinutes),
+        totalMinutes: positive(details.totalMinutes),
+        ingredients,
+        instructions,
+        tips: cleanSections(parts.tips),
+      };
       return "Saved the recipe.";
     }),
     tool("no_recipe", "Reports that the page doesn't contain a recipe.", z.strictObject({ reason: z.string() }), () => {

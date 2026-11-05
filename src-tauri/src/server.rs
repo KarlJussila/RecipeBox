@@ -4,7 +4,7 @@
 //! logged-in session, so paywalled recipes come through). The frontend does the
 //! actual recipe extraction and answers through `resolve_import`.
 //!
-//! It also serves the AI's tools to opencode at /mcp (see mcp.rs).
+//! It also runs the AI's tool calls from Recipe Box's opencode plugin at /tool (see tools.rs).
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -21,7 +21,7 @@ use crate::AppState;
 
 pub const PORT: u16 = 47811;
 const MAX_BODY_BYTES: usize = 30 * 1024 * 1024;
-const IMPORT_TIMEOUT: Duration = Duration::from_secs(180);
+const IMPORT_TIMEOUT: Duration = Duration::from_secs(660);
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -78,14 +78,21 @@ fn handle(app: AppHandle, mut request: Request) {
         let _ = request.respond(Response::empty(403));
         return;
     }
-    if request.url() == "/mcp" {
-        mcp(&app, request);
-        return;
-    }
     let result = match (request.method(), request.url()) {
         (Method::Get, "/ping") => Ok(json!({ "app": "Recipe Box", "version": app.package_info().version.to_string() })),
         (Method::Get, "/tags") => app.state::<AppState>().db.lock().unwrap().all_tags().map(|t| json!(t)),
         (Method::Post, "/import") => read_json::<ImportRequest>(&mut request).map(|body| import(&app, body)),
+        (Method::Post, "/tool") => {
+            let token = request
+                .headers()
+                .iter()
+                .find(|h| h.field.equiv("Authorization"))
+                .and_then(|h| h.value.as_str().strip_prefix("Bearer "))
+                .map(str::to_string);
+            read_json::<crate::tools::CallRequest>(&mut request)
+                .and_then(|body| crate::tools::call(&app, token.as_deref(), body))
+                .map(|text| json!({ "text": text }))
+        }
         (Method::Post, "/recipe-tags") => read_json::<TagsBody>(&mut request).and_then(|body| {
             let tags = app.state::<AppState>().db.lock().unwrap().set_tags(&body.id, &body.tags, &Default::default())?;
             let _ = app.emit("library-changed", &body.id);
@@ -102,31 +109,6 @@ fn handle(app: AppHandle, mut request: Request) {
     };
     let header = Header::from_bytes("Content-Type", "application/json").unwrap();
     let _ = request.respond(Response::from_string(body.to_string()).with_status_code(status).with_header(header));
-}
-
-fn mcp(app: &AppHandle, mut request: Request) {
-    // Streamable HTTP without server-sent events: plain JSON replies to POSTs only.
-    if request.method() != &Method::Post {
-        let _ = request.respond(Response::empty(405));
-        return;
-    }
-    let token = request
-        .headers()
-        .iter()
-        .find(|h| h.field.equiv("Authorization"))
-        .and_then(|h| h.value.as_str().strip_prefix("Bearer "))
-        .map(str::to_string);
-    let reply = match read_json::<Value>(&mut request) {
-        Ok(message) => crate::mcp::handle(app, token.as_deref(), &message),
-        Err(e) => Some(json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": e } })),
-    };
-    let _ = match reply {
-        Some(body) => {
-            let header = Header::from_bytes("Content-Type", "application/json").unwrap();
-            request.respond(Response::from_string(body.to_string()).with_header(header))
-        }
-        None => request.respond(Response::empty(202)),
-    };
 }
 
 /// Web pages can send requests to localhost too, but browsers always attach their

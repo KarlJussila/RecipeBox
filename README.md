@@ -14,7 +14,7 @@ print-friendly layout.
 1. The extension (or a pasted link) hands the app a page's HTML.
 2. The app looks for schema.org `Recipe` data (JSON-LD or microdata). Nearly every recipe site publishes it for Google, including NYT Cooking, Serious Eats, Bon Appétit, Allrecipes, and America's Test Kitchen, so there's no per-site scraping code to maintain.
 3. If a page has no structured data and an AI service is configured, the page text goes to the model for extraction.
-4. The recipe is saved right away, with its photo downloaded. Tagging happens next in the background. The model sees the existing tag list so tags stay consistent. Each new tag gets a category, which groups it in the sidebar. Tags describe the dish only, never timing or effort (there's a time filter for that). Occasion tags (Thanksgiving, Christmas…) are left for you to add: a new tag is filed under Occasion unless you pick another group, and a starter set of common tags (Poultry, Red Meat, Fish, Pasta, Rice, Mexican, Indian…) keeps names consistent from the first recipe. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
+4. The recipe is saved with its photo, and tagging happens in the background. The model can use only existing tags in the collection. New collections start with tags in several categories; you can add and organize your own. If the model is unreachable, tagging retries after a minute, backing off to every 15 minutes.
 
 Pasting a link only works for pages that are publicly readable and don't block automated requests. For subscription sites, and for sites like Food52 that block them, use the browser button.
 
@@ -44,7 +44,7 @@ Pasting a link only works for pages that are publicly readable and don't block a
 4. Set up the browser button: **Settings → Chrome button** walks through it. In short: `chrome://extensions` → Developer mode → **Load unpacked** → choose the extension folder (**Show extension folder** opens it; it ships inside the app), then pin the button.
 5. Install opencode for tagging: `curl -fsSL https://opencode.ai/install | bash` in Terminal. The free models need no account. Recipe Box finds it in `~/.opencode/bin` (and other usual places) on its own; **Settings → AI service** shows whether it was found and has a **Check and save** button.
 
-   Recipe Box runs `opencode run --pure --agent plan` in its own empty folder. The plan agent can't edit files or run commands, and the instructions travel in the message, because Zen's free tier only accepts requests that look like opencode's own. To use another provider, pick **Another service** and enter an OpenAI-compatible address, key, and model (OpenRouter and Ollama presets are there). A local 8B model works but tags noticeably less accurately.
+   Recipe Box runs a standalone opencode session with its own agent and plugin for recipe tools. Its separate config folder keeps your global opencode instructions and plugins out of recipe jobs. To use another provider, pick **Another service** and enter an OpenAI-compatible address, key, and model (OpenRouter and Ollama presets are there).
 
 ## Data and backups
 

@@ -1,9 +1,9 @@
 mod backup;
 mod db;
 mod fetch;
-mod mcp;
 mod opencode;
 mod server;
+mod tools;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -21,7 +21,7 @@ use server::{ImportBridge, ImportRequest};
 pub struct AppState {
     pub db: Mutex<Db>,
     pub imports: ImportBridge,
-    pub jobs: mcp::Jobs,
+    pub jobs: tools::Jobs,
     data_dir: PathBuf,
     images_dir: PathBuf,
 }
@@ -170,17 +170,17 @@ async fn opencode_status() -> OpencodeStatus {
     OpencodeStatus { path, version }
 }
 
-/// Runs one AI job: opencode with the job's instructions, and its tools served at /mcp.
+/// Runs one AI job: opencode with the job's instructions and tools.
 #[tauri::command]
-async fn opencode_run(state: State<'_, AppState>, job: opencode::Job, tools: Vec<mcp::ToolDef>) -> Result<String> {
-    state.jobs.start(&job.id, tools);
-    let reply = opencode::run(&state.data_dir, &job).await;
+async fn opencode_run(state: State<'_, AppState>, job: opencode::Job, tools: Vec<tools::ToolDef>) -> Result<String> {
+    state.jobs.start(&job.id, tools.clone());
+    let reply = opencode::run(&state.data_dir, &job, &tools).await;
     state.jobs.finish(&job.id);
     reply
 }
 
 #[tauri::command]
-fn resolve_tool_call(state: State<'_, AppState>, call: String, result: mcp::ToolResult) {
+fn resolve_tool_call(state: State<'_, AppState>, call: String, result: tools::ToolResult) {
     state.jobs.resolve(&call, result);
 }
 

@@ -4,11 +4,14 @@
 //! the same way.
 //!
 //! A job's config goes in through OPENCODE_CONFIG_CONTENT: an agent with the job's
-//! instructions that may use only Recipe Box's own tools (served at /mcp, see
-//! mcp.rs), and the service when there is one. opencode's config folder is the
-//! app's own `opencode-config`, so the user's global opencode setup (instructions
-//! for coding agents, plugins, providers) stays out of the jobs. A provider can
-//! still be added for the app in that folder's opencode.json.
+//! instructions that may use only the job's tools, and the service when there is
+//! one. The tools come from Recipe Box's opencode plugin (opencode-plugin.js),
+//! which reads them from RECIPEBOX_TOOLS and posts each call back to the app.
+//!
+//! opencode's config folder is the app's own `opencode-config`, which holds the
+//! plugin, so the user's global opencode setup (instructions for coding agents,
+//! plugins, providers) stays out of the jobs. A provider can still be added for the
+//! app in that folder's opencode.json.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -19,7 +22,12 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
-const TIMEOUT: Duration = Duration::from_secs(240);
+use crate::tools::ToolDef;
+
+// Small local models can take several minutes over a page.
+const TIMEOUT: Duration = Duration::from_secs(600);
+
+const PLUGIN: &str = include_str!("opencode-plugin.js");
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,29 +48,22 @@ pub struct Service {
     pub api_key: String,
 }
 
-fn config(job: &Job) -> Value {
+fn config(job: &Job, tools: &[ToolDef]) -> Value {
+    // Keys come out sorted, so "*" still comes first and the tools' rules override it.
+    let mut permission = serde_json::Map::from_iter([("*".to_string(), json!("deny"))]);
+    for tool in tools {
+        permission.insert(tool.name.clone(), json!("allow"));
+    }
     let mut config = json!({
         "agent": {
             "recipebox": {
                 "mode": "primary",
                 "prompt": job.instructions,
                 "steps": 20,
-                "permission": { "*": "deny", "recipebox_*": "allow" },
+                "permission": permission,
             },
             // Sessions are never shown, so naming them would only cost a model call.
             "title": { "disable": true },
-        },
-        "mcp": {
-            "servers": {
-                "recipebox": {
-                    "type": "remote",
-                    "url": format!("http://127.0.0.1:{}/mcp", crate::server::PORT),
-                    "headers": { "Authorization": format!("Bearer {}", job.id) },
-                    // Plain tool calls rather than JavaScript run through opencode's `execute`.
-                    "codemode": false,
-                    "oauth": false,
-                }
-            }
         },
     });
     if let Some(service) = &job.service {
@@ -113,13 +114,14 @@ pub async fn version(binary: &Path) -> Option<String> {
 
 /// Runs a job to the end and returns the model's closing words. Results arrive
 /// through the job's tools, not this text.
-pub async fn run(data_dir: &Path, job: &Job) -> Result<String, String> {
+pub async fn run(data_dir: &Path, job: &Job, tools: &[ToolDef]) -> Result<String, String> {
     let binary = find_binary().ok_or("opencode isn't installed on this computer")?;
     let sandbox = data_dir.join("opencode-sandbox");
     let config_dir = data_dir.join("opencode-config");
-    for dir in [&sandbox, &config_dir] {
+    for dir in [&sandbox, &config_dir.join("plugin")] {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
+    std::fs::write(config_dir.join("plugin/recipebox.js"), PLUGIN).map_err(|e| e.to_string())?;
     let model = match job.service {
         Some(_) => format!("recipebox-service/{}", job.model),
         None => job.model.clone(),
@@ -131,8 +133,11 @@ pub async fn run(data_dir: &Path, job: &Job) -> Result<String, String> {
         // service, so the job reads this config and killing this process on
         // timeout also ends the session.
         .args(["run", "--standalone", "--agent", "recipebox", "--format", "json", "-m", &model])
-        .env("OPENCODE_CONFIG_CONTENT", config(job).to_string())
+        .env("OPENCODE_CONFIG_CONTENT", config(job, tools).to_string())
         .env("OPENCODE_CONFIG_DIR", &config_dir)
+        .env("RECIPEBOX_TOOLS", serde_json::to_string(tools).unwrap_or_default())
+        .env("RECIPEBOX_TOOL_URL", format!("http://127.0.0.1:{}/tool", crate::server::PORT))
+        .env("RECIPEBOX_JOB", &job.id)
         // opencode takes its project folder from PWD when set, which is inherited
         // from whatever launched the app. Keep it in the empty sandbox.
         .current_dir(&sandbox)
