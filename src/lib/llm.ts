@@ -3,9 +3,8 @@
 // Every job runs through opencode (see src-tauri/src/opencode.rs), with either
 // opencode's own models (OpenCode Zen's free ones by default) or an
 // OpenAI-compatible service that Recipe Box adds to opencode as a provider.
-// The model works through tools defined here: it reads the recipe or page with
-// one and hands back its result with another, which checks the result and
-// explains any problem so the model can correct itself.
+// The model hands back its result through tools defined here, which check the
+// result and explain any problem so the model can correct itself.
 
 import { listen } from "@tauri-apps/api/event";
 import { z } from "zod";
@@ -89,7 +88,7 @@ async function runJob(llm: LlmSettings, instructions: string, message: string, t
 
 const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection.
 
-Read the recipe with get_recipe and the tags you can use with list_tags, then save 3 to 5 of them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
+Choose 3 to 5 of the tags listed in the message and save them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
 
 - Include one Dish tag, and an Ingredient tag when the recipe has a clear main ingredient.
 - Add a Cuisine tag only when the cuisine is distinctive.
@@ -121,27 +120,11 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
   let chosen: SuggestedTag[] | null = null;
 
   const tools = [
-    tool("get_recipe", "Reads the recipe to tag.", NO_INPUT, () =>
-      JSON.stringify(
-        {
-          title: recipe.title,
-          description: recipe.description,
-          websiteKeywords: recipe.keywords,
-          ingredients: recipe.ingredients.flatMap((s) => s.items),
-          steps: recipe.instructions.flatMap((s) => s.items),
-        },
-        null,
-        2,
-      ),
-    ),
-    tool("list_tags", "Lists the tags you can use, by category.", NO_INPUT, () =>
-      JSON.stringify(Object.fromEntries(AI_CATEGORY_NAMES.map((c) => [c, [...offered.values()].filter((t) => t.category === c).map((t) => t.name)])), null, 2),
-    ),
-    tool("set_tags", "Saves the recipe's tags, replacing any saved before: 3 to 5 tags from list_tags, including one Dish tag.", TagInput, ({ tags }) => {
+    tool("set_tags", "Saves the recipe's tags, replacing any saved before: 3 to 5 of the listed tags, including one Dish tag.", TagInput, ({ tags }) => {
       const unknown = tags.filter((name) => !offered.has(name.trim().toLowerCase()));
       const result = [...new Set(tags.map((name) => name.trim().toLowerCase()))].flatMap((key) => offered.get(key) ?? []);
       const problems = [
-        ...unknown.map((name) => `"${name}" isn't one of the tags from list_tags.`),
+        ...unknown.map((name) => `"${name}" isn't one of the listed tags.`),
         ...(result.length > 5 ? [`That's ${result.length} tags. Choose at most 5.`] : []),
         ...(result.some((t) => t.category === "Dish") ? [] : ["Include one Dish tag."]),
       ];
@@ -152,7 +135,7 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
   ];
 
   try {
-    await runJob(llm, TAG_INSTRUCTIONS, "Choose tags for this recipe.", tools);
+    await runJob(llm, TAG_INSTRUCTIONS, tagMessage(recipe, [...offered.values()]), tools);
   } catch (e) {
     // A failure after the tags were saved, such as in the closing reply, doesn't matter.
     if (!chosen) throw e;
@@ -161,10 +144,25 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
   return chosen;
 }
 
+function tagMessage(recipe: TaggableRecipe, tags: SuggestedTag[]): string {
+  const lines = [`Recipe: ${recipe.title}`];
+  if (recipe.description) lines.push("", recipe.description);
+  if (recipe.keywords.length > 0) lines.push("", `Website keywords: ${recipe.keywords.join(", ")}`);
+  lines.push("", "Ingredients:", ...recipe.ingredients.flatMap((s) => s.items).map((i) => `- ${i}`));
+  const steps = recipe.instructions.flatMap((s) => s.items);
+  if (steps.length > 0) lines.push("", "Steps:", ...steps.map((step, i) => `${i + 1}. ${step}`));
+  lines.push("", "Tags you can use:");
+  for (const category of AI_CATEGORY_NAMES) {
+    const names = tags.filter((t) => t.category === category).map((t) => t.name);
+    if (names.length > 0) lines.push(`${category}: ${names.join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
 /** Tags a tiny made-up recipe, without saving anything, to check the settings work. */
 export async function testConnection(llm: LlmSettings): Promise<void> {
   const recipe = { title: "Grilled Cheese", description: "", ingredients: [{ heading: "", items: ["bread", "cheddar", "butter"] }], instructions: [], keywords: [] };
-  await suggestTags(llm, recipe, []);
+  await suggestTags(llm, recipe, await api.allTags());
 }
 
 // ---------------------------------------------------------------------------
