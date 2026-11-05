@@ -87,10 +87,8 @@ async function runJob(llm: LlmSettings, instructions: string, message: string, t
 
 const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection.
 
-Choose 3 to 5 of the tags listed in the message and save them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
+Choose all the tags that fit from the list in the message and save them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
 
-- Include one Dish tag, and an Ingredient tag when the recipe has a clear main ingredient.
-- Add a Cuisine tag only when the cuisine is distinctive.
 - Add a Dietary tag only when the recipe says so itself, in its title, description or website keywords.`;
 
 const TagInput = z.strictObject({ tags: z.array(z.string()) });
@@ -119,13 +117,11 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
   let chosen: SuggestedTag[] | null = null;
 
   const tools = [
-    tool("set_tags", "Saves the recipe's tags, replacing any saved before: 3 to 5 of the listed tags, including one Dish tag.", TagInput, ({ tags }) => {
+    tool("set_tags", "Saves the fitting tags from the list, replacing any saved before.", TagInput, ({ tags }) => {
       const unknown = tags.filter((name) => !offered.has(name.trim().toLowerCase()));
       const result = [...new Set(tags.map((name) => name.trim().toLowerCase()))].flatMap((key) => offered.get(key) ?? []);
       const problems = [
         ...unknown.map((name) => `"${name}" isn't one of the listed tags.`),
-        ...(result.length > 5 ? [`That's ${result.length} tags. Choose at most 5.`] : []),
-        ...(result.some((t) => t.category === "Dish") ? [] : ["Include one Dish tag."]),
       ];
       if (problems.length > 0) throw new Error(`Nothing was saved:\n${problems.join("\n")}`);
       chosen = result;
@@ -167,11 +163,11 @@ export async function testConnection(llm: LlmSettings): Promise<void> {
 // ---------------------------------------------------------------------------
 // Reading pages without structured recipe data
 
-const READ_INSTRUCTIONS = `Extract the recipe from the page, which is in the message as Markdown.
+const READ_INSTRUCTIONS = `Extract the recipe from the numbered page lines in the message.
 
-Copy the ingredients, steps, and notes verbatim. Do not summarize, reword, omit details, or invent anything. Ignore comments, ads, navigation, and other recipes.
+Select the lines containing ingredients, steps, and separate notes. The app copies the selected lines, so do not include headings in the line ranges. Keep notes that are part of a step with that step. Ignore comments, ads, navigation, and other recipes.
 
-Call add_ingredients and add_steps, then add_tips if there are notes. Call done with the title and any other details the page states. If there is no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.`;
+Call add_ingredients and add_steps, then add_tips if there are separate notes. Call done with the title and any other details the page states. If there is no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.`;
 
 const DetailsInput = z.strictObject({
   title: z.string(),
@@ -183,8 +179,9 @@ const DetailsInput = z.strictObject({
   totalMinutes: z.number().int().nullish().describe("Total time in whole minutes, only if the page states a total."),
 });
 const SectionInput = z.strictObject({
-  heading: z.string().nullish().describe('The section\'s heading, like "For the sauce". Leave it out when the recipe has no sections.'),
-  items: z.array(z.string()),
+  heading: z.string().nullish().describe('The section heading, like "For the sauce". Leave it out when there is no heading.'),
+  start: z.number().int().describe("First line number to copy, inclusive."),
+  end: z.number().int().describe("Last line number to copy, inclusive."),
 });
 
 function cleanSections(sections: Section[]): Section[] {
@@ -209,25 +206,38 @@ type PageRecipe = Pick<
 
 /** Reads a recipe from a page's text, or returns null when the page has none. */
 export async function extractRecipe(llm: LlmSettings, pageText: string, title: string | null, url: string | null): Promise<PageRecipe | null> {
+  const lines = pageText.split("\n");
   const parts = { ingredients: [] as Section[], steps: [] as Section[], tips: [] as Section[] };
+  const selected = { ingredients: [] as [number, number][], steps: [] as [number, number][], tips: [] as [number, number][] };
   let result: PageRecipe | null | undefined;
   const positive = (n: number | null | undefined) => (n && n > 0 ? n : null);
 
   const adder = (part: keyof typeof parts, noun: string, description: string) =>
-    tool(`add_${part}`, description, SectionInput, (input) => {
-      const section = { heading: input.heading?.trim() ?? "", items: input.items.map((i) => i.trim()).filter(Boolean) };
-      if (section.items.length === 0) throw new Error(`No ${part} were given.`);
-      // A model repeating a call it already made, e.g. after done reported a problem.
-      const same = (s: Section) => s.heading === section.heading && s.items.join("\n") === section.items.join("\n");
-      if (parts[part].some(same)) return "Those were already added.";
-      parts[part].push(section);
-      return `Added ${section.items.length} ${section.items.length === 1 ? noun : part}.`;
+    tool(`add_${part}`, description, SectionInput, ({ heading, start, end }) => {
+      if (start < 1 || end < start || end > lines.length) {
+        throw new Error(`Choose a valid line range from 1 to ${lines.length}.`);
+      }
+      if (selected[part].some(([first, last]) => start <= last && end >= first)) {
+        throw new Error("Those lines overlap lines already added. Choose only the new lines.");
+      }
+      const pageHeading = (line: string) => /^(?:\*\*(.+)\*\*|#{1,6} (.+))$/.exec(line)?.slice(1).find(Boolean);
+      const sections: Section[] = [{ heading: heading?.trim() || pageHeading(lines[start - 2] ?? "") || "", items: [] }];
+      for (const line of lines.slice(start - 1, end)) {
+        const title = pageHeading(line);
+        if (title) sections.push({ heading: title, items: [] });
+        else if (line.trim()) sections[sections.length - 1].items.push(line.replace(/^(?:- |\d+\. )/, "").trim());
+      }
+      const count = sections.reduce((total, section) => total + section.items.length, 0);
+      if (count === 0) throw new Error(`No ${part} were given.`);
+      selected[part].push([start, end]);
+      parts[part].push(...sections.filter((section) => section.items.length));
+      return `Added ${count} ${count === 1 ? noun : part}.`;
     });
 
   const tools = [
-    adder("ingredients", "ingredient", "Copy every ingredient verbatim, including optional ingredients and parenthetical details. Call once per section with its heading, or without a heading if there are no sections."),
-    adder("steps", "step", "Copy every instruction verbatim, including the final cooling and serving directions. Each step is one item without its number. Call once per section with its heading, or without a heading if there are no sections."),
-    adder("tips", "tip", "Copy the recipe's notes, variations, make-ahead, and storage advice verbatim. Call once per section with its heading, or without a heading if there are no sections."),
+    adder("ingredients", "ingredient", "Select the ingredient lines, including optional ingredients. Call once per section with its heading, or without a heading if there are no sections. Do not include the heading line."),
+    adder("steps", "step", "Select all instruction lines, including final cooling and serving directions. Keep inline notes with their steps. Call once per section with its heading, or without a heading if there are no sections. Do not include the heading line."),
+    adder("tips", "tip", "Select separate recipe notes, variations, make-ahead, and storage advice. Call once per section with its heading, or without a heading if there are no sections. Do not include the heading line."),
     tool("done", "Saves the recipe with its title and details, once its ingredients and steps are added.", DetailsInput, (details) => {
       const ingredients = cleanSections(parts.ingredients);
       const instructions = cleanSections(parts.steps);
@@ -259,7 +269,8 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
     }),
   ];
 
-  const message = [url && `URL: ${url}`, title && `Page title: ${title}`, "", pageText].filter((x) => x !== null).join("\n");
+  const numberedPage = lines.map((line, index) => `${index + 1}: ${line}`).join("\n");
+  const message = [url && `URL: ${url}`, title && `Page title: ${title}`, "", numberedPage].filter((x) => x !== null).join("\n");
   try {
     await runJob(llm, READ_INSTRUCTIONS, message, tools);
   } catch (e) {
