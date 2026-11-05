@@ -37,6 +37,9 @@ pub struct Recipe {
     pub total_minutes: Option<i64>,
     pub ingredients: Vec<Section>,
     pub instructions: Vec<Section>,
+    /// Notes and tips from the recipe itself ("Do ahead", "Storage", ...), kept apart from the steps.
+    pub tips: Vec<Section>,
+    /// The cook's own notes.
     pub notes: String,
     pub keywords: Vec<String>,
     pub rating: Option<i64>,
@@ -113,6 +116,7 @@ impl Db {
                         total_minutes INTEGER,
                         ingredients TEXT NOT NULL DEFAULT '[]',
                         instructions TEXT NOT NULL DEFAULT '[]',
+                        tips TEXT NOT NULL DEFAULT '[]',
                         notes TEXT NOT NULL DEFAULT '',
                         keywords TEXT NOT NULL DEFAULT '[]',
                         rating INTEGER,
@@ -202,13 +206,14 @@ impl Db {
             .query_row(
                 "SELECT id, title, description, source_url, source_name, author, image, yields,
                         prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
-                        notes, keywords, rating, favorite, created_at, updated_at, needs_tags
+                        notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips
                  FROM recipes WHERE id = ?1",
                 [id],
                 |r| {
                     let ingredients: String = r.get(11)?;
                     let instructions: String = r.get(12)?;
                     let keywords: String = r.get(14)?;
+                    let tips: String = r.get(20)?;
                     Ok(Recipe {
                         id: r.get(0)?,
                         title: r.get(1)?,
@@ -223,6 +228,7 @@ impl Db {
                         total_minutes: r.get(10)?,
                         ingredients: serde_json::from_str(&ingredients).unwrap_or_default(),
                         instructions: serde_json::from_str(&instructions).unwrap_or_default(),
+                        tips: serde_json::from_str(&tips).unwrap_or_default(),
                         notes: r.get(13)?,
                         keywords: serde_json::from_str(&keywords).unwrap_or_default(),
                         rating: r.get(15)?,
@@ -281,8 +287,8 @@ impl Db {
         tx.execute(
             "INSERT INTO recipes (id, title, description, source_url, source_name, author, image,
                 yields, prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
-                notes, keywords, rating, favorite, created_at, updated_at, needs_tags)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
+                notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
              ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title, description = excluded.description,
                 source_url = excluded.source_url, source_name = excluded.source_name,
@@ -292,7 +298,7 @@ impl Db {
                 instructions = excluded.instructions, notes = excluded.notes,
                 keywords = excluded.keywords, rating = excluded.rating,
                 favorite = excluded.favorite, updated_at = excluded.updated_at,
-                needs_tags = excluded.needs_tags",
+                needs_tags = excluded.needs_tags, tips = excluded.tips",
             params![
                 recipe.id,
                 recipe.title,
@@ -314,6 +320,7 @@ impl Db {
                 recipe.created_at,
                 recipe.updated_at,
                 recipe.needs_tags,
+                serde_json::to_string(&recipe.tips).map_err(err)?,
             ],
         )
         .map_err(err)?;
@@ -570,16 +577,16 @@ fn prune_tags(tx: &Transaction) -> Result<()> {
 }
 
 fn index_recipe(tx: &Transaction, recipe_id: &str) -> Result<()> {
-    let row: Option<(i64, String, String, String, String, String, String)> = tx
+    let row: Option<(i64, String, String, String, String, String, String, String)> = tx
         .query_row(
-            "SELECT rowid, title, description, ingredients, instructions, notes, keywords
+            "SELECT rowid, title, description, ingredients, instructions, tips, notes, keywords
              FROM recipes WHERE id = ?1",
             [recipe_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?)),
         )
         .optional()
         .map_err(err)?;
-    let Some((rowid, title, description, ingredients, instructions, notes, keywords)) = row else {
+    let Some((rowid, title, description, ingredients, instructions, tips, notes, keywords)) = row else {
         return Ok(());
     };
     let flatten = |json: &str| {
@@ -604,7 +611,8 @@ fn index_recipe(tx: &Transaction, recipe_id: &str) -> Result<()> {
             title,
             description,
             flatten(&ingredients),
-            flatten(&instructions),
+            // Tips share the steps' column so the index's layout doesn't change.
+            [flatten(&instructions), flatten(&tips)].join("\n"),
             notes,
             tags.join("\n")
         ],
@@ -714,6 +722,16 @@ mod tests {
         r.created_at = String::new();
         assert_eq!(db.save(&mut r).unwrap(), Some("a.jpg".into()));
         assert_eq!(r.created_at, created);
+    }
+
+    #[test]
+    fn tips_are_saved_and_searched() {
+        let mut db = temp_db();
+        let mut r = recipe("Apple Cake", &[]);
+        r.tips = vec![Section { heading: "Do ahead".into(), items: vec!["Wrap in foil overnight.".into()] }];
+        db.save(&mut r).unwrap();
+        assert_eq!(db.get(&r.id).unwrap().unwrap().tips[0].items, vec!["Wrap in foil overnight."]);
+        assert_eq!(db.search("foil").unwrap(), vec![r.id.clone()]);
     }
 
     #[test]

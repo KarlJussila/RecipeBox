@@ -60,6 +60,7 @@ export function RecipeEditor({
   const [recipe, setRecipe] = useState<Recipe | null>(id ? null : emptyRecipe());
   const [ingredients, setIngredients] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [tips, setTips] = useState("");
   const [times, setTimes] = useState({ prep: "", cook: "", total: "" });
   const [saving, setSaving] = useState(false);
   const [newCategories, setNewCategories] = useState<Record<string, string>>({});
@@ -72,6 +73,7 @@ export function RecipeEditor({
       setRecipe(r);
       setIngredients(sectionsToText(r.ingredients));
       setInstructions(sectionsToText(r.instructions));
+      setTips(sectionsToText(r.tips));
       setTimes({ prep: minutesText(r.prepMinutes), cook: minutesText(r.cookMinutes), total: minutesText(r.totalMinutes) });
     });
   }, [id]);
@@ -97,6 +99,7 @@ export function RecipeEditor({
         title: recipe.title.trim() || "Untitled recipe",
         ingredients: textToSections(ingredients),
         instructions: textToSections(instructions),
+        tips: textToSections(tips),
         prepMinutes: prep,
         cookMinutes: cook,
         totalMinutes: parseDuration(times.total) ?? (prep || cook ? (prep ?? 0) + (cook ?? 0) : null),
@@ -254,7 +257,18 @@ export function RecipeEditor({
           </Field>
         </FormSection>
 
-        <FormSection title="Notes">
+        <FormSection title="Tips">
+          <Field label="Notes and tips from the recipe" hint="Shown after the steps, without numbers. Group them under headings like “Do ahead:”.">
+            <Textarea
+              value={tips}
+              onChange={(e) => setTips(e.target.value)}
+              rows={Math.max(4, tips.split("\n").length + 2)}
+              placeholder={"Do ahead:\nThe dough keeps in the fridge for 3 days."}
+            />
+          </Field>
+        </FormSection>
+
+        <FormSection title="Kitchen notes">
           <Textarea value={recipe.notes} onChange={(e) => set({ notes: e.target.value })} rows={4} placeholder="Your own notes" />
         </FormSection>
       </form>

@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, Heart, Pencil, Printer, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { formatMinutes } from "../lib/extract/duration";
 import { splitAmount } from "../lib/ingredients";
@@ -144,17 +144,56 @@ function Ingredients({
   );
 }
 
-function Steps({ sections }: { sections: Section[] }) {
+/**
+ * Beside the floated ingredients card, a step that would hang mostly below the card
+ * clears it and takes the full width instead. Headings move with a section's first step.
+ */
+function useClearCard(root: RefObject<HTMLDivElement | null>, card: RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const steps = root.current;
+    const float = card.current;
+    if (!steps || !float) return;
+    const place = () => {
+      const blocks = [...steps.querySelectorAll<HTMLElement>("[data-block]")];
+      for (const el of steps.querySelectorAll<HTMLElement>("[data-block], [data-section]")) el.style.clear = "";
+      const style = getComputedStyle(float);
+      if (style.float === "none") return;
+      const edge = float.getBoundingClientRect().bottom;
+      const reach = edge + parseFloat(style.marginBottom);
+      for (const block of blocks) {
+        const r = block.getBoundingClientRect();
+        if (r.top >= reach) break;
+        if (r.bottom - edge > r.height / 2) {
+          const section = block.closest<HTMLElement>("[data-section]");
+          (section?.querySelector("[data-block]") === block ? section : block).style.clear = "left";
+          break;
+        }
+      }
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(steps);
+    observer.observe(float);
+    return () => observer.disconnect();
+  }, [root, card]);
+}
+
+function StepHeading({ children }: { children: string }) {
+  return <h3 className="mb-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink">{children}</h3>;
+}
+
+function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[]; card: RefObject<HTMLDivElement | null> }) {
   const [current, setCurrent] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  useClearCard(root, card);
   let number = 0;
   return (
-    <div>
+    <div ref={root}>
       <h2 className="mb-6 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
       {sections.length === 0 && <p className="text-ink-faint">No steps listed.</p>}
       <div className="space-y-8">
         {sections.map((section, si) => (
-          <div key={si}>
-            {section.heading && <Eyebrow className="mb-3">{section.heading}</Eyebrow>}
+          <div key={si} data-section>
+            {section.heading && <StepHeading>{section.heading}</StepHeading>}
             <ol className="space-y-1.5">
               {section.items.map((step, i) => {
                 number += 1;
@@ -164,7 +203,7 @@ function Steps({ sections }: { sections: Section[] }) {
                   // The list item sits beside the ingredients and shrinks to the width left
                   // over. WebKit only does that for a block with auto width and no negative
                   // margins, so the highlight's bleed lives on the button inside.
-                  <li key={key} className="print-break-avoid flow-root">
+                  <li key={key} data-block className="print-break-avoid flow-root">
                     <button
                       type="button"
                       onClick={() => setCurrent(active ? null : key)}
@@ -181,6 +220,19 @@ function Steps({ sections }: { sections: Section[] }) {
                 );
               })}
             </ol>
+          </div>
+        ))}
+        {/* The recipe's own tips and make-ahead advice: worth reading, but not steps. */}
+        {tips.map((section, si) => (
+          <div key={`tip-${si}`} data-section>
+            <StepHeading>{section.heading || "Notes"}</StepHeading>
+            <ul className="space-y-3">
+              {section.items.map((tip, i) => (
+                <li key={i} data-block className="selectable print-break-avoid flow-root max-w-[50rem] text-[17px] leading-[1.65] text-ink-soft">
+                  {tip}
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
       </div>
@@ -243,6 +295,7 @@ export function RecipeView({
   const [ingredientsCollapsed, setIngredientsCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -288,8 +341,10 @@ export function RecipeView({
   ].filter((s): s is { label: string; value: string } => Boolean(s));
   const hasSteps = recipe.instructions.some((s) => s.items.length > 0);
 
+  // `relative` keeps the ingredients' visually hidden checkboxes positioned inside this
+  // scroller; otherwise they hang off the page body and the whole window scrolls.
   return (
-    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="paper-grain scrollbar-quiet @container h-full overflow-y-auto">
+    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="paper-grain scrollbar-quiet @container relative h-full overflow-y-auto">
       <header
         data-tauri-drag-region
         className={cx(
@@ -380,7 +435,7 @@ export function RecipeView({
         {/* Steps sit beside the ingredients, then take the full width below them. Each step
             is its own formatting context, so it never wraps partway around the card. */}
         <section className="flow-root">
-          <div className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}>
+          <div ref={cardRef} className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}>
             <Ingredients
               key={recipe.id}
               sections={recipe.ingredients}
@@ -392,7 +447,7 @@ export function RecipeView({
               }}
             />
           </div>
-          <Steps key={recipe.id} sections={recipe.instructions} />
+          <Steps key={recipe.id} sections={recipe.instructions} tips={recipe.tips} card={cardRef} />
         </section>
 
         <Notes recipe={recipe} onSave={(notes) => save({ notes })} />

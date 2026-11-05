@@ -19,6 +19,9 @@ export interface Recipe {
   totalMinutes: number | null;
   ingredients: Section[];
   instructions: Section[];
+  /** Notes and tips from the recipe itself ("Do ahead", "Storage", ...), apart from the steps. */
+  tips: Section[];
+  /** The cook's own notes. */
   notes: string;
   keywords: string[];
   rating: number | null;
@@ -59,7 +62,7 @@ export interface RecipeDraft {
   totalMinutes: number | null;
   ingredients: Section[];
   instructions: Section[];
-  notes: string;
+  tips: Section[];
   keywords: string[];
   /** schema.org recipeCategory / recipeCuisine values, used for automatic tags. */
   categories: string[];
@@ -81,6 +84,7 @@ export function emptyRecipe(): Recipe {
     totalMinutes: null,
     ingredients: [],
     instructions: [],
+    tips: [],
     notes: "",
     keywords: [],
     rating: null,

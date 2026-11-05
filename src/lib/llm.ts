@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { api, type LlmSettings } from "./api";
 import { AI_CATEGORIES, AI_CATEGORY_NAMES, SEED_TAGS, TIME_TAG, type Tag } from "./tags";
+import { notesSection } from "./steps";
 import type { RecipeDraft } from "./types";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
@@ -261,7 +262,7 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
     totalMinutes: positive(reply.totalMinutes),
     ingredients: clean(reply.ingredients),
     instructions: clean(reply.instructions),
-    notes: reply.notes.trim(),
+    tips: [notesSection(reply.notes)],
   } satisfies Partial<RecipeDraft>;
 }
 

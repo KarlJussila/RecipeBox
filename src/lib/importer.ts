@@ -2,6 +2,7 @@ import { api, type LlmSettings } from "./api";
 import { extractFromHtml, readableText } from "./extract/page";
 import { headlineCase } from "./extract/text";
 import { extractRecipe, llmConfigured, suggestTags } from "./llm";
+import { splitTips } from "./steps";
 import { emptyRecipe, type Recipe } from "./types";
 
 export type ImportResult =
@@ -62,6 +63,7 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     image = await api.downloadImage(draft.imageUrl, pageUrl).catch(() => null);
   }
 
+  const { steps, tips } = splitTips([...draft.instructions, ...draft.tips]);
   const recipe: Recipe = {
     ...emptyRecipe(),
     // Some blogs (Smitten Kitchen) style their titles in lowercase.
@@ -76,8 +78,8 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     cookMinutes: draft.cookMinutes,
     totalMinutes: draft.totalMinutes,
     ingredients: draft.ingredients,
-    instructions: draft.instructions,
-    notes: draft.notes,
+    instructions: steps,
+    tips,
     // Site categories and cuisines are good search terms even when they aren't tags.
     keywords: [...new Set([...draft.keywords, ...draft.categories, ...draft.cuisines])],
     needsTags: true,
