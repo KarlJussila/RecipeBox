@@ -170,7 +170,12 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
     }),
   ];
 
-  await runJob(llm, TAG_INSTRUCTIONS, "Choose tags for this recipe.", tools);
+  try {
+    await runJob(llm, TAG_INSTRUCTIONS, "Choose tags for this recipe.", tools);
+  } catch (e) {
+    // A failure after the tags were saved, such as in the closing reply, doesn't matter.
+    if (!chosen) throw e;
+  }
   if (!chosen) throw new Error("The AI finished without choosing tags");
   return chosen;
 }
@@ -265,7 +270,11 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
     }),
   ];
 
-  await runJob(llm, READ_INSTRUCTIONS, "Read the recipe on this page.", tools);
+  try {
+    await runJob(llm, READ_INSTRUCTIONS, "Read the recipe on this page.", tools);
+  } catch (e) {
+    if (result === undefined) throw e;
+  }
   if (result === undefined) throw new Error("The AI finished without reading the page");
   return result;
 }

@@ -45,7 +45,9 @@ fn config(job: &Job) -> Value {
                 "prompt": job.instructions,
                 "steps": 12,
                 "permission": { "*": "deny", "recipebox_*": "allow" },
-            }
+            },
+            // Sessions are never shown, so naming them would only cost a model call.
+            "title": { "disable": true },
         },
         "mcp": {
             "servers": {
@@ -150,27 +152,30 @@ pub async fn run(sandbox: &Path, job: &Job) -> Result<String, String> {
         .await
         .map_err(|_| "opencode took too long to answer".to_string())?;
 
+    // opencode retries a failed model call itself, so an error event only matters
+    // when the run as a whole fails.
     let mut text = String::new();
+    let mut last_error = None;
     for line in out.lines() {
         let Ok(event) = serde_json::from_str::<Value>(line) else { continue };
         match event["type"].as_str() {
             Some("text") => text.push_str(event["part"]["text"].as_str().unwrap_or("")),
             Some("error") => {
-                let message = event["error"]["data"]["message"]
-                    .as_str()
-                    .or(event["error"]["message"].as_str())
-                    .unwrap_or("unknown error");
-                return Err(format!("opencode: {message}"));
+                let message = event["error"]["data"]["message"].as_str().or(event["error"]["message"].as_str());
+                last_error = Some(message.unwrap_or("unknown error").to_string());
             }
             _ => {}
         }
     }
     match status {
         Ok(s) if s.success() => Ok(text),
-        _ => {
-            let detail = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no details");
-            let code = status.map(|s| s.to_string()).unwrap_or_default();
-            Err(format!("opencode failed ({code}): {detail}"))
-        }
+        status => Err(match last_error {
+            Some(message) => format!("opencode: {message}"),
+            None => {
+                let detail = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no details");
+                let code = status.map(|s| s.to_string()).unwrap_or_default();
+                format!("opencode failed ({code}): {detail}")
+            }
+        }),
     }
 }
