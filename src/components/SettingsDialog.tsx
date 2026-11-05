@@ -8,11 +8,6 @@ import { Button, cx, Dialog, Field, Input, Spinner, useToast } from "./ui";
 
 export type SettingsTab = "ai" | "extension" | "appearance" | "backup";
 
-const PRESETS: { name: string; baseUrl: string; note: string }[] = [
-  { name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", note: "One key for models from many companies." },
-  { name: "Ollama", baseUrl: "http://localhost:11434/v1", note: "Runs models on this computer. No key needed." },
-];
-
 function TabButton({ active, icon, children, onClick }: { active: boolean; icon: ReactNode; children: ReactNode; onClick: () => void }) {
   return (
     <button
@@ -109,7 +104,7 @@ function AiTab({ settings, onSave }: { settings: Settings; onSave: (llm: LlmSett
         <Choice
           active={llm.provider === "api"}
           title="Another service"
-          description="Any OpenAI-compatible API, such as OpenRouter or Ollama."
+          description="Any OpenAI-compatible API."
           onClick={() => switchProvider("api")}
         />
       </div>
@@ -123,19 +118,6 @@ function AiTab({ settings, onSave }: { settings: Settings; onSave: (llm: LlmSett
         </>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <Button
-                key={p.name}
-                size="sm"
-                variant={llm.baseUrl === p.baseUrl ? "primary" : "secondary"}
-                title={p.note}
-                onClick={() => set({ baseUrl: p.baseUrl })}
-              >
-                {p.name}
-              </Button>
-            ))}
-          </div>
           <Field label="API address">
             <Input value={llm.baseUrl} onChange={(e) => set({ baseUrl: e.target.value })} placeholder="https://…/v1" spellCheck={false} />
           </Field>

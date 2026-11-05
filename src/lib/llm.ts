@@ -3,7 +3,7 @@
 // Two ways to reach a model:
 // - "opencode": runs the opencode CLI (see src-tauri/src/opencode.rs), which can use
 //   OpenCode Zen's free models. This is the default.
-// - "api": any OpenAI-compatible chat completions endpoint (OpenRouter, Ollama...).
+// - "api": any OpenAI-compatible chat completions endpoint.
 //   Requests go through Rust because most providers don't allow browser requests.
 
 import { z } from "zod";
