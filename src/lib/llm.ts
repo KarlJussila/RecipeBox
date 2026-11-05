@@ -167,11 +167,15 @@ const READ_INSTRUCTIONS = `Extract the recipe from the numbered page lines in th
 
 Select the lines containing ingredients, steps, and separate notes. The app copies the selected lines, so do not include headings in the line ranges. Keep notes that are part of a step with that step. Ignore comments, ads, navigation, and other recipes.
 
-Call add_ingredients and add_steps, then add_tips if there are separate notes. Call done with the title and any other details the page states. If there is no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.`;
+Call add_ingredients and add_steps, then add_tips if there are separate notes. Call done with the title, the line range of the recipe’s introduction if there is one, and any other details the page states. If there is no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.`;
 
+const LineRange = z.strictObject({
+  start: z.number().int().describe("First line number to copy, inclusive."),
+  end: z.number().int().describe("Last line number to copy, inclusive."),
+});
 const DetailsInput = z.strictObject({
   title: z.string(),
-  description: z.string().nullish().describe("The recipe’s own introduction, copied verbatim, at most a few sentences."),
+  description: LineRange.nullish().describe("The line range containing the recipe’s own introduction, if present."),
   author: z.string().nullish(),
   yields: z.string().nullish().describe('How much it makes, e.g. "4 servings"'),
   prepMinutes: z.number().int().nullish().describe("Preparation time in whole minutes, if stated."),
@@ -180,8 +184,7 @@ const DetailsInput = z.strictObject({
 });
 const SectionInput = z.strictObject({
   heading: z.string().nullish().describe('The section heading, like "For the sauce". Leave it out when there is no heading.'),
-  start: z.number().int().describe("First line number to copy, inclusive."),
-  end: z.number().int().describe("Last line number to copy, inclusive."),
+  ...LineRange.shape,
 });
 
 function cleanSections(sections: Section[]): Section[] {
@@ -249,9 +252,12 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
       if (missing.length > 0) {
         throw new Error(`Nothing was saved:\n${missing.join("\n")}\nIf the page doesn't have a recipe, call no_recipe instead.`);
       }
+      if (details.description && (details.description.start < 1 || details.description.end < details.description.start || details.description.end > lines.length)) {
+        throw new Error(`Choose a valid description line range from 1 to ${lines.length}.`);
+      }
       result = {
         title: details.title.trim(),
-        description: details.description?.trim() ?? "",
+        description: details.description ? lines.slice(details.description.start - 1, details.description.end).join("\n").trim() : "",
         author: details.author?.trim() || null,
         yields: details.yields?.trim() || null,
         prepMinutes: positive(details.prepMinutes),
