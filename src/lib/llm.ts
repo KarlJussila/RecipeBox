@@ -10,7 +10,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { z } from "zod";
 import { api, type LlmSettings, type ToolCall } from "./api";
-import { AI_CATEGORY_NAMES, SEED_TAGS, TIME_TAG, type Tag } from "./tags";
+import { AI_CATEGORY_NAMES, TIME_TAG, type Tag } from "./tags";
 import type { RecipeDraft, Section } from "./types";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
@@ -112,11 +112,10 @@ export interface SuggestedTag {
 }
 
 export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, collectionTags: Tag[]): Promise<SuggestedTag[]> {
-  // The model chooses only from the starter tags and the cook's own tags in the AI's
-  // categories. Occasion and uncategorized tags are hers alone.
-  const inCollection = new Set(collectionTags.map((t) => t.name.toLowerCase()));
+  // The model chooses only from the collection's tags in the AI's categories.
+  // Occasion and uncategorized tags are the cook's alone.
   const offered = new Map(
-    [...collectionTags, ...SEED_TAGS.filter((t) => !inCollection.has(t.name.toLowerCase()))]
+    collectionTags
       .filter((t) => t.category && AI_CATEGORY_NAMES.includes(t.category) && !TIME_TAG.test(t.name))
       .map((t) => [t.name.toLowerCase(), { name: t.name, category: t.category! }]),
   );

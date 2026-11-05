@@ -76,6 +76,34 @@ pub struct RecipeSummary {
 
 const SCHEMA_VERSION: i64 = 3;
 
+/// Tags a new collection starts with. The AI tags recipes only from tags in these
+/// categories, so this is its vocabulary until the cook adds her own.
+const STARTER_TAGS: &[(&str, &[&str])] = &[
+    (
+        "Dish",
+        &[
+            "Main Course", "Side Dish", "Soup", "Stew", "Salad", "Sandwich", "Casserole", "Breakfast", "Appetizer", "Snack",
+            "Bread", "Sauce", "Drink", "Dessert", "Cake", "Cookies", "Pie",
+        ],
+    ),
+    (
+        "Ingredient",
+        &[
+            "Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Cheese", "Potatoes", "Vegetables",
+            "Fruit", "Nuts", "Chocolate",
+        ],
+    ),
+    (
+        "Cuisine",
+        &[
+            "Italian", "Mexican", "French", "Greek", "Spanish", "Middle Eastern", "Indian", "Chinese", "Japanese", "Korean",
+            "Thai", "Vietnamese",
+        ],
+    ),
+    ("Dietary", &["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free"]),
+    ("Method", &["Slow Cooker", "Instant Pot", "Air Fryer", "Grilling", "No-Bake"]),
+];
+
 pub struct Db {
     conn: Connection,
 }
@@ -159,6 +187,13 @@ impl Db {
             self.conn
                 .execute_batch("ALTER TABLE tags ADD COLUMN kept INTEGER NOT NULL DEFAULT 0")
                 .map_err(err)?;
+        }
+        if version < 1 {
+            for (category, names) in STARTER_TAGS {
+                for name in *names {
+                    self.create_tag(name, Some(category))?;
+                }
+            }
         }
         self.conn
             .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
@@ -636,9 +671,16 @@ fn fts_query(input: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn temp_db() -> Db {
+    fn new_db() -> Db {
         let path = std::env::temp_dir().join(format!("recipebox-test-{}.db", uuid::Uuid::new_v4()));
         Db::open(&path).unwrap()
+    }
+
+    /// A database without the starter tags, so tests see only the tags they make.
+    fn temp_db() -> Db {
+        let db = new_db();
+        db.conn.execute("DELETE FROM tags", []).unwrap();
+        db
     }
 
     fn recipe(title: &str, tags: &[&str]) -> Recipe {
@@ -698,6 +740,17 @@ mod tests {
                 Tag { name: "Soup".into(), category: Some("Dish".into()) },
             ]
         );
+    }
+
+    #[test]
+    fn new_collections_start_with_starter_tags() {
+        let mut db = new_db();
+        let mut r = recipe("Soup", &[]);
+        db.save(&mut r).unwrap();
+        db.set_tags(&r.id, &[], &HashMap::new()).unwrap();
+        let tags = db.all_tags().unwrap();
+        assert_eq!(tags.len(), STARTER_TAGS.iter().map(|(_, names)| names.len()).sum::<usize>());
+        assert!(tags.contains(&Tag { name: "Slow Cooker".into(), category: Some("Method".into()) }));
     }
 
     #[test]
