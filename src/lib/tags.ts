@@ -1,24 +1,35 @@
 // Tags are grouped into a few categories so the sidebar stays browsable. The AI
-// picks tags in the "auto" categories; the rest are left to the cook.
+// picks tags in the "auto" categories, only from the starter tags below and tags
+// the cook has made; the rest are left to her.
 
 export const TAG_CATEGORIES = [
-  { name: "Dish", hint: "the kind of dish or course", examples: "Main Course, Side Dish, Soup, Salad, Dessert, Breakfast, Appetizer, Bread, Drink, Sauce", auto: true },
-  { name: "Ingredient", hint: "the main ingredient, as a broad group (Poultry not Chicken, Red Meat for beef, lamb or pork, Fish not Cod)", examples: "Poultry, Red Meat, Fish, Seafood, Pasta, Rice, Beans, Eggs, Chocolate", auto: true },
-  { name: "Cuisine", hint: "a distinctive regional cuisine", examples: "Italian, Mexican, Thai, Indian, French", auto: true },
-  { name: "Dietary", hint: "dietary fit", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free", auto: true },
-  { name: "Occasion", hint: "holidays, seasons and events", examples: "Thanksgiving, Christmas, Easter, Summer, Party", auto: false },
-  { name: "Method", hint: "a notable appliance or technique", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer, No-Bake", auto: true },
+  { name: "Dish", examples: "Main Course, Side Dish, Soup, Salad, Dessert, Breakfast, Appetizer, Bread, Drink, Sauce", auto: true },
+  { name: "Ingredient", examples: "Poultry, Red Meat, Fish, Seafood, Pasta, Rice, Beans, Eggs, Chocolate", auto: true },
+  { name: "Cuisine", examples: "Italian, Mexican, Thai, Indian, French", auto: true },
+  { name: "Dietary", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free", auto: true },
+  { name: "Occasion", examples: "Thanksgiving, Christmas, Easter, Summer, Party", auto: false },
+  { name: "Method", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer, No-Bake", auto: true },
 ] as const;
 
 /**
- * Offered to the model as if already in the collection, so the common tags are
- * spelled one way from the very first recipe.
+ * The tags the AI may choose from, along with any the cook makes in its categories.
+ * Each is created in the collection the first time a recipe uses it.
  */
 export const SEED_TAGS: Tag[] = [
-  ...["Main Course", "Side Dish", "Soup", "Salad", "Dessert", "Breakfast", "Appetizer", "Bread", "Sauce"].map((name) => ({ name, category: "Dish" })),
-  ...["Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Chocolate"].map((name) => ({ name, category: "Ingredient" })),
-  ...["Italian", "Mexican", "Indian", "French", "Chinese", "Thai"].map((name) => ({ name, category: "Cuisine" })),
-  ...["Vegetarian", "Vegan", "Gluten-Free"].map((name) => ({ name, category: "Dietary" })),
+  ...[
+    "Main Course", "Side Dish", "Soup", "Stew", "Salad", "Sandwich", "Casserole", "Breakfast", "Appetizer", "Snack",
+    "Bread", "Sauce", "Drink", "Dessert", "Cake", "Cookies", "Pie",
+  ].map((name) => ({ name, category: "Dish" })),
+  ...[
+    "Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Cheese", "Potatoes", "Vegetables",
+    "Fruit", "Nuts", "Chocolate",
+  ].map((name) => ({ name, category: "Ingredient" })),
+  ...[
+    "Italian", "Mexican", "French", "Greek", "Spanish", "Middle Eastern", "Indian", "Chinese", "Japanese", "Korean",
+    "Thai", "Vietnamese",
+  ].map((name) => ({ name, category: "Cuisine" })),
+  ...["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free"].map((name) => ({ name, category: "Dietary" })),
+  ...["Slow Cooker", "Instant Pot", "Air Fryer", "Grilling", "No-Bake"].map((name) => ({ name, category: "Method" })),
 ];
 
 /** Tags about timing or effort rather than the dish. The app filters by time instead. */

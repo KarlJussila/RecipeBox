@@ -10,7 +10,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { z } from "zod";
 import { api, type LlmSettings, type ToolCall } from "./api";
-import { AI_CATEGORIES, AI_CATEGORY_NAMES, SEED_TAGS, TIME_TAG, type Tag } from "./tags";
+import { AI_CATEGORY_NAMES, SEED_TAGS, TIME_TAG, type Tag } from "./tags";
 import type { RecipeDraft, Section } from "./types";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
@@ -87,27 +87,16 @@ async function runJob(llm: LlmSettings, instructions: string, message: string, t
 // ---------------------------------------------------------------------------
 // Tagging
 
-const TAG_INSTRUCTIONS = `You organize a home cook's personal recipe collection by choosing tags for one recipe.
+const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection.
 
-Read the recipe with get_recipe and the collection's tags with list_tags, then save your choice with set_tags. If set_tags reports a problem, fix it and call set_tags again. Once set_tags succeeds you're done; reply with one short line.
+Read the recipe with get_recipe and the tags you can use with list_tags, then save 3 to 5 of them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
 
-Tags make the collection easy to browse and filter, so they must be accurate and consistent. Every tag belongs to one category:
-${AI_CATEGORIES.map((c) => `- ${c.name}: ${c.hint} (e.g. ${c.examples})`).join("\n")}
+- Include one Dish tag, and an Ingredient tag when the recipe has a clear main ingredient.
+- Add a Cuisine tag only when the cuisine is distinctive.
+- Add a Dietary tag only when the recipe says so itself, in its title, description or website keywords.
+- Add a Method tag only for a notable appliance or technique the recipe uses.`;
 
-How to choose:
-- Pick 3 to 5 tags that a cook would use to find this recipe.
-- Always include one Dish tag, and an Ingredient tag when the recipe has a clear main ingredient.
-- Add a Cuisine only when it's distinctive, not for everyday American food.
-- Add Dietary tags only when clearly true. Vegetarian and Vegan mean no meat, poultry, fish or seafood at all (check every ingredient, including broth and gelatin).
-- Add Method tags only for a notable appliance or technique the recipe really uses, never for ordinary baking, roasting or stovetop cooking.
-- Never tag holidays, seasons or events (the cook adds those herself), even when the website's keywords mention them.
-- Tags describe the dish itself. Never tag timing, effort or planning (no "Quick", "Easy", "Weeknight" or "Make Ahead"); the app already filters by time.
-- Reuse the collection's existing tags, spelled exactly as given, whenever one fits. Never use an existing tag that doesn't describe this recipe.
-- New tags are short (one or two words) and in Title Case.`;
-
-const TagInput = z.strictObject({
-  tags: z.array(z.strictObject({ name: z.string(), category: z.enum(AI_CATEGORY_NAMES as [string, ...string[]]) })),
-});
+const TagInput = z.strictObject({ tags: z.array(z.string()) });
 
 export interface TaggableRecipe {
   title: string;
@@ -123,13 +112,14 @@ export interface SuggestedTag {
 }
 
 export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, collectionTags: Tag[]): Promise<SuggestedTag[]> {
-  // Only tags in the AI's own categories are offered. Occasion and uncategorized
-  // tags are the cook's, so the model never sees or reuses them.
+  // The model chooses only from the starter tags and the cook's own tags in the AI's
+  // categories. Occasion and uncategorized tags are hers alone.
   const inCollection = new Set(collectionTags.map((t) => t.name.toLowerCase()));
-  const offered = [...collectionTags, ...SEED_TAGS.filter((t) => !inCollection.has(t.name.toLowerCase()))].filter(
-    (t) => t.category && AI_CATEGORY_NAMES.includes(t.category) && !TIME_TAG.test(t.name),
+  const offered = new Map(
+    [...collectionTags, ...SEED_TAGS.filter((t) => !inCollection.has(t.name.toLowerCase()))]
+      .filter((t) => t.category && AI_CATEGORY_NAMES.includes(t.category) && !TIME_TAG.test(t.name))
+      .map((t) => [t.name.toLowerCase(), { name: t.name, category: t.category! }]),
   );
-  const known = new Map([...SEED_TAGS, ...collectionTags].map((t) => [t.name.toLowerCase(), t]));
   let chosen: SuggestedTag[] | null = null;
 
   const tools = [
@@ -146,27 +136,20 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
         2,
       ),
     ),
-    tool("list_tags", "Lists the collection's existing tags by category. Reuse one whenever it fits.", NO_INPUT, () =>
-      JSON.stringify(Object.fromEntries(AI_CATEGORY_NAMES.map((c) => [c, offered.filter((t) => t.category === c).map((t) => t.name)])), null, 2),
+    tool("list_tags", "Lists the tags you can use, by category.", NO_INPUT, () =>
+      JSON.stringify(Object.fromEntries(AI_CATEGORY_NAMES.map((c) => [c, [...offered.values()].filter((t) => t.category === c).map((t) => t.name)])), null, 2),
     ),
-    tool("set_tags", "Saves the recipe's tags, replacing any saved before: 3 to 5 tags, including one Dish tag.", TagInput, ({ tags }) => {
-      const problems: string[] = [];
-      const result: SuggestedTag[] = [];
-      for (const raw of tags) {
-        const name = raw.name.trim().replace(/\s+/g, " ");
-        const existing = known.get(name.toLowerCase());
-        if (!name || result.some((t) => t.name.toLowerCase() === name.toLowerCase())) continue;
-        if (name.length > 40) problems.push(`"${name}" is too long for a tag.`);
-        else if (TIME_TAG.test(name)) problems.push(`"${name}" is about timing or effort. Leave it out.`);
-        else if (existing?.category && !AI_CATEGORY_NAMES.includes(existing.category))
-          problems.push(`"${existing.name}" is one of the cook's ${existing.category} tags. Leave it out.`);
-        else result.push({ name: existing?.name ?? name, category: existing?.category ?? raw.category });
-      }
-      if (result.length > 5) problems.push(`That's ${result.length} tags. Choose at most 5.`);
-      if (!result.some((t) => t.category === "Dish")) problems.push("Include one Dish tag.");
+    tool("set_tags", "Saves the recipe's tags, replacing any saved before: 3 to 5 tags from list_tags, including one Dish tag.", TagInput, ({ tags }) => {
+      const unknown = tags.filter((name) => !offered.has(name.trim().toLowerCase()));
+      const result = [...new Set(tags.map((name) => name.trim().toLowerCase()))].flatMap((key) => offered.get(key) ?? []);
+      const problems = [
+        ...unknown.map((name) => `"${name}" isn't one of the tags from list_tags.`),
+        ...(result.length > 5 ? [`That's ${result.length} tags. Choose at most 5.`] : []),
+        ...(result.some((t) => t.category === "Dish") ? [] : ["Include one Dish tag."]),
+      ];
       if (problems.length > 0) throw new Error(`Nothing was saved:\n${problems.join("\n")}`);
       chosen = result;
-      return `Saved: ${result.map((t) => `${t.name} (${t.category})`).join(", ")}`;
+      return `Saved: ${result.map((t) => t.name).join(", ")}`;
     }),
   ];
 
