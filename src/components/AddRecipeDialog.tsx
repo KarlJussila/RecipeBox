@@ -73,7 +73,7 @@ export function AddRecipeDialog({
             className="h-12 rounded-2xl text-base"
           />
           <Button type="submit" variant="primary" size="lg" disabled={busy || !url.trim()}>
-            {busy ? <Spinner className="border-current/30 border-t-current" /> : "Add"}
+            {busy ? <><Spinner className="border-current/30 border-t-current" /> Adding…</> : "Add"}
           </Button>
         </div>
         {error && <p className="mt-2 text-[15px] leading-snug text-tomato">{error}</p>}
