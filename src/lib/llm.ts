@@ -168,20 +168,24 @@ export async function testConnection(llm: LlmSettings): Promise<void> {
 // ---------------------------------------------------------------------------
 // Reading pages without structured recipe data
 
-const READ_INSTRUCTIONS = `You read web pages for a home cook's recipe collection.
+const READ_INSTRUCTIONS = `You read web pages for a home cook's recipe collection. The page is in the message, as Markdown.
 
-Read the page with get_page. If it contains a recipe (ingredients and steps), save it with save_recipe; if it doesn't, call no_recipe. If save_recipe reports a problem, fix it and call save_recipe again. Once either succeeds you're done; reply with one short line.
+If the page has a recipe (ingredients and steps), save it piece by piece:
+1. set_details with the title and whatever else the page gives.
+2. add_ingredients for the ingredients. When the recipe splits them into sections, like "For the sauce", call it once per section with the section's heading; otherwise call it once, without a heading.
+3. add_steps for the steps, the same way.
+4. add_tips for the recipe's own notes, variations, make-ahead and storage advice, if it has any.
+5. done.
 
-- Copy ingredients and steps faithfully; fix only obvious formatting problems. Never invent or "improve" content.
-- Group ingredients and steps into sections only when the page does (e.g. "For the sauce"); otherwise use one section with an empty heading.
+If the page has no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.
+
+- Copy the text faithfully; fix only obvious formatting problems. Never invent or "improve" content.
 - Each step is one item, without its step number.
 - The description is the recipe's short introduction, at most a few sentences.
-- Tips, variations, make-ahead and storage advice from the recipe itself go in tips, under headings like "Notes" or "Do ahead", not in the steps.
 - Times are whole minutes. Leave them out when the page doesn't state them.
 - Ignore comments, ads, navigation, and other recipes linked from the page.`;
 
-const Sections = z.array(z.strictObject({ heading: z.string(), items: z.array(z.string()) }));
-const RecipeInput = z.strictObject({
+const DetailsInput = z.strictObject({
   title: z.string(),
   description: z.string().nullish(),
   author: z.string().nullish(),
@@ -189,9 +193,10 @@ const RecipeInput = z.strictObject({
   prepMinutes: z.number().int().nullish(),
   cookMinutes: z.number().int().nullish(),
   totalMinutes: z.number().int().nullish(),
-  ingredients: Sections,
-  instructions: Sections,
-  tips: Sections.nullish(),
+});
+const SectionInput = z.strictObject({
+  heading: z.string().nullish().describe('The section\'s heading, like "For the sauce". Leave it out when the recipe has no sections.'),
+  items: z.array(z.string()),
 });
 
 function cleanSections(sections: Section[]): Section[] {
@@ -199,7 +204,7 @@ function cleanSections(sections: Section[]): Section[] {
     sections
       .map((s) => ({ heading: s.heading.trim(), items: s.items.map((i) => i.trim()).filter(Boolean) }))
       .filter((s) => s.items.length > 0)
-      // Models sometimes wrap each step in its own untitled section; fold those together.
+      // Models sometimes add each step as its own untitled section; fold those together.
       .reduce<Section[]>((out, s) => {
         const last = out.at(-1);
         if (last && !s.heading) last.items.push(...s.items);
@@ -216,32 +221,60 @@ type PageRecipe = Pick<
 
 /** Reads a recipe from a page's text, or returns null when the page has none. */
 export async function extractRecipe(llm: LlmSettings, pageText: string, title: string | null, url: string | null): Promise<PageRecipe | null> {
+  let details: z.infer<typeof DetailsInput> | null = null;
+  const parts = { ingredients: [] as Section[], steps: [] as Section[], tips: [] as Section[] };
   let result: PageRecipe | null | undefined;
   const positive = (n: number | null | undefined) => (n && n > 0 ? n : null);
 
+  const adder = (part: keyof typeof parts, noun: string) =>
+    tool(`add_${part}`, `Adds the recipe's ${part}, one section at a time.`, SectionInput, (input) => {
+      const section = { heading: input.heading?.trim() ?? "", items: input.items.map((i) => i.trim()).filter(Boolean) };
+      if (section.items.length === 0) throw new Error(`No ${part} were given.`);
+      // A model repeating a call it already made, e.g. after done reported a problem.
+      const same = (s: Section) => s.heading === section.heading && s.items.join("\n") === section.items.join("\n");
+      if (parts[part].some(same)) return "Those were already added.";
+      parts[part].push(section);
+      return `Added ${section.items.length} ${section.items.length === 1 ? noun : part}.`;
+    });
+
+  /** The recipe from the parts added so far; throws to say what's missing. */
+  const assemble = (): PageRecipe => {
+    const ingredients = cleanSections(parts.ingredients);
+    const instructions = cleanSections(parts.steps);
+    const missing = [
+      ...(details ? [] : ["Call set_details with the recipe's title."]),
+      ...(ingredients.length > 0 ? [] : ["Add the ingredients with add_ingredients."]),
+      ...(instructions.length > 0 ? [] : ["Add the steps with add_steps."]),
+    ];
+    if (missing.length > 0 || !details) {
+      throw new Error(`The recipe isn't finished:\n${missing.join("\n")}\nIf the page doesn't have a recipe, call no_recipe instead.`);
+    }
+    return {
+      title: details.title.trim(),
+      description: details.description?.trim() ?? "",
+      author: details.author?.trim() || null,
+      yields: details.yields?.trim() || null,
+      prepMinutes: positive(details.prepMinutes),
+      cookMinutes: positive(details.cookMinutes),
+      totalMinutes: positive(details.totalMinutes),
+      ingredients,
+      instructions,
+      tips: cleanSections(parts.tips),
+    };
+  };
+
   const tools = [
-    tool("get_page", "Reads the page's address, title and text.", NO_INPUT, () =>
-      [url && `URL: ${url}`, title && `Page title: ${title}`, "", pageText].filter((x) => x !== null).join("\n"),
-    ),
-    tool("save_recipe", "Saves the recipe from the page.", RecipeInput, (input) => {
-      const ingredients = cleanSections(input.ingredients);
-      const instructions = cleanSections(input.instructions);
-      if (ingredients.length === 0 || instructions.length === 0) {
-        throw new Error("A recipe needs both ingredients and steps. If the page doesn't have a recipe, call no_recipe instead.");
-      }
-      result = {
-        title: input.title.trim(),
-        description: input.description?.trim() ?? "",
-        author: input.author?.trim() || null,
-        yields: input.yields?.trim() || null,
-        prepMinutes: positive(input.prepMinutes),
-        cookMinutes: positive(input.cookMinutes),
-        totalMinutes: positive(input.totalMinutes),
-        ingredients,
-        instructions,
-        tips: cleanSections(input.tips ?? []),
-      };
+    tool("set_details", "Saves the recipe's title and details, replacing any saved before.", DetailsInput, (input) => {
+      if (!input.title.trim()) throw new Error("The title is empty.");
+      details = input;
       return "Saved.";
+    }),
+    adder("ingredients", "ingredient"),
+    adder("steps", "step"),
+    adder("tips", "tip"),
+    tool("done", "Finishes the recipe once its details, ingredients and steps are added.", NO_INPUT, () => {
+      result = assemble();
+      return "Saved the recipe.";
     }),
     tool("no_recipe", "Reports that the page doesn't contain a recipe.", z.strictObject({ reason: z.string() }), () => {
       result = null;
@@ -249,8 +282,9 @@ export async function extractRecipe(llm: LlmSettings, pageText: string, title: s
     }),
   ];
 
+  const message = [url && `URL: ${url}`, title && `Page title: ${title}`, "", pageText].filter((x) => x !== null).join("\n");
   try {
-    await runJob(llm, READ_INSTRUCTIONS, "Read the recipe on this page.", tools);
+    await runJob(llm, READ_INSTRUCTIONS, message, tools);
   } catch (e) {
     if (result === undefined) throw e;
   }

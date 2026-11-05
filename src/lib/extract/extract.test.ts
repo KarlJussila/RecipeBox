@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseDuration } from "./duration";
-import { extractFromHtml } from "./page";
+import { extractFromHtml, readableText } from "./page";
 import { ingredientSections, instructionSections, pickImage } from "./schema";
 import { cleanText } from "./text";
 
@@ -188,5 +188,30 @@ describe("extractFromHtml", () => {
     const { draft, complete } = extractFromHtml(html, "https://www.blog.com/post");
     expect(complete).toBe(false);
     expect(draft).toMatchObject({ title: "A Blog Post", imageUrl: "https://www.blog.com/a.jpg", sourceName: "blog.com" });
+  });
+});
+
+describe("readableText", () => {
+  const text = (body: string) => readableText(new DOMParser().parseFromString(`<body>${body}</body>`, "text/html"));
+
+  test("keeps headings, list items and line breaks, without relying on the source's newlines", () => {
+    expect(text("<h2>Cake</h2><ul><li>2 eggs</li><li>1 cup <a>flour</a></li></ul><ol><li>Mix.</li></ol><p>Serves 4<br>Keeps a week</p>")).toBe(
+      "## Cake\n- 2 eggs\n- 1 cup flour\n1. Mix.\nServes 4\nKeeps a week",
+    );
+  });
+
+  test("marks a line that's all bold or underlined, but not one that only starts that way", () => {
+    expect(text("<p><u>For the apples</u><br>6 apples</p><p><b>Do ahead:</b> Cover it.</p>")).toBe(
+      "**For the apples**\n6 apples\nDo ahead: Cover it.",
+    );
+  });
+
+  test("drops share buttons, hidden text and headings left with nothing under them", () => {
+    expect(
+      text(
+        '<article class="post tag-social-gatherings"><h5>Video</h5><p><iframe></iframe></p><h5>Notes</h5><p>Good cold.</p>' +
+          '<div class="sharedaddy"><span>Share this:</span></div><ul><li class="share-email"><span hidden>Email a friend</span>Email</li></ul></article>',
+      ),
+    ).toBe("##### Notes\nGood cold.");
   });
 });

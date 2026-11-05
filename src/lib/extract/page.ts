@@ -131,25 +131,94 @@ export function extractFromHtml(html: string, url: string | null): Extraction {
   };
 }
 
+const SKIPPED =
+  "script, style, noscript, template, svg, iframe, video, audio, canvas, nav, footer, header, aside, form, button, dialog, " +
+  // Things the page doesn't show, such as share buttons' labels for screen readers.
+  "[hidden], [aria-hidden=true], [style*='display:none'], [style*='display: none'], " +
+  // Share buttons. Only classes that start with these words: WordPress turns a post's
+  // tags into classes on the article itself, like "tag-social-gatherings".
+  '.sharedaddy, [class^="share"], [class*=" share"], [class^="sharing"], [class*=" sharing"], [class^="social"], [class*=" social"], ' +
+  // Reader comments can dwarf the recipe itself (hundreds of thousands of characters on popular blogs).
+  "#comments, #respond, .comments, .comments-area, .comment-list, .commentlist, .comment";
+
+const BLOCKS = new Set([
+  "ADDRESS", "ARTICLE", "BLOCKQUOTE", "DD", "DETAILS", "DIV", "DL", "DT", "FIGCAPTION", "FIGURE", "HR", "LI", "MAIN",
+  "OL", "P", "PRE", "SECTION", "SUMMARY", "TABLE", "TD", "TH", "TR", "UL",
+]);
+const EMPHASIS = new Set(["B", "STRONG", "U"]);
+
+/** Collects a page's text as Markdown lines. */
+class Lines {
+  lines: string[] = [];
+  private parts: { text: string; emphasized: boolean }[] = [];
+  private prefix = "";
+
+  add(text: string, emphasized: boolean) {
+    this.parts.push({ text, emphasized });
+  }
+
+  /** Starts a list item, whose first line gets the marker. */
+  item(marker: string) {
+    this.end();
+    this.prefix = marker;
+  }
+
+  /** Ends the current line. */
+  end() {
+    const line = this.parts.map((p) => p.text).join("").replace(/\s+/g, " ").trim();
+    if (line) {
+      // A line that's all bold or underlined is usually a heading, like "For the sauce".
+      const heading = this.parts.every((p) => p.emphasized || !p.text.trim());
+      this.lines.push(this.prefix + (heading ? `**${line}**` : line));
+      this.prefix = "";
+    }
+    this.parts = [];
+  }
+
+  heading(level: number, text: string) {
+    this.end();
+    const line = text.replace(/\s+/g, " ").trim();
+    if (line) this.lines.push(`${"#".repeat(level)} ${line}`);
+  }
+}
+
+function collect(node: Node, out: Lines, emphasized: boolean) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    out.add(node.textContent ?? "", emphasized);
+    return;
+  }
+  if (!(node instanceof Element)) return;
+  const tag = node.tagName;
+  const heading = /^H([1-6])$/.exec(tag);
+  if (heading) return out.heading(Number(heading[1]), node.textContent ?? "");
+  if (tag === "BR") return out.end();
+  if (tag === "LI") out.item(node.parentElement?.tagName === "OL" ? "1. " : "- ");
+  else if (BLOCKS.has(tag)) out.end();
+  for (const child of node.childNodes) collect(child, out, emphasized || EMPHASIS.has(tag));
+  if (BLOCKS.has(tag)) out.end();
+}
+
+const headingLevel = (line: string) => /^(#+) /.exec(line)?.[1].length ?? null;
+
 /**
- * The readable text of a page, for when an LLM has to find the recipe itself.
- * Drops navigation, ads and scripts so the prompt stays small.
+ * The readable text of a page as Markdown, for when an LLM has to find the recipe
+ * itself. Keeps headings, lists and line breaks, and drops navigation, ads, share
+ * buttons and scripts so the prompt stays small.
  */
 export function readableText(doc: Document, limit = 60_000): string {
   const clone = doc.body?.cloneNode(true) as HTMLElement | undefined;
   if (!clone) return "";
-  clone
-    .querySelectorAll(
-      "script, style, noscript, svg, iframe, nav, footer, header, aside, form, button, [aria-hidden=true], " +
-        // Reader comments can dwarf the recipe itself (hundreds of thousands of characters on popular blogs).
-        "#comments, #respond, .comments, .comments-area, .comment-list, .commentlist, .comment",
-    )
-    .forEach((el) => el.remove());
-  const main = clone.querySelector("main, article, [role=main]") ?? clone;
-  const text = (main.textContent ?? "")
-    .split("\n")
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join("\n");
-  return text.slice(0, limit);
+  clone.querySelectorAll(SKIPPED).forEach((el) => el.remove());
+  const out = new Lines();
+  collect(clone.querySelector("main, article, [role=main]") ?? clone, out, false);
+  out.end();
+  // A heading with nothing under it, like "Video" over a removed player, is left over.
+  const lines = out.lines.filter((line, i, all) => {
+    const level = headingLevel(line);
+    if (level === null) return true;
+    const next = all[i + 1];
+    const nextLevel = next === undefined ? 0 : headingLevel(next);
+    return nextLevel === null || nextLevel > level;
+  });
+  return lines.join("\n").slice(0, limit);
 }

@@ -5,7 +5,10 @@
 //!
 //! A job's config goes in through OPENCODE_CONFIG_CONTENT: an agent with the job's
 //! instructions that may use only Recipe Box's own tools (served at /mcp, see
-//! mcp.rs), and the service when there is one. Nothing is written to disk.
+//! mcp.rs), and the service when there is one. opencode's config folder is the
+//! app's own `opencode-config`, so the user's global opencode setup (instructions
+//! for coding agents, plugins, providers) stays out of the jobs. A provider can
+//! still be added for the app in that folder's opencode.json.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -13,7 +16,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 const TIMEOUT: Duration = Duration::from_secs(240);
@@ -43,7 +46,7 @@ fn config(job: &Job) -> Value {
             "recipebox": {
                 "mode": "primary",
                 "prompt": job.instructions,
-                "steps": 12,
+                "steps": 20,
                 "permission": { "*": "deny", "recipebox_*": "allow" },
             },
             // Sessions are never shown, so naming them would only cost a model call.
@@ -61,9 +64,6 @@ fn config(job: &Job) -> Value {
                 }
             }
         },
-        // Page text runs to 60,000 characters; past the default 51,200 bytes opencode
-        // would cut it short and point to a file the agent can't read.
-        "tool_output": { "max_bytes": 200_000 },
     });
     if let Some(service) = &job.service {
         let mut provider = json!({
@@ -113,9 +113,13 @@ pub async fn version(binary: &Path) -> Option<String> {
 
 /// Runs a job to the end and returns the model's closing words. Results arrive
 /// through the job's tools, not this text.
-pub async fn run(sandbox: &Path, job: &Job) -> Result<String, String> {
+pub async fn run(data_dir: &Path, job: &Job) -> Result<String, String> {
     let binary = find_binary().ok_or("opencode isn't installed on this computer")?;
-    std::fs::create_dir_all(sandbox).map_err(|e| e.to_string())?;
+    let sandbox = data_dir.join("opencode-sandbox");
+    let config_dir = data_dir.join("opencode-config");
+    for dir in [&sandbox, &config_dir] {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
     let model = match job.service {
         Some(_) => format!("recipebox-service/{}", job.model),
         None => job.model.clone(),
@@ -127,24 +131,31 @@ pub async fn run(sandbox: &Path, job: &Job) -> Result<String, String> {
         // service, so the job reads this config and killing this process on
         // timeout also ends the session.
         .args(["run", "--standalone", "--agent", "recipebox", "--format", "json", "-m", &model])
-        .arg(&job.message)
         .env("OPENCODE_CONFIG_CONTENT", config(job).to_string())
+        .env("OPENCODE_CONFIG_DIR", &config_dir)
         // opencode takes its project folder from PWD when set, which is inherited
         // from whatever launched the app. Keep it in the empty sandbox.
-        .current_dir(sandbox)
-        .env("PWD", sandbox)
-        .stdin(Stdio::null())
+        .current_dir(&sandbox)
+        .env("PWD", &sandbox)
+        // The message goes in on stdin: a page's text can pass the limit on the
+        // size of a single command-line argument.
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("Couldn't start opencode ({e})"))?;
 
+    let mut stdin = child.stdin.take().unwrap();
     let mut stdout = child.stdout.take().unwrap();
     let mut stderr = child.stderr.take().unwrap();
     let collect = async {
         let (mut out, mut err) = (String::new(), String::new());
-        let _ = tokio::join!(stdout.read_to_string(&mut out), stderr.read_to_string(&mut err));
+        let send = async move {
+            let _ = stdin.write_all(job.message.as_bytes()).await;
+            // Dropping stdin closes it, which ends the message.
+        };
+        let _ = tokio::join!(send, stdout.read_to_string(&mut out), stderr.read_to_string(&mut err));
         let status = child.wait().await;
         (out, err, status)
     };

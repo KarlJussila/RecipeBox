@@ -174,7 +174,7 @@ async fn opencode_status() -> OpencodeStatus {
 #[tauri::command]
 async fn opencode_run(state: State<'_, AppState>, job: opencode::Job, tools: Vec<mcp::ToolDef>) -> Result<String> {
     state.jobs.start(&job.id, tools);
-    let reply = opencode::run(&state.data_dir.join("opencode-sandbox"), &job).await;
+    let reply = opencode::run(&state.data_dir, &job).await;
     state.jobs.finish(&job.id);
     reply
 }
