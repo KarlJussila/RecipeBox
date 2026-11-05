@@ -1,9 +1,9 @@
 //! Runs prompts through the opencode CLI, which gives access to OpenCode Zen's free
 //! models (they only accept requests from opencode itself).
 //!
-//! Prompts include text from arbitrary web pages, so they run with opencode's
-//! read-only `plan` agent from an empty folder: in non-interactive mode its shell,
-//! file-edit and outside-folder read permissions are all refused.
+//! Prompts include text from arbitrary web pages, so they run from an empty folder
+//! with our own agent that has every tool refused. Its definition lives in an
+//! opencode.json in that folder, which opencode reads as the project config.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -14,6 +14,19 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
 const TIMEOUT: Duration = Duration::from_secs(240);
+
+const AGENT: &str = "recipebox";
+const CONFIG: &str = r#"{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "recipebox": {
+      "mode": "primary",
+      "description": "Answers from the prompt alone, with every tool refused.",
+      "permission": { "*": "deny" }
+    }
+  }
+}
+"#;
 
 /// One opencode session at a time: tagging and page reading queue up behind each other.
 static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -48,11 +61,13 @@ pub async fn version(binary: &Path) -> Option<String> {
 pub async fn run(sandbox: &Path, model: &str, prompt: &str) -> Result<String, String> {
     let binary = find_binary().ok_or("opencode isn't installed on this computer")?;
     std::fs::create_dir_all(sandbox).map_err(|e| e.to_string())?;
+    std::fs::write(sandbox.join("opencode.json"), CONFIG).map_err(|e| e.to_string())?;
     let _turn = ONE_AT_A_TIME.lock().await;
 
     let mut child = Command::new(binary)
-        .args(["run", "--pure", "--agent", "plan", "--format", "json", "-m", model, "--dir"])
-        .arg(sandbox)
+        // --standalone runs a private server instead of the shared background
+        // service, so killing this process on timeout also ends the session.
+        .args(["run", "--standalone", "--agent", AGENT, "--format", "json", "-m", model])
         .arg(prompt)
         // opencode takes its project folder from PWD when set, which is inherited
         // from whatever launched the app. Keep it in the empty sandbox.
