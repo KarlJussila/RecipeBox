@@ -88,34 +88,3 @@ fn image_extension(bytes: &[u8]) -> Option<&'static str> {
         _ => None,
     }
 }
-
-static LLM_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
-    reqwest::Client::builder()
-        .timeout(Duration::from_secs(180))
-        .build()
-        .expect("http client")
-});
-
-#[derive(Serialize)]
-pub struct LlmResponse {
-    pub status: u16,
-    pub body: String,
-}
-
-/// Posts a JSON request to an OpenAI-compatible endpoint. Done here rather than in
-/// the webview because most providers don't allow browser (CORS) requests.
-pub async fn llm_post(url: &str, api_key: &str, body: &serde_json::Value) -> Result<LlmResponse, String> {
-    let mut request = LLM_CLIENT.post(url).json(body);
-    if !api_key.is_empty() {
-        request = request.bearer_auth(api_key);
-    }
-    let response = request
-        // OpenRouter shows this name in its usage dashboard; others ignore it.
-        .header("X-Title", "Recipe Box")
-        .send()
-        .await
-        .map_err(|e| format!("Couldn't reach the AI service ({e})"))?;
-    let status = response.status().as_u16();
-    let body = response.text().await.map_err(|e| e.to_string())?;
-    Ok(LlmResponse { status, body })
-}

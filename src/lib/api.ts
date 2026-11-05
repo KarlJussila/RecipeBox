@@ -19,11 +19,33 @@ export interface ImportRequest {
 }
 
 export interface LlmSettings {
-  /** "opencode" runs the opencode CLI; "api" calls an OpenAI-compatible endpoint. */
+  /** "opencode" uses opencode's own models; "api" adds an OpenAI-compatible service to opencode. */
   provider: "opencode" | "api";
   baseUrl: string;
   apiKey: string;
   model: string;
+}
+
+export interface AiJob {
+  id: string;
+  model: string;
+  service: { baseUrl: string; apiKey: string } | null;
+  instructions: string;
+  message: string;
+}
+
+export interface ToolDef {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+}
+
+/** Sent by Rust when the model calls one of a running job's tools. */
+export interface ToolCall {
+  job: string;
+  call: string;
+  name: string;
+  arguments: unknown;
 }
 
 export type Appearance = "light" | "dark" | "system";
@@ -79,10 +101,9 @@ export const api = {
   fetchPage: (url: string) => invoke<{ url: string; html: string }>("fetch_page", { url }),
   downloadImage: (url: string, referer: string | null) => invoke<string>("download_image", { url, referer }),
   saveImageBytes: (bytes: Uint8Array) => invoke<string>("save_image_bytes", bytes),
-  llmPost: (url: string, apiKey: string, body: unknown) =>
-    invoke<{ status: number; body: string }>("llm_post", { url, apiKey, body }),
   opencodeStatus: () => invoke<{ path: string | null; version: string | null }>("opencode_status"),
-  opencodeRun: (model: string, prompt: string) => invoke<string>("opencode_run", { model, prompt }),
+  opencodeRun: (job: AiJob, tools: ToolDef[]) => invoke<string>("opencode_run", { job, tools }),
+  resolveToolCall: (call: string, result: { text: string; isError: boolean }) => invoke<void>("resolve_tool_call", { call, result }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<void>("save_settings", { settings }),
   takePendingImports: () => invoke<ImportRequest[]>("take_pending_imports"),

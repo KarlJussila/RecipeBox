@@ -1,6 +1,7 @@
 mod backup;
 mod db;
 mod fetch;
+mod mcp;
 mod opencode;
 mod server;
 
@@ -20,6 +21,7 @@ use server::{ImportBridge, ImportRequest};
 pub struct AppState {
     pub db: Mutex<Db>,
     pub imports: ImportBridge,
+    pub jobs: mcp::Jobs,
     data_dir: PathBuf,
     images_dir: PathBuf,
 }
@@ -152,11 +154,6 @@ fn save_image_bytes(state: State<AppState>, request: Request) -> Result<String> 
     }
 }
 
-#[tauri::command]
-async fn llm_post(url: String, api_key: String, body: Value) -> Result<fetch::LlmResponse> {
-    fetch::llm_post(&url, &api_key, &body).await
-}
-
 #[derive(Serialize)]
 struct OpencodeStatus {
     path: Option<PathBuf>,
@@ -173,9 +170,18 @@ async fn opencode_status() -> OpencodeStatus {
     OpencodeStatus { path, version }
 }
 
+/// Runs one AI job: opencode with the job's instructions, and its tools served at /mcp.
 #[tauri::command]
-async fn opencode_run(state: State<'_, AppState>, model: String, prompt: String) -> Result<String> {
-    opencode::run(&state.data_dir.join("opencode-sandbox"), &model, &prompt).await
+async fn opencode_run(state: State<'_, AppState>, job: opencode::Job, tools: Vec<mcp::ToolDef>) -> Result<String> {
+    state.jobs.start(&job.id, tools);
+    let reply = opencode::run(&state.data_dir.join("opencode-sandbox"), &job).await;
+    state.jobs.finish(&job.id);
+    reply
+}
+
+#[tauri::command]
+fn resolve_tool_call(state: State<'_, AppState>, call: String, result: mcp::ToolResult) {
+    state.jobs.resolve(&call, result);
 }
 
 /// App settings live in a small JSON file next to the database (not in backups,
@@ -317,7 +323,7 @@ pub fn run() {
                 eprintln!("Daily backup failed: {e}");
             }
             remove_orphan_images(&db, &images_dir);
-            app.manage(AppState { db: Mutex::new(db), imports: ImportBridge::default(), data_dir, images_dir });
+            app.manage(AppState { db: Mutex::new(db), imports: ImportBridge::default(), jobs: Default::default(), data_dir, images_dir });
 
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
@@ -351,9 +357,9 @@ pub fn run() {
             fetch_page,
             download_image,
             save_image_bytes,
-            llm_post,
             opencode_status,
             opencode_run,
+            resolve_tool_call,
             get_settings,
             save_settings,
             take_pending_imports,

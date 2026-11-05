@@ -1,32 +1,84 @@
-//! Runs prompts through the opencode CLI, which gives access to OpenCode Zen's free
-//! models (they only accept requests from opencode itself).
+//! Runs AI jobs through the opencode CLI. opencode reaches OpenCode Zen's free
+//! models (they only accept requests from opencode itself), and an OpenAI-compatible
+//! service set up in Settings is added to it as a provider, so every model is used
+//! the same way.
 //!
-//! Prompts include text from arbitrary web pages, so they run from an empty folder
-//! with our own agent that has every tool refused. Its definition lives in an
-//! opencode.json in that folder, which opencode reads as the project config.
+//! A job's config goes in through OPENCODE_CONFIG_CONTENT: an agent with the job's
+//! instructions that may use only Recipe Box's own tools (served at /mcp, see
+//! mcp.rs), and the service when there is one. Nothing is written to disk.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
-use serde_json::Value;
+use serde::Deserialize;
+use serde_json::{Value, json};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
 const TIMEOUT: Duration = Duration::from_secs(240);
 
-const AGENT: &str = "recipebox";
-const CONFIG: &str = r#"{
-  "$schema": "https://opencode.ai/config.json",
-  "agent": {
-    "recipebox": {
-      "mode": "primary",
-      "description": "Answers from the prompt alone, with every tool refused.",
-      "permission": { "*": "deny" }
-    }
-  }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Job {
+    /// Also the bearer token for the job's tools.
+    pub id: String,
+    pub model: String,
+    /// An OpenAI-compatible service, or none for opencode's own models.
+    pub service: Option<Service>,
+    pub instructions: String,
+    pub message: String,
 }
-"#;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Service {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+fn config(job: &Job) -> Value {
+    let mut config = json!({
+        "agent": {
+            "recipebox": {
+                "mode": "primary",
+                "prompt": job.instructions,
+                "steps": 12,
+                "permission": { "*": "deny", "recipebox_*": "allow" },
+            }
+        },
+        "mcp": {
+            "servers": {
+                "recipebox": {
+                    "type": "remote",
+                    "url": format!("http://127.0.0.1:{}/mcp", crate::server::PORT),
+                    "headers": { "Authorization": format!("Bearer {}", job.id) },
+                    // Plain tool calls rather than JavaScript run through opencode's `execute`.
+                    "codemode": false,
+                    "oauth": false,
+                }
+            }
+        },
+        // Page text runs to 60,000 characters; past the default 51,200 bytes opencode
+        // would cut it short and point to a file the agent can't read.
+        "tool_output": { "max_bytes": 200_000 },
+    });
+    if let Some(service) = &job.service {
+        let mut provider = json!({
+            "name": "Recipe Box service",
+            "package": "@opencode/ai/providers/openai-compatible",
+            "settings": { "baseURL": service.base_url },
+            "models": {
+                job.model.clone(): { "name": job.model, "capabilities": { "tools": true, "input": ["text"], "output": ["text"] } }
+            },
+        });
+        if !service.api_key.is_empty() {
+            provider["headers"] = json!({ "Authorization": format!("Bearer {}", service.api_key) });
+        }
+        config["providers"] = json!({ "recipebox-service": provider });
+    }
+    config
+}
 
 /// One opencode session at a time: tagging and page reading queue up behind each other.
 static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -57,18 +109,24 @@ pub async fn version(binary: &Path) -> Option<String> {
     (!version.is_empty()).then_some(version)
 }
 
-/// Sends one prompt and returns the model's reply text.
-pub async fn run(sandbox: &Path, model: &str, prompt: &str) -> Result<String, String> {
+/// Runs a job to the end and returns the model's closing words. Results arrive
+/// through the job's tools, not this text.
+pub async fn run(sandbox: &Path, job: &Job) -> Result<String, String> {
     let binary = find_binary().ok_or("opencode isn't installed on this computer")?;
     std::fs::create_dir_all(sandbox).map_err(|e| e.to_string())?;
-    std::fs::write(sandbox.join("opencode.json"), CONFIG).map_err(|e| e.to_string())?;
+    let model = match job.service {
+        Some(_) => format!("recipebox-service/{}", job.model),
+        None => job.model.clone(),
+    };
     let _turn = ONE_AT_A_TIME.lock().await;
 
     let mut child = Command::new(binary)
         // --standalone runs a private server instead of the shared background
-        // service, so killing this process on timeout also ends the session.
-        .args(["run", "--standalone", "--agent", AGENT, "--format", "json", "-m", model])
-        .arg(prompt)
+        // service, so the job reads this config and killing this process on
+        // timeout also ends the session.
+        .args(["run", "--standalone", "--agent", "recipebox", "--format", "json", "-m", &model])
+        .arg(&job.message)
+        .env("OPENCODE_CONFIG_CONTENT", config(job).to_string())
         // opencode takes its project folder from PWD when set, which is inherited
         // from whatever launched the app. Keep it in the empty sandbox.
         .current_dir(sandbox)
@@ -107,10 +165,12 @@ pub async fn run(sandbox: &Path, model: &str, prompt: &str) -> Result<String, St
             _ => {}
         }
     }
-    if text.trim().is_empty() {
-        let detail = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no reply");
-        let code = status.map(|s| s.to_string()).unwrap_or_default();
-        return Err(format!("opencode returned nothing ({code}): {detail}"));
+    match status {
+        Ok(s) if s.success() => Ok(text),
+        _ => {
+            let detail = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no details");
+            let code = status.map(|s| s.to_string()).unwrap_or_default();
+            Err(format!("opencode failed ({code}): {detail}"))
+        }
     }
-    Ok(text)
 }

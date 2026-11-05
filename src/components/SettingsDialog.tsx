@@ -104,14 +104,14 @@ function AiTab({ settings, onSave }: { settings: Settings; onSave: (llm: LlmSett
         <Choice
           active={llm.provider === "api"}
           title="Another service"
-          description="Any OpenAI-compatible API."
+          description="Any OpenAI-compatible API, used through opencode."
           onClick={() => switchProvider("api")}
         />
       </div>
 
+      <OpencodeStatus />
       {llm.provider === "opencode" ? (
         <>
-          <OpencodeStatus />
           <Field label="Model" hint={`opencode’s name for the model. The default, ${DEFAULT_OPENCODE_MODEL}, is free.`}>
             <Input value={llm.model} onChange={(e) => set({ model: e.target.value })} spellCheck={false} />
           </Field>

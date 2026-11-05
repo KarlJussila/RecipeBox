@@ -63,7 +63,8 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     image = await api.downloadImage(draft.imageUrl, pageUrl).catch(() => null);
   }
 
-  const { steps, tips } = splitTips([...draft.instructions, ...draft.tips]);
+  // The AI reader files tips apart already; structured data mixes them into the steps.
+  const { steps, tips } = splitTips(draft.instructions);
   const recipe: Recipe = {
     ...emptyRecipe(),
     // Some blogs (Smitten Kitchen) style their titles in lowercase.
@@ -79,7 +80,7 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     totalMinutes: draft.totalMinutes,
     ingredients: draft.ingredients,
     instructions: steps,
-    tips,
+    tips: [...tips, ...draft.tips],
     // Site categories and cuisines are good search terms even when they aren't tags.
     keywords: [...new Set([...draft.keywords, ...draft.categories, ...draft.cuisines])],
     needsTags: true,

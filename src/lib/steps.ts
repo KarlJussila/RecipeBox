@@ -35,15 +35,6 @@ function dropFiller(text: string): string {
     .trim();
 }
 
-/** Free-text tips, such as the AI extractor's "notes", as a section to append to the steps. */
-export function notesSection(notes: string): Section {
-  const items = notes
-    .split(/\n+|\s+\*\s+/)
-    .map((line) => line.replace(/^[*•-]\s*/, "").trim())
-    .filter(Boolean);
-  return { heading: "Notes", items };
-}
-
 /** A step that is only a heading, such as "Notes:" or "For the glaze:". */
 function headingLine(item: string): string | null {
   return item.length <= 48 && item.endsWith(":") && !/\d/.test(item) ? item.slice(0, -1).trim() : null;
