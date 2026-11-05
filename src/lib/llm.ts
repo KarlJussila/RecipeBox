@@ -93,8 +93,7 @@ Read the recipe with get_recipe and the tags you can use with list_tags, then sa
 
 - Include one Dish tag, and an Ingredient tag when the recipe has a clear main ingredient.
 - Add a Cuisine tag only when the cuisine is distinctive.
-- Add a Dietary tag only when the recipe says so itself, in its title, description or website keywords.
-- Add a Method tag only for a notable appliance or technique the recipe uses.`;
+- Add a Dietary tag only when the recipe says so itself, in its title, description or website keywords.`;
 
 const TagInput = z.strictObject({ tags: z.array(z.string()) });
 
