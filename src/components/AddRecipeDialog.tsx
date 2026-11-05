@@ -1,6 +1,6 @@
-import { Link2, PenLine, Puzzle } from "lucide-react";
+import { Link2, LoaderCircle, PenLine, Puzzle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button, Dialog, Input, Spinner } from "./ui";
+import { Button, Dialog, Input } from "./ui";
 
 export function looksLikeUrl(text: string): boolean {
   return /^https?:\/\/\S+\.\S+/i.test(text.trim());
@@ -72,8 +72,8 @@ export function AddRecipeDialog({
             disabled={busy}
             className="h-12 rounded-2xl text-base"
           />
-          <Button type="submit" variant="primary" size="lg" disabled={busy || !url.trim()}>
-            {busy ? <><Spinner className="border-current/30 border-t-current" /> Adding…</> : "Add"}
+          <Button type="submit" variant="primary" size="lg" className="w-24 shrink-0" disabled={busy || !url.trim()} aria-label={busy ? "Adding recipe" : undefined}>
+            {busy ? <LoaderCircle className="size-5 animate-spin" aria-hidden="true" /> : "Add"}
           </Button>
         </div>
         {error && <p className="mt-2 text-[15px] leading-snug text-tomato">{error}</p>}
