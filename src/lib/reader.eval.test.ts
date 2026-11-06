@@ -212,9 +212,16 @@ function decode(bytes: Buffer): string {
 }
 
 /** Lines a part must include (labeled only as that part, or a heading), and lines it must not. */
-function score(reading: Reading | null, labels: (string[] | "*" | null)[], part: string, got: number[]) {
+const letters = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * The part's lines a reading missed and the ones it wrongly took. Lines in `quoted` only had
+ * a few words quoted from them, like an ingredient named in a step, so they can count but
+ * aren't wrong.
+ */
+function score(reading: Reading | null, labels: (string[] | "*" | null)[], part: string, got: number[], quoted: number[] = []) {
   const required = labels.flatMap((l, i) => (l && l !== "*" && l.includes(part) && l.every((x) => x === part || x === "heading") ? [i] : []));
-  const has = new Set(got);
+  const has = new Set([...got, ...quoted]);
   // A heading among the part's lines becomes a section heading, so it's kept.
   const lines = reading?.lines ?? [];
   for (const i of required) if (got.some((g) => g < i) && got.some((g) => g > i) && headingText(lines[i]) !== null) has.add(i);
@@ -234,7 +241,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       ? { provider: "opencode" as const, baseUrl: "", apiKey: "", model: MODEL }
       : { provider: "api" as const, baseUrl: SERVICE, apiKey: "", model: MODEL };
     const report: string[] = [];
-    const totals = { pages: 0, wrong: 0, ingredients: 0, steps: 0, description: 0 };
+    const totals = { pages: 0, wrong: 0, title: 0, ingredients: 0, steps: 0, description: 0 };
     const say = (line: string) => { report.push(line); console.log(line); };
 
     for (const name of names) {
@@ -246,7 +253,10 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       const reading = await readPage(llm, readableText(doc), draft.title || null, draft.sourceUrl, { warm: WARM });
       const lines = reading?.lines ?? readableText(doc).split("\n").filter((l) => l.trim());
       const labels = lineLabels(lines, page.labels);
-      const ingredients = score(reading, labels, "ingredient", [...(reading?.ingredientLines ?? []), ...(reading?.ingredientParts ?? [])]);
+      const ingredients = score(reading, labels, "ingredient", reading?.ingredientLines ?? [], reading?.ingredientParts ?? []);
+      // The name read should be one the page gives the recipe.
+      const titles = [...lines.filter((_, i) => { const l = labels[i]; return l && l !== "*" && l.includes("title"); }), ...(draft.title ? [draft.title] : [])];
+      const titleRight = !reading || titles.length === 0 || titles.some((t) => letters(t).includes(letters(reading.recipe.title)));
       const steps = score(reading, labels, "step", reading?.stepLines ?? []);
       const intro = reading?.descriptionLine ?? null;
       const introWanted = labels.some((l) => l && l !== "*" && l.includes("intro"));
@@ -259,12 +269,13 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       totals.ingredients += +wrongIngredients;
       totals.steps += +wrongSteps;
       totals.description += +!introRight;
-      totals.wrong += +(wrongIngredients || wrongSteps);
+      totals.title += +!titleRight;
+      totals.wrong += +(wrongIngredients || wrongSteps || !titleRight);
       say(
         `${name.padEnd(22)} ${(modelSeconds - before).toFixed(1).padStart(5)}s  ` +
           `ingredients −${ingredients.missing.length} +${ingredients.extra.length}  steps −${steps.missing.length} +${steps.extra.length}  ` +
           `description ${introRight ? "ok" : "wrong"}` + (unlabeled ? `  (${unlabeled} unlabeled lines)` : "") +
-          (reading ? `  “${reading.recipe.title}”` : "  NO RECIPE"),
+          (reading ? `  “${reading.recipe.title}”${titleRight ? "" : " WRONG TITLE"}` : "  NO RECIPE"),
       );
       const show = (what: string, list: number[]) => list.slice(0, 4).forEach((i) => say(`${"".padEnd(26)}${what} ${i + 1}: ${lines[i].slice(0, 80)}`));
       show("missing ingredient", ingredients.missing);
@@ -274,7 +285,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       if (!introRight) say(`${"".padEnd(26)}description: ${intro === null ? "none" : `${intro + 1}: ${lines[intro].slice(0, 80)}`}`);
     }
     say(
-      `\n${totals.pages - totals.wrong}/${totals.pages} pages right. Wrong ingredients on ${totals.ingredients}, ` +
+      `\n${totals.pages - totals.wrong}/${totals.pages} pages right. Wrong title on ${totals.title}, wrong ingredients on ${totals.ingredients}, ` +
         `wrong steps on ${totals.steps}, wrong description on ${totals.description}. Model time ${modelSeconds.toFixed(0)} s.`,
     );
     writeFileSync(join(OUT, `report-${RUN}.txt`), report.join("\n") + "\n");

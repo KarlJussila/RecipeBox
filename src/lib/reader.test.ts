@@ -136,8 +136,10 @@ test("asks once about a line skipped in the middle of the ingredients", async ()
   expect(reading?.ingredientLines).toEqual([1, 2, 3]);
 });
 
-test("asks once whether steps under a heading right after the last step are another part", async () => {
-  const page = "Soup\n- 1 onion\n- 1 naan\n1. Cook the onion.\n**For the croutons:**\n1. Toast the naan.\nComments";
+test("asks once whether steps under an ingredient part's heading right after the last step are that part", async () => {
+  const page =
+    "Soup\n**For the soup:**\n- 1 onion\n**For the croutons:**\n- 1 naan\n**For the soup:**\n1. Cook the onion.\n**For the croutons:**\n1. Toast the naan.\n" +
+    "**For the church freezer:**\n1. Bring the pan on Sunday.";
   model({
     return_recipe_names: [{ names: ["Soup"] }],
     return_ingredients: [{ ingredients: ["1 onion", "1 naan"] }],
@@ -145,7 +147,12 @@ test("asks once whether steps under a heading right after the last step are anot
   });
   const reading = await readPage(llm, page, null, null);
   expect(bridge.replies[2].text).toMatch(/^"\*\*For the croutons:\*\*" and more steps come right after your last step\./);
-  expect(reading?.recipe.instructions).toEqual([{ heading: "", items: ["Cook the onion."] }, { heading: "For the croutons", items: ["Toast the naan."] }]);
+  // Steps under a heading that heads no ingredients, like the church's, aren't asked about.
+  expect(bridge.replies).toHaveLength(4);
+  expect(reading?.recipe.instructions).toEqual([
+    { heading: "For the soup", items: ["Cook the onion."] },
+    { heading: "For the croutons", items: ["Toast the naan."] },
+  ]);
 });
 
 test("asks once for whole lines when ingredients come back without their amounts", async () => {
@@ -159,6 +166,24 @@ test("asks once for whole lines when ingredients come back without their amounts
   const reading = await readPage(llm, PAGE, null, null);
   expect(bridge.replies[1]).toEqual({ text: `Copy each ingredient's whole line from the page, with its amount, like "4 cups flour".`, endJob: false });
   expect(reading?.ingredientLines).toEqual([3, 4, 8, 9]);
+});
+
+test("asks once when notes run over the steps, then keeps the notes outside them", async () => {
+  model({
+    return_recipe_names: [{ names: ["Grandma's Cream Pie"] }],
+    return_ingredients: [{ ingredients: ["4 cups flour", "2 tsp salt", "2 cups sugar", "3 cups milk"] }],
+    return_step_range: [{ first: "Mix the flour", last: "Cook until thick" }],
+    return_note_range: [
+      { first: "My grandmother made this", last: "Keeps for three days" },
+      { first: "My grandmother made this", last: "Keeps for three days" },
+    ],
+  });
+  const reading = await readPage(llm, PAGE, null, null);
+  expect(bridge.replies.find((r) => r.text.startsWith("Those notes"))?.text).toBe(
+    "Those notes run over Grandma's Cream Pie's steps. Give the first and last note that isn't a step, or call `no_notes`.",
+  );
+  expect(reading?.stepLines).toEqual([5, 6, 10]);
+  expect(reading?.tipLines).toEqual([0, 11]);
 });
 
 test("keeps an ingredient named inside a sentence as its own words", async () => {

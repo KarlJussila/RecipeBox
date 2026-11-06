@@ -248,6 +248,9 @@ class Questions {
 }
 
 const quoted = (q: string) => `"${q}"`;
+type Range = readonly [number, number];
+/** Whether a range runs over the first or last line of another, rather than sitting inside it or apart from it. */
+const crosses = (a: Range, b: Range) => (a[0] < b[0] ? a[1] >= b[0] : a[0] <= b[1] && a[1] > b[1]);
 /** How a line is marked as part of a list: "-", "1.", and so on, or "" when it isn't. */
 const marker = (line: string) => /^\s*(?:[-*•]|\d+[.)])\s/.exec(line)?.[0].trim().replace(/\d+/, "1") ?? "";
 
@@ -269,6 +272,8 @@ export async function readPage(
   let start = 0;
   let complained = false;
   let continued = false;
+  let overran = false;
+  let stepRange: Range | null = null;
   const taken = new Set<number>();
 
   /** Where a part starts and ends, from quotes of its first and last lines. */
@@ -343,10 +348,13 @@ export async function readPage(
   const stepAnswers = [
     answer("return_step_range", "Return your answer: where the recipe's steps start and end.", rangeInput("step"), ({ first, last }) => {
       const found = range(first, last);
-      // A heading right after the last step with steps marked like it under it, like "For the croutons:", is probably another part.
+      // A heading right after the last step that also heads some of the ingredients, like "For the croutons:",
+      // with steps marked like the last under it, is probably another part.
       const [heading, next] = [lines[found[1] + 1] ?? "", lines[found[1] + 2] ?? ""];
       const mark = marker(lines[found[1]]);
-      if (!continued && mark && headingText(heading) !== null && marker(next) === mark) {
+      const part = headingText(heading);
+      const headsIngredients = !!part && lines.some((line, i) => taken.has(i + 1) && headingText(line) === part);
+      if (!continued && mark && headsIngredients && marker(next) === mark) {
         continued = true;
         throw new Error(
           `${quoted(heading)} and more steps come right after your last step. ` +
@@ -358,7 +366,14 @@ export async function readPage(
     answer("no_steps", "Return your answer: the recipe has no steps.", none, () => null),
   ];
   const noteAnswers = [
-    answer("return_note_range", "Return your answer: where the recipe's notes start and end.", rangeInput("note"), ({ first, last }) => range(first, last)),
+    answer("return_note_range", "Return your answer: where the recipe's notes start and end.", rangeInput("note"), ({ first, last }) => {
+      const found = range(first, last);
+      if (!overran && stepRange && crosses(found, stepRange)) {
+        overran = true;
+        throw new Error(`Those notes run over ${name}'s steps. Give the first and last note that isn't a step, or call \`no_notes\`.`);
+      }
+      return found;
+    }),
     answer("no_notes", "Return your answer: the recipe has no separate notes.", none, () => null),
   ];
   const descriptionAnswers = [
@@ -413,6 +428,7 @@ export async function readPage(
       `What are the first and last steps of ${name}? A step tells the cook what to do; how much the recipe makes or how big a serving is isn't a step. If they're one paragraph, give its opening words as both. Call \`return_step_range\` with the opening words of each, verbatim. If ${name} has no steps, call \`no_steps\`.`,
       stepAnswers,
     );
+    stepRange = steps;
     // Notes apart from the steps, which come out of the steps when they sit among them.
     const tips = await questions.ask(
       `Does ${name} have notes apart from its ingredients and steps, such as tips, variations, or how to store it? If so, call \`return_note_range\` with the opening words of the first and last, verbatim. If not, call \`no_notes\`.`,
@@ -422,7 +438,9 @@ export async function readPage(
     // A line the model named as a part's first or last is that part's, even when it looks like a heading.
     const plain = (r: readonly [number, number] | null | undefined) => (i: number) =>
       !taken.has(i) && (headingText(lines[i]) === null || i === r![0] || i === r![1]);
-    let tipLines = span(tips).filter(plain(tips));
+    // Notes that still run over the steps' first or last line are only the lines outside them.
+    const outside = (i: number) => !(tips && steps && crosses(tips, steps)) || i < steps![0] || i > steps![1];
+    let tipLines = span(tips).filter(plain(tips)).filter(outside);
     let stepLines = span(steps).filter(plain(steps));
     const withoutTips = stepLines.filter((i) => !tipLines.includes(i));
     if (withoutTips.length > 0) stepLines = withoutTips;
