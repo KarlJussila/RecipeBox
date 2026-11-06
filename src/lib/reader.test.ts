@@ -25,7 +25,8 @@ vi.mock("./api", () => ({
   },
 }));
 
-import { findQuote, headingText, readPage } from "./reader";
+import { findQuote, headingText } from "./page-lines";
+import { readPage } from "./reader";
 
 const llm = { provider: "opencode" as const, model: "test/model", baseUrl: "", apiKey: "" };
 beforeEach(() => {

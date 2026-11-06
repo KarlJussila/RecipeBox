@@ -9,6 +9,7 @@
 import { z } from "zod";
 import type { LlmSettings } from "./api";
 import { runJob, tool, type ToolReply } from "./llm";
+import { PageLines, headingText } from "./page-lines";
 import type { RecipeDraft, Section } from "./types";
 
 const INSTRUCTIONS = "You read recipes from web pages for a home cook's recipe collection.";
@@ -29,85 +30,6 @@ export interface Reading {
   tipLines: number[];
   descriptionLine: number | null;
 }
-
-// ---------------------------------------------------------------------------
-// Finding quotes among the page's lines
-
-const flat = (s: string) =>
-  s
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[*#_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase()
-    .replace(/^(?:[-•] |\d+[.)] )/, "");
-
-interface Found {
-  index: number;
-  /** The quote is the line (or most of it), not just a few words inside a sentence. */
-  whole: boolean;
-}
-
-/** How alike two strings are, from 0 to 1, by the letter pairs they share. */
-function likeness(a: string, b: string): number {
-  const pairs = (s: string) => {
-    const counts = new Map<string, number>();
-    for (let i = 0; i < s.length - 1; i++) counts.set(s.slice(i, i + 2), (counts.get(s.slice(i, i + 2)) ?? 0) + 1);
-    return counts;
-  };
-  const [pa, pb] = [pairs(a), pairs(b)];
-  let shared = 0;
-  for (const [pair, n] of pa) shared += Math.min(n, pb.get(pair) ?? 0);
-  return (2 * shared) / Math.max(1, a.length - 1 + b.length - 1);
-}
-
-/**
- * Finds a quote on the page, at or after `start`: a line that is the quote, then
- * one that starts with it, then one that contains it, and last a line that is
- * nearly the quote, for a model that copied a character or two wrong.
- */
-export function findQuote(lines: string[], quote: string, start = 0): Found | null {
-  const q = flat(quote);
-  if (!q) return null;
-  const flats = lines.map(flat);
-  const tests: ((f: string) => boolean)[] = [(f) => f === q, (f) => f.startsWith(q), (f) => f.includes(q) || (f.length > 8 && q.includes(f))];
-  for (const test of tests) {
-    for (let i = Math.max(0, start); i < lines.length; i++) {
-      if (test(flats[i])) return { index: i, whole: !flats[i].includes(q) || flats[i].length <= q.length + 25 || flats[i].startsWith(q) };
-    }
-  }
-  let best: Found | null = null;
-  let bestLikeness = 0.8;
-  for (let i = Math.max(0, start); i < lines.length; i++) {
-    const l = likeness(flats[i], q);
-    if (l > bestLikeness) [best, bestLikeness] = [{ index: i, whole: true }, l];
-  }
-  return best;
-}
-
-/** Finds a quote after `start`, or anywhere on the page when it isn't there. */
-function findNear(lines: string[], quote: string, start: number): Found | null {
-  return findQuote(lines, quote, start) ?? findQuote(lines, quote);
-}
-
-const HEADING = /^(?:#{1,6} +(.+?)|\*\*(.+?)\*\*|([^.!?]{1,60}):)\s*$/;
-/** Headings that only say what part of the recipe follows. */
-const GENERIC = /^(?:the )?(?:ingredients?|instructions?|directions?|method|steps?|preparation|notes?|tips?|recipe)$/i;
-
-/** A heading's text, "" for one that only names the part (like "Ingredients"), or null for other lines. */
-export function headingText(line: string): string | null {
-  const m = HEADING.exec(line.trim());
-  if (!m) return null;
-  const text = (m[1] ?? m[2] ?? m[3]).replace(/[*#]+/g, "").replace(/:\s*$/, "").trim();
-  return GENERIC.test(text) ? "" : text;
-}
-
-const clean = (line: string) =>
-  line
-    .replace(/^(?:#{1,6} +|[-*•] +|\d+[.)] +)/, "")
-    .replace(/\*\*/g, "")
-    .trim();
 
 /**
  * Groups lines into sections, starting one at each heading between or just before
@@ -144,11 +66,21 @@ interface Answer<T> {
   name: string;
   description: string;
   input: z.ZodType;
-  /** Turns the call into the answer, or throws to tell the model what to fix. */
-  read: (args: never) => T;
+  /**
+   * Turns the call into the answer, or throws to tell the model what to fix when the
+   * answer can't be used. An answer that can be used but looks wrong goes to `doubt`.
+   */
+  read: (args: never, doubt: Doubt) => T;
 }
 
-function answer<S extends z.ZodType, T>(name: string, description: string, input: S, read: (args: z.infer<S>) => T): Answer<T> {
+/**
+ * Sends an answer back with what looks wrong about it, the first time for each
+ * question; after that the answer stands. The checks that doubt an answer only guess
+ * from the page's layout, so the model gets to keep its answer by sending it again.
+ */
+type Doubt = (message: string) => void;
+
+function answer<S extends z.ZodType, T>(name: string, description: string, input: S, read: (args: z.infer<S>, doubt: Doubt) => T): Answer<T> {
   return { name, description, input, read };
 }
 
@@ -177,6 +109,8 @@ class Questions {
   /** The answer whose reply waits for the next question, in the running job. */
   private waiting: ((reply: ToolReply) => void) | null = null;
   private job = 0;
+  /** Questions whose answer has been doubted once already. */
+  private doubted = new Set<string>();
 
   constructor(
     private llm: LlmSettings,
@@ -234,7 +168,12 @@ class Questions {
     if (!pending?.answers.includes(a)) {
       throw new Error(pending ? `First answer this question: ${pending.question}` : "There's no question to answer.");
     }
-    const value = a.read(args as never);
+    const doubt: Doubt = (message) => {
+      if (this.doubted.has(pending.question)) return;
+      this.doubted.add(pending.question);
+      throw new Error(message);
+    };
+    const value = a.read(args as never, doubt);
     this.pending = null;
     if (!this.warm) {
       pending.settle({ value });
@@ -251,8 +190,6 @@ const quoted = (q: string) => `"${q}"`;
 type Range = readonly [number, number];
 /** Whether a range runs over the first or last line of another, rather than sitting inside it or apart from it. */
 const crosses = (a: Range, b: Range) => (a[0] < b[0] ? a[1] >= b[0] : a[0] <= b[1] && a[1] > b[1]);
-/** How a line is marked as part of a list: "-", "1.", and so on, or "" when it isn't. */
-const marker = (line: string) => /^\s*(?:[-*•]|\d+[.)])\s/.exec(line)?.[0].trim().replace(/\d+/, "1") ?? "";
 
 /** Reads the first recipe on a page, or returns null when the page has none. */
 export async function readPage(
@@ -262,25 +199,23 @@ export async function readPage(
   url: string | null,
   { warm = true } = {},
 ): Promise<Reading | null> {
-  const lines = pageText.split("\n").filter((line) => line.trim());
-  const page = [title && `Page title: ${title}`, url && `URL: ${url}`, "", ...lines].filter((x) => x !== null).join("\n");
+  const page = new PageLines(pageText.split("\n").filter((line) => line.trim()));
+  const { lines } = page;
+  const prompt = [title && `Page title: ${title}`, url && `URL: ${url}`, "", ...lines].filter((x) => x !== null).join("\n");
   const notOnPage = (quotes: string[]) =>
     new Error(`${quotes.map(quoted).join(", ")} ${quotes.length === 1 ? "isn't" : "aren't"} on the page. Copy the page's words exactly.`);
 
   // What earlier answers found, which later answers are checked against.
   let name = "";
   let start = 0;
-  let complained = false;
-  let continued = false;
-  let overran = false;
   let stepRange: Range | null = null;
   const taken = new Set<number>();
 
   /** Where a part starts and ends, from quotes of its first and last lines. */
   const range = (first: string, last: string) => {
-    const a = findNear(lines, first, start);
-    const b = a && findQuote(lines, last, a.index);
-    if (a && !b && findQuote(lines, last)) throw new Error(`${quoted(last)} comes before ${quoted(first)} on the page. Give the first one first.`);
+    const a = page.findNear(first, start);
+    const b = a && page.find(last, a.index);
+    if (a && !b && page.find(last)) throw new Error(`${quoted(last)} comes before ${quoted(first)} on the page. Give the first one first.`);
     const missing = [...(a ? [] : [first]), ...(a && !b ? [last] : [])];
     if (missing.length > 0) throw notOnPage(missing);
     return [a!.index, b!.index] as const;
@@ -300,13 +235,13 @@ export async function readPage(
       "return_ingredients",
       "Return your answer: the recipe's ingredients, verbatim, in order.",
       z.strictObject({ ingredients: z.array(z.string()).describe("Each ingredient, verbatim") }),
-      ({ ingredients }) => {
+      ({ ingredients }, doubt) => {
         let at = start;
         const used = new Set<number>();
         const matches = ingredients.map((q) => q.trim()).filter(Boolean).map((quote) => {
-          let match = findNear(lines, quote, at);
+          let match = page.findNear(quote, at);
           // An ingredient listed twice, like oil for the meatballs and for the sauce, is its next copy.
-          if (match?.whole && used.has(match.index)) match = findQuote(lines, quote, match.index + 1) ?? match;
+          if (match?.whole && used.has(match.index)) match = page.find(quote, match.index + 1) ?? match;
           if (match) {
             at = match.index;
             if (match.whole) used.add(match.index);
@@ -316,26 +251,18 @@ export async function readPage(
         const missing = matches.filter((m) => !m.match).map((m) => m.quote);
         // A line alone between two ingredients and marked like them, as an egg in the middle of a list, was skipped.
         const skipped = lines.flatMap((line, i) =>
-          used.has(i - 1) && used.has(i + 1) && !used.has(i) && headingText(line) === null &&
-          marker(line) === marker(lines[i - 1]) && marker(line) === marker(lines[i + 1]) ? [line] : [],
+          used.has(i - 1) && used.has(i + 1) && !used.has(i) && page.heading(i) === null &&
+          page.marker(i) === page.marker(i - 1) && page.marker(i) === page.marker(i + 1) ? [line] : [],
         );
         // Ingredients copied without their amounts, like "sugar" for "2 cups sugar".
-        const shortened = matches.filter(({ quote, match }) => {
-          const [line, q] = [flat(lines[match?.index ?? 0]), flat(quote)];
-          return match?.whole && line.length > q.length + 3 && !line.startsWith(q);
-        });
-        // Complain once; a second answer is taken with whatever it got right.
-        if (shortened.length >= 2 && shortened.length * 2 >= matches.length && !complained) {
-          complained = true;
-          throw new Error(`Copy each ingredient's whole line from the page, with its amount, like ${quoted(clean(lines[shortened[0].match!.index]))}.`);
+        const shortened = matches.flatMap(({ quote, match }) => (match && page.shortened(quote, match) ? [match] : []));
+        // Doubted answers are sent back once; a second answer is taken with whatever it got right.
+        if (shortened.length >= 2 && shortened.length * 2 >= matches.length) {
+          doubt(`Copy each ingredient's whole line from the page, with its amount, like ${quoted(page.clean(shortened[0].index))}.`);
         }
-        if (missing.length > 0 && !complained) {
-          complained = true;
-          throw notOnPage(missing);
-        }
-        if (skipped.length > 0 && !complained) {
-          complained = true;
-          throw new Error(
+        if (missing.length > 0) doubt(notOnPage(missing).message);
+        if (skipped.length > 0) {
+          doubt(
             `${skipped.map(quoted).join(", ")} ${skipped.length === 1 ? "is" : "are"} between two of your ingredients. ` +
               "If you skipped an ingredient, call `return_ingredients` again with all of them; if not, send the same list again.",
           );
@@ -346,18 +273,17 @@ export async function readPage(
     answer("no_ingredient_list", "Return your answer: the recipe has no list of ingredients.", none, () => []),
   ];
   const stepAnswers = [
-    answer("return_step_range", "Return your answer: where the recipe's steps start and end.", rangeInput("step"), ({ first, last }) => {
+    answer("return_step_range", "Return your answer: where the recipe's steps start and end.", rangeInput("step"), ({ first, last }, doubt) => {
       const found = range(first, last);
       // A heading right after the last step that also heads some of the ingredients, like "For the croutons:",
       // with steps marked like the last under it, is probably another part.
-      const [heading, next] = [lines[found[1] + 1] ?? "", lines[found[1] + 2] ?? ""];
-      const mark = marker(lines[found[1]]);
-      const part = headingText(heading);
-      const headsIngredients = !!part && lines.some((line, i) => taken.has(i + 1) && headingText(line) === part);
-      if (!continued && mark && headsIngredients && marker(next) === mark) {
-        continued = true;
-        throw new Error(
-          `${quoted(heading)} and more steps come right after your last step. ` +
+      const after = found[1] + 1;
+      const mark = page.marker(found[1]);
+      const part = page.heading(after);
+      const headsIngredients = !!part && lines.some((_, i) => taken.has(i + 1) && page.heading(i) === part);
+      if (mark && headsIngredients && page.marker(after + 1) === mark) {
+        doubt(
+          `${quoted(lines[after])} and more steps come right after your last step. ` +
             `If they're part of ${name}, call \`return_step_range\` again with the last of them; if not, send the same range again.`,
         );
       }
@@ -366,11 +292,10 @@ export async function readPage(
     answer("no_steps", "Return your answer: the recipe has no steps.", none, () => null),
   ];
   const noteAnswers = [
-    answer("return_note_range", "Return your answer: where the recipe's notes start and end.", rangeInput("note"), ({ first, last }) => {
+    answer("return_note_range", "Return your answer: where the recipe's notes start and end.", rangeInput("note"), ({ first, last }, doubt) => {
       const found = range(first, last);
-      if (!overran && stepRange && crosses(found, stepRange)) {
-        overran = true;
-        throw new Error(`Those notes run over ${name}'s steps. Give the first and last note that isn't a step, or call \`no_notes\`.`);
+      if (stepRange && crosses(found, stepRange)) {
+        doubt(`Those notes run over ${name}'s steps. Give the first and last note that isn't a step, or call \`no_notes\`.`);
       }
       return found;
     }),
@@ -378,9 +303,9 @@ export async function readPage(
   ];
   const descriptionAnswers = [
     answer("return_description", "Return your answer: the paragraph that introduces the recipe.", z.strictObject({ opening: z.string().describe("The paragraph's opening words, verbatim") }), ({ opening }) => {
-      const match = findNear(lines, opening, 0);
+      const match = page.findNear(opening, 0);
       if (!match) throw notOnPage([opening]);
-      if (headingText(lines[match.index]) !== null) throw new Error(`${quoted(opening)} is a heading. Choose the paragraph introducing ${name}, or call \`no_description\`.`);
+      if (page.heading(match.index) !== null) throw new Error(`${quoted(opening)} is a heading. Choose the paragraph introducing ${name}, or call \`no_description\`.`);
       return taken.has(match.index) ? null : match.index;
     }),
     answer("no_description", "Return your answer: the page doesn't introduce the recipe.", none, () => null as number | null),
@@ -398,7 +323,7 @@ export async function readPage(
       (details) => details,
     ),
   ];
-  const questions = new Questions(llm, page, [names, ...ingredientAnswers, ...stepAnswers, ...noteAnswers, ...descriptionAnswers, ...detailAnswers] as Answer<unknown>[], warm);
+  const questions = new Questions(llm, prompt, [names, ...ingredientAnswers, ...stepAnswers, ...noteAnswers, ...descriptionAnswers, ...detailAnswers] as Answer<unknown>[], warm);
 
   try {
     // Which recipes are on the page. Only the first is read.
@@ -407,7 +332,7 @@ export async function readPage(
     if (found?.length === 0) found = await questions.ask(nameQuestion, [names]);
     if (!found?.length) return null;
     name = found[0];
-    start = findQuote(lines, name)?.index ?? 0;
+    start = page.find(name)?.index ?? 0;
 
     // Its ingredients, each quoted, so lists split by steps or headings come out whole.
     const ingredients =
@@ -418,7 +343,7 @@ export async function readPage(
     const ingredientLines = [...new Set(ingredients.filter((i) => i.whole).map((i) => i.index))];
     const ingredientParts = [...new Set(ingredients.filter((i) => !i.whole).map((i) => i.index))].filter((i) => !ingredientLines.includes(i));
     const ingredientItems = [
-      ...ingredientLines.map((index) => ({ index, text: clean(lines[index]) })),
+      ...ingredientLines.map((index) => ({ index, text: page.clean(index) })),
       ...ingredients.filter((i) => !i.whole && !ingredientLines.includes(i.index)).map((i) => ({ index: i.index, text: i.quote })),
     ];
     for (const i of ingredientLines) taken.add(i);
@@ -437,13 +362,13 @@ export async function readPage(
     const span = (r: readonly [number, number] | null | undefined) => (r ? Array.from({ length: r[1] - r[0] + 1 }, (_, k) => r[0] + k) : []);
     // A line the model named as a part's first or last is that part's, even when it looks like a heading.
     const plain = (r: readonly [number, number] | null | undefined) => (i: number) =>
-      !taken.has(i) && (headingText(lines[i]) === null || i === r![0] || i === r![1]);
-    // Notes that still run over the steps' first or last line are only the lines outside them.
-    const outside = (i: number) => !(tips && steps && crosses(tips, steps)) || i < steps![0] || i > steps![1];
-    let tipLines = span(tips).filter(plain(tips)).filter(outside);
+      !taken.has(i) && (page.heading(i) === null || i === r![0] || i === r![1]);
     let stepLines = span(steps).filter(plain(steps));
-    const withoutTips = stepLines.filter((i) => !tipLines.includes(i));
-    if (withoutTips.length > 0) stepLines = withoutTips;
+    let tipLines = span(tips).filter(plain(tips));
+    // Notes that sit among the steps come out of them, unless they'd take every step.
+    // Notes that run over the steps' first or last line keep only the lines outside them.
+    if (tips && steps && crosses(tips, steps)) tipLines = tipLines.filter((i) => i < steps[0] || i > steps[1]);
+    else if (stepLines.some((i) => !tipLines.includes(i))) stepLines = stepLines.filter((i) => !tipLines.includes(i));
     else tipLines = tipLines.filter((i) => !stepLines.includes(i));
     for (const i of [...stepLines, ...tipLines]) taken.add(i);
 
@@ -461,14 +386,14 @@ export async function readPage(
 
     const recipe: PageRecipe = {
       title: name,
-      description: descriptionLine === null ? "" : clean(lines[descriptionLine]),
+      description: descriptionLine === null ? "" : page.clean(descriptionLine),
       yields: details?.yields?.trim() || null,
       prepMinutes: details?.prepMinutes ?? null,
       cookMinutes: details?.cookMinutes ?? null,
       totalMinutes: details?.totalMinutes ?? null,
       ingredients: group(lines, ingredientItems),
-      instructions: group(lines, stepLines.map((index) => ({ index, text: clean(lines[index]) })), (i) => ingredientLines.includes(i)),
-      tips: group(lines, tipLines.map((index) => ({ index, text: clean(lines[index]) }))),
+      instructions: group(lines, stepLines.map((index) => ({ index, text: page.clean(index) })), (i) => ingredientLines.includes(i)),
+      tips: group(lines, tipLines.map((index) => ({ index, text: page.clean(index) }))),
     };
     return { recipe, lines, ingredientLines, ingredientParts, stepLines, tipLines, descriptionLine };
   } finally {

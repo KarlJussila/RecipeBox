@@ -57,7 +57,8 @@ vi.mock("./api", () => ({
 }));
 
 import { extractFromHtml, readableText } from "./extract/page";
-import { headingText, readPage, type Reading } from "./reader";
+import { headingText } from "./page-lines";
+import { readPage, type Reading } from "./reader";
 
 // ---------------------------------------------------------------------------
 // The app's side of a job, with answers cached per run
@@ -175,7 +176,9 @@ async function opencodeRun(job: Job, tools: ToolDef[]): Promise<string> {
   const secs = (Date.now() - started) / 1000;
   modelSeconds += secs;
   cache[key] = { calls, secs };
-  writeFileSync(cachePath, JSON.stringify(cache));
+  // Another run, like one on a second machine, may have saved answers since: keep theirs too.
+  const saved = existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, "utf8")) : {};
+  writeFileSync(cachePath, JSON.stringify({ ...saved, ...cache }));
   return "";
 }
 
@@ -312,7 +315,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       `\n${totals.pages - totals.wrong}/${totals.pages} pages right. Wrong title on ${totals.title}, wrong ingredients on ${totals.ingredients}, ` +
         `wrong steps on ${totals.steps}, wrong description on ${totals.description}. Model time ${modelSeconds.toFixed(0)} s.`,
     );
-    const suffix = OFFLINE ? "-replay" : "";
+    const suffix = (process.env.RB_REPORT ? `-${process.env.RB_REPORT}` : "") + (OFFLINE ? "-replay" : "");
     writeFileSync(join(OUT, `report-${RUN}${suffix}.txt`), report.join("\n") + "\n");
     writeFileSync(join(OUT, `pushback-${RUN}${suffix}.json`), JSON.stringify(pushback, null, 1));
     expect(totals.pages).toBeGreaterThan(0);
