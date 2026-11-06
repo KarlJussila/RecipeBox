@@ -259,8 +259,11 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       const titleRight = !reading || titles.length === 0 || titles.some((t) => letters(t).includes(letters(reading.recipe.title)));
       const steps = score(reading, labels, "step", reading?.stepLines ?? []);
       const intro = reading?.descriptionLine ?? null;
-      const introWanted = labels.some((l) => l && l !== "*" && l.includes("intro"));
-      const introRight = intro === null ? !introWanted : labels[intro] === "*" || (labels[intro] ?? []).includes("intro");
+      // "description" marks a paragraph about the dish, which the page shouldn't be read without;
+      // "description-ok" a line that's fine to take, though none is fine too.
+      const introWanted = labels.some((l) => l && l !== "*" && l.includes("description"));
+      const introRight =
+        intro === null ? !introWanted : labels[intro] === "*" || (labels[intro] ?? []).some((x) => x === "description" || x === "description-ok");
       const unlabeled = labels.filter((l) => l === null).length;
 
       const wrongIngredients = ingredients.missing.length + ingredients.extra.length > 0;
