@@ -51,7 +51,7 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced;
 }
 
-/** Applies search, tag, favorite and time filters. Search ranking comes from SQLite FTS. */
+/** Applies search, tag, favorite, and time filters. Search ranking comes from SQLite FTS. */
 export function useFilteredRecipes(recipes: RecipeSummary[], filters: Filters) {
   const query = useDebounced(filters.query.trim(), 120);
   const [ranked, setRanked] = useState<string[] | null>(null);

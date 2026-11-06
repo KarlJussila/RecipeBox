@@ -89,7 +89,7 @@ const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection.
 
 Choose all the tags that fit from the list in the message and save them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
 
-- Add a Dietary tag only when the recipe says so itself, in its title, description or website keywords.`;
+- Add a Dietary tag only when the recipe says so itself, in its title, description, or website keywords.`;
 
 const TagInput = z.strictObject({ tags: z.array(z.string()) });
 

@@ -194,7 +194,7 @@ describe("extractFromHtml", () => {
 describe("readableText", () => {
   const text = (body: string) => readableText(new DOMParser().parseFromString(`<body>${body}</body>`, "text/html"));
 
-  test("keeps headings, list items and line breaks, without relying on the source's newlines", () => {
+  test("keeps headings, list items, and line breaks, without relying on the source's newlines", () => {
     expect(text("<h2>Cake</h2><ul><li>2 eggs</li><li>1 cup <a>flour</a></li></ul><ol><li>Mix.</li></ol><p>Serves 4<br>Keeps a week</p>")).toBe(
       "## Cake\n- 2 eggs\n- 1 cup flour\n1. Mix.\nServes 4\nKeeps a week",
     );
@@ -206,7 +206,7 @@ describe("readableText", () => {
     );
   });
 
-  test("drops share buttons, hidden text and headings left with nothing under them", () => {
+  test("drops share buttons, hidden text, and headings left with nothing under them", () => {
     expect(
       text(
         '<article class="post tag-social-gatherings"><h5>Video</h5><p><iframe></iframe></p><h5>Notes</h5><p>Good cold.</p>' +

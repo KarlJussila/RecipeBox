@@ -237,8 +237,8 @@ const headingLevel = (line: string) => /^(#+) /.exec(line)?.[1].length ?? null;
 
 /**
  * The readable text of a page as Markdown, for when an LLM has to find the recipe
- * itself. Keeps headings, lists and line breaks, and drops navigation, ads, share
- * buttons and scripts so the prompt stays small.
+ * itself. Keeps headings, lists, and line breaks, and drops navigation, ads, share
+ * buttons, and scripts so the prompt stays small.
  */
 export function readableText(doc: Document, limit = 60_000): string {
   const clone = doc.body?.cloneNode(true) as HTMLElement | undefined;

@@ -1,6 +1,6 @@
 const BLOCK_TAGS = /<\s*(br|\/p|\/li|\/div|\/h[1-6])\b[^>]*>/gi;
 
-/** Decodes HTML entities, drops tags and tidies whitespace. Keeps line breaks. */
+/** Decodes HTML entities, drops tags, and tidies whitespace. Keeps line breaks. */
 export function cleanText(value: unknown, decodePasses = 2): string {
   if (typeof value === "number") return String(value);
   if (typeof value !== "string") return "";
