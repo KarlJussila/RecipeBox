@@ -30,6 +30,12 @@ const RUN = process.env.RB_RUN ?? "1";
 const WARM = process.env.RB_WARM !== "0";
 /** Only replay saved answers: a question without one fails its page instead of asking the model. */
 const OFFLINE = process.env.RB_OFFLINE === "1";
+/**
+ * The service saved answers are filed under, when another machine runs the same model
+ * with the same settings, like RB_SERVICE=http://100.118.133.81:1234/v1 with
+ * RB_SAVE_AS=http://127.0.0.1:1234/v1.
+ */
+const SAVE_AS = process.env.RB_SAVE_AS;
 
 interface Job { id: string; model: string; service: { baseUrl: string; apiKey: string } | null; instructions: string; message: string }
 interface ToolDef { name: string; description: string; inputSchema: unknown }
@@ -102,7 +108,7 @@ let currentPage = "";
 const asked = new Map<string, number>();
 
 async function opencodeRun(job: Job, tools: ToolDef[]): Promise<string> {
-  const same = createHash("sha1").update(JSON.stringify([RUN, job.model, job.service?.baseUrl, job.instructions, job.message, tools])).digest("hex");
+  const same = createHash("sha1").update(JSON.stringify([RUN, job.model, SAVE_AS ?? job.service?.baseUrl, job.instructions, job.message, tools])).digest("hex");
   const n = (asked.get(same) ?? 0) + 1;
   asked.set(same, n);
   const key = n === 1 ? same : `${same}#${n}`;
