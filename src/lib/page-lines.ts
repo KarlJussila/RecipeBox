@@ -2,6 +2,8 @@
 // "**bold**" lines, and "- " or "1. " list items. The reader finds the model's quotes
 // among these lines and reads each line's kind back from that markup.
 
+import type { Section } from "./types";
+
 /** A line as quotes are compared with it: no markup or list marker, plain quotes and spaces, lowercase. */
 export const flat = (s: string) =>
   s
@@ -37,6 +39,34 @@ export function headingText(line: string): string | null {
   if (!m) return null;
   const text = (m[1] ?? m[2] ?? m[3]).replace(/[*#]+/g, "").replace(/:\s*$/, "").trim();
   return GENERIC.test(text) ? "" : text;
+}
+
+/**
+ * Groups lines into sections, starting one at each heading between or just before
+ * them. Looking back for the first heading passes over `skip`ped lines, so steps
+ * that follow a part's ingredients come under that part's heading.
+ */
+export function group(lines: string[], items: { index: number; text: string }[], skip: (index: number) => boolean = () => false): Section[] {
+  items = [...items].sort((a, b) => a.index - b.index);
+  if (items.length === 0) return [];
+  const sections: Section[] = [];
+  let back = items[0].index - 1;
+  while (back >= 0 && skip(back)) back--;
+  const before = headingText(lines[back] ?? "");
+  let current: Section = { heading: before ?? "", items: [] };
+  let last = items[0].index - 1;
+  for (const item of items) {
+    for (let i = last + 1; i < item.index; i++) {
+      const heading = headingText(lines[i]);
+      if (heading === null) continue;
+      if (current.items.length > 0) sections.push(current);
+      current = { heading, items: [] };
+    }
+    current.items.push(item.text);
+    last = item.index;
+  }
+  sections.push(current);
+  return sections;
 }
 
 export interface Found {

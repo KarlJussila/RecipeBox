@@ -9,9 +9,10 @@
 import { z } from "zod";
 import type { LlmSettings } from "./api";
 import { runJob, tool, type ToolReply } from "./llm";
-import { PageLines, flat, headingText } from "./page-lines";
+import { PageLines, flat } from "./page-lines";
 import type { ReadablePage } from "./extract/page";
-import type { RecipeDraft, Section } from "./types";
+import { partsToRecipe, type LinePart, type SourcePage } from "./source-page";
+import type { RecipeDraft } from "./types";
 
 const INSTRUCTIONS = "You read recipes from web pages for a home cook's recipe collection.";
 
@@ -30,34 +31,8 @@ export interface Reading {
   stepLines: number[];
   tipLines: number[];
   descriptionLine: number | null;
-}
-
-/**
- * Groups lines into sections, starting one at each heading between or just before
- * them. Looking back for the first heading passes over `skip`ped lines, so steps
- * that follow a part's ingredients come under that part's heading.
- */
-function group(lines: string[], items: { index: number; text: string }[], skip: (index: number) => boolean = () => false): Section[] {
-  items = [...items].sort((a, b) => a.index - b.index);
-  if (items.length === 0) return [];
-  const sections: Section[] = [];
-  let back = items[0].index - 1;
-  while (back >= 0 && skip(back)) back--;
-  const before = headingText(lines[back] ?? "");
-  let current: Section = { heading: before ?? "", items: [] };
-  let last = items[0].index - 1;
-  for (const item of items) {
-    for (let i = last + 1; i < item.index; i++) {
-      const heading = headingText(lines[i]);
-      if (heading === null) continue;
-      if (current.items.length > 0) sections.push(current);
-      current = { heading, items: [] };
-    }
-    current.items.push(item.text);
-    last = item.index;
-  }
-  sections.push(current);
-  return sections;
+  /** The page's lines and what each became, to keep with the recipe. */
+  source: SourcePage;
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +328,8 @@ export async function readPage(
     if (found?.length === 0) found = await questions.ask(nameQuestion, [names]);
     if (!found?.length) return null;
     name = found[0];
-    start = page.find(name)?.index ?? 0;
+    const titleLine = page.find(name)?.index ?? null;
+    start = titleLine ?? 0;
 
     // Its ingredients, each quoted, so lists split by steps or headings come out whole.
     const ingredients =
@@ -363,10 +339,7 @@ export async function readPage(
       )) ?? [];
     const ingredientLines = [...new Set(ingredients.filter((i) => i.whole).map((i) => i.index))];
     const ingredientParts = [...new Set(ingredients.filter((i) => !i.whole).map((i) => i.index))].filter((i) => !ingredientLines.includes(i));
-    const ingredientItems = [
-      ...ingredientLines.map((index) => ({ index, text: page.clean(index) })),
-      ...ingredients.filter((i) => !i.whole && !ingredientLines.includes(i.index)).map((i) => ({ index: i.index, text: i.quote })),
-    ];
+    const quotes = ingredients.filter((i) => !i.whole && !ingredientLines.includes(i.index)).map((i) => ({ line: i.index, text: i.quote }));
     for (const i of ingredientLines) taken.add(i);
 
     // Its steps: the lines from the first step to the last, apart from ingredients and headings.
@@ -405,26 +378,35 @@ export async function readPage(
       detailAnswers,
     );
 
+    const parts: (LinePart | null)[] = lines.map(() => null);
+    for (const i of ingredientLines) parts[i] = "ingredient";
+    for (const i of stepLines) parts[i] = "step";
+    for (const i of tipLines) parts[i] = "tip";
+    if (descriptionLine !== null) parts[descriptionLine] = "description";
+    const source: SourcePage = { lines, parts, titleLine, quotes };
+
     const recipe: PageRecipe = {
+      ...partsToRecipe(source),
       title: name,
-      description: descriptionLine === null ? "" : page.clean(descriptionLine),
       yields: details?.yields?.trim() || null,
       prepMinutes: details?.prepMinutes ?? null,
       cookMinutes: details?.cookMinutes ?? null,
       totalMinutes: details?.totalMinutes ?? null,
-      ingredients: group(lines, ingredientItems),
-      instructions: group(lines, stepLines.map((index) => ({ index, text: page.clean(index) })), (i) => ingredientLines.includes(i)),
-      tips: group(lines, tipLines.map((index) => ({ index, text: page.clean(index) }))),
     };
-    return { recipe, lines, ingredientLines, ingredientParts, stepLines, tipLines, descriptionLine };
+    return { recipe, lines, ingredientLines, ingredientParts, stepLines, tipLines, descriptionLine, source };
   } finally {
     questions.finish();
   }
 }
 
-/** Reads a recipe from a page's text, or returns null when the page has none. */
-export async function extractRecipe(llm: LlmSettings, page: ReadablePage, title: string | null, url: string | null): Promise<PageRecipe | null> {
+/** Reads a recipe from a page's text, with the page it came from, or returns null when the page has none. */
+export async function extractRecipe(
+  llm: LlmSettings,
+  page: ReadablePage,
+  title: string | null,
+  url: string | null,
+): Promise<{ recipe: PageRecipe; source: SourcePage } | null> {
   const reading = await readPage(llm, page.text, title, url, { links: page.links });
   if (!reading || (reading.recipe.ingredients.length === 0 && reading.recipe.instructions.length === 0)) return null;
-  return reading.recipe;
+  return { recipe: reading.recipe, source: reading.source };
 }

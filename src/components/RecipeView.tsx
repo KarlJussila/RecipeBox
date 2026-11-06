@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, Heart, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, FileSearch, Heart, Pencil, Printer, Trash2 } from "lucide-react";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { formatMinutes } from "../lib/extract/duration";
@@ -285,7 +285,8 @@ export function RecipeView({
   /** True while the AI is choosing tags for this recipe. */
   tagging: boolean;
   onBack: () => void;
-  onEdit: () => void;
+  /** Opens the editor, on the page the recipe came from when `page` is set. */
+  onEdit: (page?: boolean) => void;
   onDeleted: () => void;
   onChanged: () => void;
 }) {
@@ -366,7 +367,7 @@ export function RecipeView({
         <IconButton label="Delete recipe" onClick={() => setConfirmDelete(true)}>
           <Trash2 className="size-5" />
         </IconButton>
-        <Button icon={<Pencil className="size-4" />} onClick={onEdit} className="ml-2">
+        <Button icon={<Pencil className="size-4" />} onClick={() => onEdit()} className="ml-2">
           Edit
         </Button>
       </header>
@@ -452,8 +453,20 @@ export function RecipeView({
 
         <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
 
+        {recipe.sourcePage && (
+          <div className="no-print mx-auto mt-16 flex max-w-xl flex-col items-center gap-3 rounded-2xl bg-leaf-wash px-6 py-5 text-center ring-1 ring-leaf-tint">
+            <p className="text-[16px] leading-relaxed text-ink-soft">
+              Recipe Box read this recipe from its web page. If a step or ingredient is missing or in the wrong place, you
+              can fix it from the page.
+            </p>
+            <Button icon={<FileSearch className="size-4" />} onClick={() => onEdit(true)}>
+              Compare with the page
+            </Button>
+          </div>
+        )}
+
         {recipe.sourceUrl && (
-          <p className="no-print mt-16 text-center text-[15px]">
+          <p className={cx("no-print text-center text-[15px]", recipe.sourcePage ? "mt-8" : "mt-16")}>
             <button
               type="button"
               onClick={() => openUrl(recipe.sourceUrl!)}

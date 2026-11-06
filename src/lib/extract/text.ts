@@ -56,3 +56,8 @@ export function headlineCase(value: string): string {
 export function titleCase(value: string): string {
   return value.replace(/(^|[\s-])(\p{Ll})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
 }
+
+/** A title as it's saved: some blogs (Smitten Kitchen) style titles in lowercase, and old pages in capitals. */
+export function tidyTitle(title: string): string {
+  return title === title.toLowerCase() || title === title.toUpperCase() ? headlineCase(title.toLowerCase()) : title;
+}

@@ -14,7 +14,7 @@ import { effectiveLlm } from "./lib/llm";
 import type { RecipeSummary } from "./lib/types";
 import { allTagCounts, NO_FILTERS, useFilteredRecipes, useLibrary, type Filters } from "./state";
 
-type View = { name: "list" } | { name: "recipe"; id: string } | { name: "edit"; id: string | null; from: View };
+type View = { name: "list" } | { name: "recipe"; id: string } | { name: "edit"; id: string | null; from: View; page?: boolean };
 
 const RETAG_INTERVAL_MS = 15 * 60 * 1000;
 const RETRY_MIN_MS = 60 * 1000;
@@ -280,7 +280,7 @@ export default function App() {
             allTags={tags}
             tagging={tagging.has(view.id)}
             onBack={backToList}
-            onEdit={() => setView({ name: "edit", id: view.id, from: view })}
+            onEdit={(page) => setView({ name: "edit", id: view.id, from: view, page })}
             onDeleted={async () => {
               await reload();
               backToList();
@@ -293,6 +293,7 @@ export default function App() {
           <RecipeEditor
             id={view.id}
             allTags={tags.map((t) => t.name)}
+            startOnPage={view.page}
             onCancel={() => setView(view.from)}
             onSaved={async (id) => {
               await refresh();

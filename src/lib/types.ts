@@ -1,3 +1,5 @@
+import type { SourcePage } from "./source-page";
+
 /** A titled group of ingredient lines or instruction steps. Heading may be empty. */
 export interface Section {
   heading: string;
@@ -29,6 +31,8 @@ export interface Recipe {
   tags: string[];
   /** True until the LLM has chosen tags for an imported recipe. */
   needsTags: boolean;
+  /** The page the AI read the recipe from, for comparing the recipe with it. */
+  sourcePage: SourcePage | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +95,7 @@ export function emptyRecipe(): Recipe {
     favorite: false,
     tags: [],
     needsTags: false,
+    sourcePage: null,
     createdAt: "",
     updatedAt: "",
   };

@@ -1,8 +1,9 @@
 import { api, type LlmSettings } from "./api";
 import { extractFromHtml, readablePage } from "./extract/page";
-import { headlineCase } from "./extract/text";
+import { tidyTitle } from "./extract/text";
 import { llmConfigured, suggestTags } from "./llm";
 import { extractRecipe } from "./reader";
+import type { SourcePage } from "./source-page";
 import { splitTips } from "./steps";
 import { emptyRecipe, type Recipe } from "./types";
 
@@ -31,16 +32,18 @@ function stripTracking(url: string): string {
  */
 export async function importHtml(html: string, pageUrl: string, llm: LlmSettings | undefined): Promise<ImportResult> {
   const { draft, complete, doc } = extractFromHtml(html, pageUrl);
+  let sourcePage: SourcePage | null = null;
 
   if (!complete && llmConfigured(llm)) {
     try {
       const found = await extractRecipe(llm, readablePage(doc), draft.title || null, draft.sourceUrl);
       if (found) {
         Object.assign(draft, {
-          ...found,
-          title: found.title || draft.title,
-          description: found.description || draft.description,
+          ...found.recipe,
+          title: found.recipe.title || draft.title,
+          description: found.recipe.description || draft.description,
         });
+        sourcePage = found.source;
       }
     } catch (e) {
       console.warn("LLM extraction failed", e);
@@ -68,8 +71,7 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
   const { steps, tips } = splitTips(draft.instructions);
   const recipe: Recipe = {
     ...emptyRecipe(),
-    // Some blogs (Smitten Kitchen) style their titles in lowercase, and old pages in capitals.
-    title: draft.title === draft.title.toLowerCase() || draft.title === draft.title.toUpperCase() ? headlineCase(draft.title.toLowerCase()) : draft.title,
+    title: tidyTitle(draft.title),
     description: draft.description,
     sourceUrl,
     sourceName: draft.sourceName,
@@ -85,6 +87,7 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     // Site categories and cuisines are good search terms even when they aren't tags.
     keywords: [...new Set([...draft.keywords, ...draft.categories, ...draft.cuisines])],
     needsTags: true,
+    sourcePage,
   };
   const saved = await api.saveRecipe(recipe);
   return { status: "saved", id: saved.id, title: saved.title };

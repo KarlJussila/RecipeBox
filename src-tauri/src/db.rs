@@ -47,6 +47,8 @@ pub struct Recipe {
     pub tags: Vec<String>,
     /// Set until the LLM has chosen tags (it may have been offline or unconfigured).
     pub needs_tags: bool,
+    /// The page the AI read the recipe from, as the frontend's SourcePage; the app only stores it.
+    pub source_page: Option<serde_json::Value>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -150,6 +152,7 @@ impl Db {
                         rating INTEGER,
                         favorite INTEGER NOT NULL DEFAULT 0,
                         needs_tags INTEGER NOT NULL DEFAULT 0,
+                        source_page TEXT,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL
                     );
@@ -241,7 +244,7 @@ impl Db {
             .query_row(
                 "SELECT id, title, description, source_url, source_name, author, image, yields,
                         prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
-                        notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips
+                        notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, source_page
                  FROM recipes WHERE id = ?1",
                 [id],
                 |r| {
@@ -249,6 +252,7 @@ impl Db {
                     let instructions: String = r.get(12)?;
                     let keywords: String = r.get(14)?;
                     let tips: String = r.get(20)?;
+                    let source_page: Option<String> = r.get(21)?;
                     Ok(Recipe {
                         id: r.get(0)?,
                         title: r.get(1)?,
@@ -270,6 +274,7 @@ impl Db {
                         favorite: r.get(16)?,
                         tags: Vec::new(),
                         needs_tags: r.get(19)?,
+                        source_page: source_page.and_then(|s| serde_json::from_str(&s).ok()),
                         created_at: r.get(17)?,
                         updated_at: r.get(18)?,
                     })
@@ -322,8 +327,8 @@ impl Db {
         tx.execute(
             "INSERT INTO recipes (id, title, description, source_url, source_name, author, image,
                 yields, prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
-                notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
+                notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, source_page)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
              ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title, description = excluded.description,
                 source_url = excluded.source_url, source_name = excluded.source_name,
@@ -333,7 +338,8 @@ impl Db {
                 instructions = excluded.instructions, notes = excluded.notes,
                 keywords = excluded.keywords, rating = excluded.rating,
                 favorite = excluded.favorite, updated_at = excluded.updated_at,
-                needs_tags = excluded.needs_tags, tips = excluded.tips",
+                needs_tags = excluded.needs_tags, tips = excluded.tips,
+                source_page = excluded.source_page",
             params![
                 recipe.id,
                 recipe.title,
@@ -356,6 +362,7 @@ impl Db {
                 recipe.updated_at,
                 recipe.needs_tags,
                 serde_json::to_string(&recipe.tips).map_err(err)?,
+                recipe.source_page.as_ref().map(|page| page.to_string()),
             ],
         )
         .map_err(err)?;
@@ -785,6 +792,18 @@ mod tests {
         db.save(&mut r).unwrap();
         assert_eq!(db.get(&r.id).unwrap().unwrap().tips[0].items, vec!["Wrap in foil overnight."]);
         assert_eq!(db.search("foil").unwrap(), vec![r.id.clone()]);
+    }
+
+    #[test]
+    fn source_page_is_kept_as_saved() {
+        let mut db = temp_db();
+        let mut r = recipe("Apple Cake", &[]);
+        db.save(&mut r).unwrap();
+        assert_eq!(db.get(&r.id).unwrap().unwrap().source_page, None);
+        let page = serde_json::json!({ "lines": ["Apple Cake", "- 2 apples"], "parts": [null, "ingredient"], });
+        r.source_page = Some(page.clone());
+        db.save(&mut r).unwrap();
+        assert_eq!(db.get(&r.id).unwrap().unwrap().source_page, Some(page));
     }
 
     #[test]

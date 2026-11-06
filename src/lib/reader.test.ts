@@ -27,6 +27,7 @@ vi.mock("./api", () => ({
 
 import { findQuote, headingText } from "./page-lines";
 import { readPage } from "./reader";
+import { partsToRecipe } from "./source-page";
 
 const llm = { provider: "opencode" as const, model: "test/model", baseUrl: "", apiKey: "" };
 beforeEach(() => {
@@ -240,4 +241,24 @@ test("finds quotes and headings the way pages write them", () => {
   expect(headingText("## Ingredients")).toBe("");
   expect(headingText("Cream filling:")).toBe("Cream filling");
   expect(headingText("Mix the flour and salt.")).toBeNull();
+});
+
+test("keeps what each line of the page became, and rebuilds the recipe from it", async () => {
+  const page = "Cookies\nThese are soft.\n- 2 cups flour\n1. Mix and bake.\n1. Cool on a rack.\nTip: They freeze well.";
+  model({
+    return_recipe_names: [{ names: ["Cookies"] }],
+    return_ingredients: [{ ingredients: ["2 cups flour"] }],
+    return_step_range: [{ first: "Mix and bake", last: "Mix and bake" }],
+    return_note_range: [{ first: "Tip: They freeze", last: "Tip: They freeze" }],
+    return_description: [{ opening: "These are soft" }],
+  });
+  const reading = await readPage(llm, page, null, null);
+  const source = reading!.source;
+  expect(source.titleLine).toBe(0);
+  expect(source.parts).toEqual([null, "description", "ingredient", "step", null, "tip"]);
+
+  source.parts[4] = "step";
+  const fixed = partsToRecipe(source);
+  expect(fixed.instructions).toEqual([{ heading: "", items: ["Mix and bake.", "Cool on a rack."] }]);
+  expect(fixed.description).toBe("These are soft.");
 });
