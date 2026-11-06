@@ -28,6 +28,8 @@ const SERVICE = process.env.RB_SERVICE ?? "http://127.0.0.1:1234/v1";
 const MODEL = process.env.RB_MODEL ?? "qwen3.5-4b-mtp";
 const RUN = process.env.RB_RUN ?? "1";
 const WARM = process.env.RB_WARM !== "0";
+/** Only replay saved answers: a question without one fails its page instead of asking the model. */
+const OFFLINE = process.env.RB_OFFLINE === "1";
 
 interface Job { id: string; model: string; service: { baseUrl: string; apiKey: string } | null; instructions: string; message: string }
 interface ToolDef { name: string; description: string; inputSchema: unknown }
@@ -92,6 +94,9 @@ function config(job: Job, tools: ToolDef[]) {
 const cachePath = join(OUT, "cache.json");
 const cache: Record<string, { calls: Call[]; secs: number }> = existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, "utf8")) : {};
 let modelSeconds = 0;
+/** Every reply that didn't end its job, so how often each check pushes back can be counted. */
+const pushback: { page: string; tool: string; text: string }[] = [];
+let currentPage = "";
 /** How often each job has been asked in this run, so asking again gets a new answer. */
 const asked = new Map<string, number>();
 
@@ -103,9 +108,15 @@ async function opencodeRun(job: Job, tools: ToolDef[]): Promise<string> {
   const cached = cache[key];
   if (cached) {
     modelSeconds += cached.secs;
-    for (const call of cached.calls) if ((await dispatch(job, call)).endJob) break;
+    for (const call of cached.calls) {
+      const reply = await dispatch(job, call);
+      if (reply.endJob) break;
+      pushback.push({ page: currentPage, tool: call.name, text: reply.text });
+    }
+    // If the checks have changed since and the saved answers stop short, the reader asks again.
     return "";
   }
+  if (OFFLINE) throw new Error("not saved");
 
   const calls: Call[] = [];
   let child: ChildProcess | null = null;
@@ -118,6 +129,7 @@ async function opencodeRun(job: Job, tools: ToolDef[]): Promise<string> {
         const call: Call = JSON.parse(body);
         calls.push(call);
         const reply = await dispatch(job, call);
+        if (!reply.endJob && !reply.text.startsWith("Got it.")) pushback.push({ page: currentPage, tool: call.name, text: reply.text });
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ text: reply.text }));
         // As opencode.rs does once an answer ends the job.
@@ -250,7 +262,15 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       const url = readFileSync(join(page.dir, "url.txt"), "utf8").trim();
       const { draft, doc } = extractFromHtml(decode(readFileSync(join(page.dir, "page.html"))), url);
       const before = modelSeconds;
-      const reading = await readPage(llm, readableText(doc), draft.title || null, draft.sourceUrl, { warm: WARM });
+      currentPage = name;
+      let reading;
+      try {
+        reading = await readPage(llm, readableText(doc), draft.title || null, draft.sourceUrl, { warm: WARM });
+      } catch (err) {
+        if (!OFFLINE || String(err).indexOf("not saved") < 0) throw err;
+        say(`${name.padEnd(22)} not saved`);
+        continue;
+      }
       const lines = reading?.lines ?? readableText(doc).split("\n").filter((l) => l.trim());
       const labels = lineLabels(lines, page.labels);
       const ingredients = score(reading, labels, "ingredient", reading?.ingredientLines ?? [], reading?.ingredientParts ?? []);
@@ -291,7 +311,9 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       `\n${totals.pages - totals.wrong}/${totals.pages} pages right. Wrong title on ${totals.title}, wrong ingredients on ${totals.ingredients}, ` +
         `wrong steps on ${totals.steps}, wrong description on ${totals.description}. Model time ${modelSeconds.toFixed(0)} s.`,
     );
-    writeFileSync(join(OUT, `report-${RUN}.txt`), report.join("\n") + "\n");
+    const suffix = OFFLINE ? "-replay" : "";
+    writeFileSync(join(OUT, `report-${RUN}${suffix}.txt`), report.join("\n") + "\n");
+    writeFileSync(join(OUT, `pushback-${RUN}${suffix}.json`), JSON.stringify(pushback, null, 1));
     expect(totals.pages).toBeGreaterThan(0);
   }, 3 * 60 * 60 * 1000);
 });
