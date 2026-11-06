@@ -268,6 +268,7 @@ export async function readPage(
   let name = "";
   let start = 0;
   let complained = false;
+  let continued = false;
   const taken = new Set<number>();
 
   /** Where a part starts and ends, from quotes of its first and last lines. */
@@ -313,7 +314,16 @@ export async function readPage(
           used.has(i - 1) && used.has(i + 1) && !used.has(i) && headingText(line) === null &&
           marker(line) === marker(lines[i - 1]) && marker(line) === marker(lines[i + 1]) ? [line] : [],
         );
+        // Ingredients copied without their amounts, like "sugar" for "2 cups sugar".
+        const shortened = matches.filter(({ quote, match }) => {
+          const [line, q] = [flat(lines[match?.index ?? 0]), flat(quote)];
+          return match?.whole && line.length > q.length + 3 && !line.startsWith(q);
+        });
         // Complain once; a second answer is taken with whatever it got right.
+        if (shortened.length >= 2 && shortened.length * 2 >= matches.length && !complained) {
+          complained = true;
+          throw new Error(`Copy each ingredient's whole line from the page, with its amount, like ${quoted(clean(lines[shortened[0].match!.index]))}.`);
+        }
         if (missing.length > 0 && !complained) {
           complained = true;
           throw notOnPage(missing);
@@ -331,7 +341,20 @@ export async function readPage(
     answer("no_ingredient_list", "Return your answer: the recipe has no list of ingredients.", none, () => []),
   ];
   const stepAnswers = [
-    answer("return_step_range", "Return your answer: where the recipe's steps start and end.", rangeInput("step"), ({ first, last }) => range(first, last)),
+    answer("return_step_range", "Return your answer: where the recipe's steps start and end.", rangeInput("step"), ({ first, last }) => {
+      const found = range(first, last);
+      // A heading right after the last step with steps marked like it under it, like "For the croutons:", is probably another part.
+      const [heading, next] = [lines[found[1] + 1] ?? "", lines[found[1] + 2] ?? ""];
+      const mark = marker(lines[found[1]]);
+      if (!continued && mark && headingText(heading) !== null && marker(next) === mark) {
+        continued = true;
+        throw new Error(
+          `${quoted(heading)} and more steps come right after your last step. ` +
+            `If they're part of ${name}, call \`return_step_range\` again with the last of them; if not, send the same range again.`,
+        );
+      }
+      return found;
+    }),
     answer("no_steps", "Return your answer: the recipe has no steps.", none, () => null),
   ];
   const noteAnswers = [
@@ -387,7 +410,7 @@ export async function readPage(
 
     // Its steps: the lines from the first step to the last, apart from ingredients and headings.
     const steps = await questions.ask(
-      `What are the first and last steps of ${name}? A step tells the cook what to do; how much the recipe makes or how big a serving is isn't a step. If the steps are in parts, like the filling and then the topping, the last step is the end of the last part. Call \`return_step_range\` with the opening words of each, verbatim. If ${name} has no steps, call \`no_steps\`.`,
+      `What are the first and last steps of ${name}? A step tells the cook what to do; how much the recipe makes or how big a serving is isn't a step. If they're one paragraph, give its opening words as both. Call \`return_step_range\` with the opening words of each, verbatim. If ${name} has no steps, call \`no_steps\`.`,
       stepAnswers,
     );
     // Notes apart from the steps, which come out of the steps when they sit among them.

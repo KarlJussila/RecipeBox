@@ -136,6 +136,31 @@ test("asks once about a line skipped in the middle of the ingredients", async ()
   expect(reading?.ingredientLines).toEqual([1, 2, 3]);
 });
 
+test("asks once whether steps under a heading right after the last step are another part", async () => {
+  const page = "Soup\n- 1 onion\n- 1 naan\n1. Cook the onion.\n**For the croutons:**\n1. Toast the naan.\nComments";
+  model({
+    return_recipe_names: [{ names: ["Soup"] }],
+    return_ingredients: [{ ingredients: ["1 onion", "1 naan"] }],
+    return_step_range: [{ first: "Cook the onion", last: "Cook the onion" }, { first: "Cook the onion", last: "Toast the naan" }],
+  });
+  const reading = await readPage(llm, page, null, null);
+  expect(bridge.replies[2].text).toMatch(/^"\*\*For the croutons:\*\*" and more steps come right after your last step\./);
+  expect(reading?.recipe.instructions).toEqual([{ heading: "", items: ["Cook the onion."] }, { heading: "For the croutons", items: ["Toast the naan."] }]);
+});
+
+test("asks once for whole lines when ingredients come back without their amounts", async () => {
+  model({
+    return_recipe_names: [{ names: ["Grandma's Cream Pie"] }],
+    return_ingredients: [
+      { ingredients: ["flour", "salt", "sugar", "milk"] },
+      { ingredients: ["4 cups flour", "2 tsp salt", "2 cups sugar", "3 cups milk"] },
+    ],
+  });
+  const reading = await readPage(llm, PAGE, null, null);
+  expect(bridge.replies[1]).toEqual({ text: `Copy each ingredient's whole line from the page, with its amount, like "4 cups flour".`, endJob: false });
+  expect(reading?.ingredientLines).toEqual([3, 4, 8, 9]);
+});
+
 test("keeps an ingredient named inside a sentence as its own words", async () => {
   const page = "Cake\n- 1 cup sugar\nCream the sugar with butter, then add 1 cup milk and 2 eggs.";
   model({
