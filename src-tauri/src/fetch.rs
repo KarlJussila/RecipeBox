@@ -46,11 +46,63 @@ pub async fn fetch_page(url: &str) -> Result<Page, String> {
         return Err(format!("The website answered with an error ({status})"));
     }
     let url = response.url().to_string();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let bytes = response.bytes().await.map_err(|e| e.to_string())?;
     if bytes.len() > MAX_PAGE_BYTES {
         return Err("That page is too large to import".into());
     }
-    Ok(Page { url, html: String::from_utf8_lossy(&bytes).into_owned() })
+    Ok(Page { url, html: decode_page(&bytes, content_type.as_deref()) })
+}
+
+/// Decodes a page the way a browser does: the charset the server names, else one in a
+/// `<meta>` tag, else UTF-8. Old pages that declare nothing and aren't UTF-8 are
+/// Windows-1252, where "¼" is a single byte.
+fn decode_page(bytes: &[u8], content_type: Option<&str>) -> String {
+    let declared = content_type.and_then(charset_in).or_else(|| {
+        let head = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]).to_ascii_lowercase();
+        head.split("<meta").skip(1).find_map(|tag| charset_in(&tag[..tag.find('>').unwrap_or(tag.len())]))
+    });
+    if let Some(encoding) = declared.and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes())) {
+        return encoding.decode(bytes).0.into_owned();
+    }
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_owned(),
+        Err(_) => encoding_rs::WINDOWS_1252.decode(bytes).0.into_owned(),
+    }
+}
+
+/// The value after `charset=` in a Content-Type header or a `<meta>` tag.
+fn charset_in(text: &str) -> Option<String> {
+    let start = text.to_ascii_lowercase().find("charset=")? + "charset=".len();
+    let label: String = text[start..]
+        .trim_start_matches(['"', '\''])
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.'))
+        .collect();
+    (!label.is_empty()).then_some(label)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_page;
+
+    #[test]
+    fn decodes_by_header_meta_tag_or_content() {
+        let latin = b"<p>\xbc cup milk</p>";
+        assert_eq!(decode_page(latin, Some("text/html; charset=ISO-8859-1")), "<p>¼ cup milk</p>");
+        assert_eq!(decode_page(b"<meta charset=\"windows-1252\"><p>\xbd</p>", Some("text/html")), "<meta charset=\"windows-1252\"><p>½</p>");
+        assert_eq!(
+            decode_page(b"<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=iso-8859-1\"><p>\xbc</p>", None),
+            "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=iso-8859-1\"><p>¼</p>"
+        );
+        // Nothing declared: UTF-8 when it is valid, otherwise the old Windows default.
+        assert_eq!(decode_page("<p>¼ cup</p>".as_bytes(), Some("text/html")), "<p>¼ cup</p>");
+        assert_eq!(decode_page(latin, Some("text/html")), "<p>¼ cup milk</p>");
+    }
 }
 
 /// Downloads an image into `dir` and returns the new file name.
