@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseDuration } from "./duration";
-import { extractFromHtml, readableText } from "./page";
+import { extractFromHtml, readablePage, readableText } from "./page";
 import { ingredientSections, instructionSections, pickImage } from "./schema";
 import { cleanText } from "./text";
 
@@ -198,6 +198,17 @@ describe("readableText", () => {
     expect(text("<h2>Cake</h2><ul><li>2 eggs</li><li>1 cup <a>flour</a></li></ul><ol><li>Mix.</li></ol><p>Serves 4<br>Keeps a week</p>")).toBe(
       "## Cake\n- 2 eggs\n- 1 cup flour\n1. Mix.\nServes 4\nKeeps a week",
     );
+  });
+
+  test("finds each line's link texts, but not a heading's", () => {
+    const page = readablePage(
+      new DOMParser().parseFromString(
+        '<body><h1><a href="/">Honey Cookies</a></h1><p>Source: <a href="/x">Soft Sugar Cookies</a></p><p><a href="/y">Apple Pie Cookies</a>Taste like pie. <a href="/z">More</a></p><p>Mix well.</p></body>',
+        "text/html",
+      ),
+    );
+    expect(page.text).toBe("# Honey Cookies\nSource: Soft Sugar Cookies\nApple Pie CookiesTaste like pie. More\nMix well.");
+    expect(page.links).toEqual([[], ["Soft Sugar Cookies"], ["Apple Pie Cookies", "More"], []]);
   });
 
   test("marks a line that's all bold or underlined, but not one that only starts that way", () => {

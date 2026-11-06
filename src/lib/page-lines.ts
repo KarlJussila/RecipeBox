@@ -101,6 +101,12 @@ export class PageLines {
     return found.whole && line.length > q.length + 3 && !line.startsWith(q);
   }
 
+  /** The lines that contain a quote. */
+  mentions(quote: string): number[] {
+    const q = flat(quote);
+    return q ? this.flats.flatMap((f, i) => (f.includes(q) ? [i] : [])) : [];
+  }
+
   heading(index: number): string | null {
     return headingText(this.lines[index] ?? "");
   }

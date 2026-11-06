@@ -1,5 +1,5 @@
 import { api, type LlmSettings } from "./api";
-import { extractFromHtml, readableText } from "./extract/page";
+import { extractFromHtml, readablePage } from "./extract/page";
 import { headlineCase } from "./extract/text";
 import { llmConfigured, suggestTags } from "./llm";
 import { extractRecipe } from "./reader";
@@ -34,7 +34,7 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
 
   if (!complete && llmConfigured(llm)) {
     try {
-      const found = await extractRecipe(llm, readableText(doc), draft.title || null, draft.sourceUrl);
+      const found = await extractRecipe(llm, readablePage(doc), draft.title || null, draft.sourceUrl);
       if (found) {
         Object.assign(draft, {
           ...found,

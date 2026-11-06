@@ -114,6 +114,30 @@ test("sends a quote that isn't on the page back to the model once", async () => 
   expect(reading?.recipe.ingredients).toEqual([{ heading: "Pie Crust", items: ["4 cups flour"] }]);
 });
 
+test("asks once about a recipe name that only appears as a link", async () => {
+  const page = "Sugar Cookies\n- 2 cups flour\n1. Mix and bake.\nSource: Soft Sugar Cookies";
+  model({
+    return_recipe_names: [{ names: ["Soft Sugar Cookies"] }, { names: ["Sugar Cookies"] }],
+    return_ingredients: [{ ingredients: ["2 cups flour"] }],
+    return_step_range: [{ first: "Mix and bake", last: "Mix and bake" }],
+  });
+  const reading = await readPage(llm, page, null, null, { links: [[], [], [], ["Soft Sugar Cookies"]] });
+  expect(bridge.replies[0].text).toMatch(/^"Soft Sugar Cookies" only appears on the page as a link to another page\./);
+  expect(reading?.recipe.title).toBe("Sugar Cookies");
+});
+
+test("takes a recipe name from a linked card title with text under it", async () => {
+  const page = "Cookie Recipes\nHoney CookiesMix the butter and honey, then bake.\n- 2 cups flour\n1. Mix and bake.";
+  model({
+    return_recipe_names: [{ names: ["Honey Cookies"] }],
+    return_ingredients: [{ ingredients: ["2 cups flour"] }],
+    return_step_range: [{ first: "Mix and bake", last: "Mix and bake" }],
+  });
+  const reading = await readPage(llm, page, null, null, { links: [[], ["Honey Cookies"], [], []] });
+  expect(bridge.replies.some((r) => /only appears on the page as a link/.test(r.text))).toBe(false);
+  expect(reading?.recipe.title).toBe("Honey Cookies");
+});
+
 test("reads an ingredient listed twice as both of its lines", async () => {
   const page = "Meatballs\n- 1 lb beef\n- 1 tbsp olive oil\nSauce\n- 1 tbsp olive oil\n- 1 can tomatoes\n1. Mix and fry.";
   model({

@@ -62,7 +62,7 @@ vi.mock("./api", () => ({
   },
 }));
 
-import { extractFromHtml, readableText } from "./extract/page";
+import { extractFromHtml, readablePage, readableText } from "./extract/page";
 import { headingText } from "./page-lines";
 import { readPage, type Reading } from "./reader";
 
@@ -275,7 +275,8 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       currentPage = name;
       let reading;
       try {
-        reading = await readPage(llm, readableText(doc), draft.title || null, draft.sourceUrl, { warm: WARM });
+        const readable = readablePage(doc);
+        reading = await readPage(llm, readable.text, draft.title || null, draft.sourceUrl, { warm: WARM, links: readable.links });
       } catch (err) {
         if (!OFFLINE || String(err).indexOf("not saved") < 0) throw err;
         say(`${name.padEnd(22)} not saved`);

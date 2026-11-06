@@ -9,7 +9,8 @@
 import { z } from "zod";
 import type { LlmSettings } from "./api";
 import { runJob, tool, type ToolReply } from "./llm";
-import { PageLines, headingText } from "./page-lines";
+import { PageLines, flat, headingText } from "./page-lines";
+import type { ReadablePage } from "./extract/page";
 import type { RecipeDraft, Section } from "./types";
 
 const INSTRUCTIONS = "You read recipes from web pages for a home cook's recipe collection.";
@@ -197,7 +198,8 @@ export async function readPage(
   pageText: string,
   title: string | null,
   url: string | null,
-  { warm = true } = {},
+  /** links: each line's link texts, as readablePage finds them. */
+  { warm = true, links = [] as string[][] } = {},
 ): Promise<Reading | null> {
   const page = new PageLines(pageText.split("\n").filter((line) => line.trim()));
   const { lines } = page;
@@ -228,7 +230,26 @@ export async function readPage(
     "return_recipe_names",
     "Return your answer: the names of the recipes on this page, in the order they appear.",
     z.strictObject({ names: z.array(z.string()).describe("Each recipe's name") }),
-    ({ names }) => names.map((n) => n.trim()).filter(Boolean),
+    ({ names }, doubt) => {
+      const found = names.map((n) => n.trim()).filter(Boolean);
+      // A name the page only shows as a line that's nearly all link, like "Source: <a>Soft Sugar
+      // Cookies</a>", is another page's. A card with a linked title and an excerpt under it can
+      // be the page's own recipe, so those don't count.
+      const [first, q] = [found[0] ?? "", flat(found[0] ?? "")];
+      const mentions = page.mentions(first);
+      const linked = (i: number) => {
+        const texts = (links[i] ?? []).map(flat);
+        const rest = texts.reduce((line, text) => line.replace(text, ""), flat(lines[i])).replace(/[^a-z0-9]+/g, "");
+        return texts.some((text) => text.includes(q)) && rest.length <= 12;
+      };
+      if (mentions.length > 0 && mentions.every(linked) && !flat(title ?? "").includes(q)) {
+        doubt(
+          `${quoted(first)} only appears on the page as a link to another page. ` +
+            "Which recipes are written out on this page itself? Call `return_recipe_names` with their names, verbatim, in order.",
+        );
+      }
+      return found;
+    },
   );
   const ingredientAnswers = [
     answer(
@@ -402,8 +423,8 @@ export async function readPage(
 }
 
 /** Reads a recipe from a page's text, or returns null when the page has none. */
-export async function extractRecipe(llm: LlmSettings, pageText: string, title: string | null, url: string | null): Promise<PageRecipe | null> {
-  const reading = await readPage(llm, pageText, title, url);
+export async function extractRecipe(llm: LlmSettings, page: ReadablePage, title: string | null, url: string | null): Promise<PageRecipe | null> {
+  const reading = await readPage(llm, page.text, title, url, { links: page.links });
   if (!reading || (reading.recipe.ingredients.length === 0 && reading.recipe.instructions.length === 0)) return null;
   return reading.recipe;
 }

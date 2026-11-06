@@ -163,32 +163,34 @@ const COLUMN_GAP = /\s*(?:\u00a0\s*){3,}/;
 /** Collects a page's text as Markdown lines. */
 class Lines {
   lines: string[] = [];
+  /** Each line's link texts, like the name of another recipe in a list of them. */
+  links: string[][] = [];
   /** Each line's two cells when spaces line it up as two columns. */
   private columns: (string[] | null)[] = [];
-  private parts: { text: string; emphasized: boolean }[] = [];
+  private parts: { text: string; emphasized: boolean; linked: boolean }[] = [];
   private prefix = "";
 
   private newCell = false;
 
-  add(text: string, emphasized: boolean) {
+  add(text: string, emphasized: boolean, linked: boolean) {
     if (this.newCell && text.trim()) {
       // Between two cells with text; empty cells get no separator. It doesn't count against a bold heading.
-      if (this.parts.some((p) => p.text.trim())) this.parts.push({ text: " | ", emphasized: true });
+      if (this.parts.some((p) => p.text.trim())) this.parts.push({ text: " | ", emphasized: true, linked: false });
       this.newCell = false;
     }
-    this.parts.push({ text, emphasized });
+    this.parts.push({ text, emphasized, linked });
   }
 
   /**
    * Adds preformatted text, like an email in a mailing-list archive, where a newline ends
    * a line. A line as long as the email's wrap width continues on the next one.
    */
-  addPreformatted(text: string, emphasized: boolean) {
+  addPreformatted(text: string, emphasized: boolean, linked: boolean) {
     text.split("\n").forEach((segment, i, all) => {
-      this.add(segment, emphasized);
+      this.add(segment, emphasized, linked);
       if (i === all.length - 1) return;
       const length = this.parts.map((p) => p.text).join("").trim().length;
-      if (length >= 60 && all[i + 1].trim()) this.add(" ", emphasized);
+      if (length >= 60 && all[i + 1].trim()) this.add(" ", emphasized, linked);
       else this.end();
     });
   }
@@ -213,17 +215,36 @@ class Lines {
       const heading = this.parts.every((p) => p.emphasized || !p.text.trim());
       const cells = raw.split(COLUMN_GAP).map((cell) => cell.replace(/\s+/g, " "));
       this.lines.push(this.prefix + (heading ? `**${line}**` : line));
+      this.links.push(this.linkTexts());
       this.columns.push(!this.prefix && !heading && cells.length === 2 ? cells : null);
       this.prefix = "";
     }
     this.parts = [];
   }
 
+  /** The current line's link texts: runs of linked parts. */
+  private linkTexts(): string[] {
+    const texts: string[] = [];
+    let run = "";
+    const close = () => {
+      if (run.trim()) texts.push(run.replace(/\s+/g, " ").trim());
+      run = "";
+    };
+    for (const part of this.parts) {
+      if (part.linked) run += part.text;
+      else close();
+    }
+    close();
+    return texts;
+  }
+
   heading(level: number, text: string) {
     this.end();
     const line = text.replace(/\s+/g, " ").trim();
     if (line) {
+      // A heading that's a link is usually a post's title, linking to the post itself.
       this.lines.push(`${"#".repeat(level)} ${line}`);
+      this.links.push([]);
       this.columns.push(null);
     }
   }
@@ -235,6 +256,7 @@ class Lines {
    */
   unfoldColumns() {
     const lines: string[] = [];
+    const links: string[][] = [];
     for (let i = 0; i < this.lines.length; ) {
       let j = i;
       while (this.columns[j]) j++;
@@ -242,6 +264,7 @@ class Lines {
       // Amounts spaced out from their ingredients, like "1   cup sugar", aren't a column.
       if (rows.length < 3 || rows.some(([left]) => left.endsWith(":") || !/\p{L}{3}/u.test(left))) {
         lines.push(...this.lines.slice(i, Math.max(j, i + 1)));
+        links.push(...this.links.slice(i, Math.max(j, i + 1)));
         i = Math.max(j, i + 1);
         continue;
       }
@@ -252,18 +275,20 @@ class Lines {
           else cells.push(cell);
         }
         lines.push(...cells);
+        links.push(...cells.map(() => []));
       }
       i = j;
     }
     this.lines = lines;
+    this.links = links;
     this.columns = lines.map(() => null);
   }
 }
 
-function collect(node: Node, out: Lines, emphasized: boolean, preformatted = false) {
+function collect(node: Node, out: Lines, emphasized: boolean, preformatted = false, linked = false) {
   if (node.nodeType === Node.TEXT_NODE) {
-    if (preformatted) out.addPreformatted(node.textContent ?? "", emphasized);
-    else out.add(node.textContent ?? "", emphasized);
+    if (preformatted) out.addPreformatted(node.textContent ?? "", emphasized, linked);
+    else out.add(node.textContent ?? "", emphasized, linked);
     return;
   }
   if (!(node instanceof Element)) return;
@@ -274,11 +299,18 @@ function collect(node: Node, out: Lines, emphasized: boolean, preformatted = fal
   if (tag === "LI") out.item(node.parentElement?.tagName === "OL" ? "1. " : "- ");
   else if (CELLS.has(tag)) out.cell();
   else if (BLOCKS.has(tag)) out.end();
-  for (const child of node.childNodes) collect(child, out, emphasized || EMPHASIS.has(tag), preformatted || tag === "PRE");
+  for (const child of node.childNodes) collect(child, out, emphasized || EMPHASIS.has(tag), preformatted || tag === "PRE", linked || tag === "A");
   if (BLOCKS.has(tag)) out.end();
 }
 
 const headingLevel = (line: string) => /^(#+) /.exec(line)?.[1].length ?? null;
+
+/** A page's readable text, and the link texts on each of its lines. */
+export interface ReadablePage {
+  text: string;
+  /** Each line's link texts, like the name of another recipe in a list of them. */
+  links: string[][];
+}
 
 /**
  * The readable text of a page as Markdown, for when an LLM has to find the recipe
@@ -286,8 +318,13 @@ const headingLevel = (line: string) => /^(#+) /.exec(line)?.[1].length ?? null;
  * buttons, and scripts so the prompt stays small.
  */
 export function readableText(doc: Document, limit = 60_000): string {
+  return readablePage(doc, limit).text;
+}
+
+/** The page's readable text (see readableText), with each line's link texts. */
+export function readablePage(doc: Document, limit = 60_000): ReadablePage {
   const clone = doc.body?.cloneNode(true) as HTMLElement | undefined;
-  if (!clone) return "";
+  if (!clone) return { text: "", links: [] };
   clone.querySelectorAll(SKIPPED).forEach((el) => el.remove());
   clone.querySelectorAll(SIDEBARS).forEach((el) => {
     if (!el.querySelector(POST) && !el.closest(".post-body, .entry-content")) el.remove();
@@ -297,12 +334,13 @@ export function readableText(doc: Document, limit = 60_000): string {
   out.end();
   out.unfoldColumns();
   // A heading with nothing under it, like "Video" over a removed player, is left over.
-  const lines = out.lines.filter((line, i, all) => {
+  const kept = out.lines.flatMap((line, i, all) => {
     const level = headingLevel(line);
-    if (level === null) return true;
     const next = all[i + 1];
     const nextLevel = next === undefined ? 0 : headingLevel(next);
-    return nextLevel === null || nextLevel > level;
+    return level === null || nextLevel === null || nextLevel > level ? [i] : [];
   });
-  return lines.join("\n").slice(0, limit);
+  const text = kept.map((i) => out.lines[i]).join("\n").slice(0, limit);
+  const count = text.split("\n").length;
+  return { text, links: kept.slice(0, count).map((i) => out.links[i]) };
 }
