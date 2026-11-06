@@ -374,7 +374,7 @@ export async function readPage(
     // Its ingredients, each quoted, so lists split by steps or headings come out whole.
     const ingredients =
       (await questions.ask(
-        `What are the ingredients of ${name}? Call \`return_ingredients\` with each one, verbatim, in the order the page lists them. If ${name} has no list of ingredients, call \`no_ingredient_list\`.`,
+        `What are the ingredients of ${name}? If they're in parts, like the cake and then the frosting, include every part's. Call \`return_ingredients\` with each one, verbatim, in the order the page lists them. If ${name} has no list of ingredients, call \`no_ingredient_list\`.`,
         ingredientAnswers,
       )) ?? [];
     const ingredientLines = [...new Set(ingredients.filter((i) => i.whole).map((i) => i.index))];
