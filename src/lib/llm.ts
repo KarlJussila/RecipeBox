@@ -1,4 +1,5 @@
-// The AI service: picks tags and reads recipes from pages without structured data.
+// The AI service: picks tags, and runs the jobs that read recipes from pages
+// without structured data (see reader.ts).
 //
 // Every job runs through opencode (see src-tauri/src/opencode.rs), with either
 // opencode's own models (OpenCode Zen's free ones by default) or an
@@ -10,7 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { z } from "zod";
 import { api, type LlmSettings, type ToolCall } from "./api";
 import { AI_CATEGORY_NAMES, TIME_TAG, type Tag } from "./tags";
-import type { RecipeDraft, Section } from "./types";
+import type { Section } from "./types";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
 export const DEFAULT_LLM: LlmSettings = { provider: "opencode", baseUrl: "", apiKey: "", model: DEFAULT_OPENCODE_MODEL };
@@ -28,40 +29,54 @@ export function llmConfigured(llm: LlmSettings | undefined): llm is LlmSettings 
 // ---------------------------------------------------------------------------
 // Jobs and tools
 
-interface Tool {
+/** What the model reads back from a tool, and whether that ends the job. */
+export type ToolReply = string | { text: string; endJob: boolean };
+
+export interface Tool {
   name: string;
   description: string;
   input: z.ZodType;
   /** Returns the model's answer, or throws to tell the model what to fix. */
-  run: (args: never) => string;
+  run: (args: never) => ToolReply | Promise<ToolReply>;
+  /** A successful call is the job's answer, so the job ends without the model's closing reply. */
+  ends: boolean;
 }
 
-function tool<S extends z.ZodType>(name: string, description: string, input: S, run: (args: z.infer<S>) => string): Tool {
-  return { name, description, input, run };
+export function tool<S extends z.ZodType>(
+  name: string,
+  description: string,
+  input: S,
+  run: (args: z.infer<S>) => ToolReply | Promise<ToolReply>,
+  { ends = false } = {},
+): Tool {
+  return { name, description, input, run, ends };
 }
 
 /** The tool's answer, or what went wrong, which the model reads either way. */
-function answer(tool: Tool | undefined, args: unknown): string {
-  if (!tool) return "Unknown tool";
+async function answer(tool: Tool | undefined, args: unknown): Promise<{ text: string; endJob: boolean }> {
+  if (!tool) return { text: "Unknown tool", endJob: false };
   const parsed = tool.input.safeParse(args);
-  if (!parsed.success) return z.prettifyError(parsed.error);
+  if (!parsed.success) return { text: z.prettifyError(parsed.error), endJob: false };
   try {
-    return tool.run(parsed.data as never);
+    const reply = await tool.run(parsed.data as never);
+    return typeof reply === "string" ? { text: reply, endJob: tool.ends } : reply;
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    return { text: e instanceof Error ? e.message : String(e), endJob: false };
   }
 }
 
-/** Runs one opencode session with the given tools and returns the model's closing words. */
-async function runJob(llm: LlmSettings, instructions: string, message: string, tools: Tool[]): Promise<string> {
+/**
+ * Runs one opencode session with the given tools and returns the model's closing
+ * words, which are empty when a tool's answer ended the job.
+ */
+export async function runJob(llm: LlmSettings, instructions: string, message: string, tools: Tool[]): Promise<string> {
   const id = crypto.randomUUID();
   const unlisten = await listen<ToolCall>("ai-tool-call", ({ payload }) => {
     if (payload.job !== id) return;
-    const text = answer(
+    void answer(
       tools.find((t) => t.name === payload.name),
       payload.arguments,
-    );
-    void api.resolveToolCall(payload.call, { text });
+    ).then((result) => api.resolveToolCall(payload.call, result));
   });
   try {
     return await api.opencodeRun(
@@ -126,7 +141,7 @@ export async function suggestTags(llm: LlmSettings, recipe: TaggableRecipe, coll
       if (problems.length > 0) throw new Error(`Nothing was saved:\n${problems.join("\n")}`);
       chosen = result;
       return `Saved: ${result.map((t) => t.name).join(", ")}`;
-    }),
+    }, { ends: true }),
   ];
 
   try {
@@ -158,130 +173,4 @@ function tagMessage(recipe: TaggableRecipe, tags: SuggestedTag[]): string {
 export async function testConnection(llm: LlmSettings): Promise<void> {
   const recipe = { title: "Grilled Cheese", description: "", ingredients: [{ heading: "", items: ["bread", "cheddar", "butter"] }], instructions: [], keywords: [] };
   await suggestTags(llm, recipe, await api.allTags());
-}
-
-// ---------------------------------------------------------------------------
-// Reading pages without structured recipe data
-
-const READ_INSTRUCTIONS = `Extract the recipe from the numbered page lines in the message.
-
-Select the lines containing ingredients, steps, and separate notes. The app copies the selected lines, so do not include headings in the line ranges. Keep notes that are part of a step with that step. Ignore comments, ads, navigation, and other recipes.
-
-Call add_ingredients and add_steps, then add_tips if there are separate notes. Call done with the title, the line range of the recipe’s introduction if there is one, and any other details the page states. If there is no recipe, call no_recipe instead. If a tool reports a problem, fix it and call it again.`;
-
-const LineRange = z.strictObject({
-  start: z.number().int().describe("First line number to copy, inclusive."),
-  end: z.number().int().describe("Last line number to copy, inclusive."),
-});
-const DetailsInput = z.strictObject({
-  title: z.string(),
-  description: LineRange.nullish().describe("The line range containing the recipe’s own introduction, if present."),
-  author: z.string().nullish(),
-  yields: z.string().nullish().describe('How much it makes, e.g. "4 servings"'),
-  prepMinutes: z.number().int().nullish().describe("Preparation time in whole minutes, if stated."),
-  cookMinutes: z.number().int().nullish().describe("Cooking or baking time in whole minutes, if stated."),
-  totalMinutes: z.number().int().nullish().describe("Total time in whole minutes, only if the page states a total."),
-});
-const SectionInput = z.strictObject({
-  heading: z.string().nullish().describe('The section heading, like "For the sauce". Leave it out when there is no heading.'),
-  ...LineRange.shape,
-});
-
-function cleanSections(sections: Section[]): Section[] {
-  return (
-    sections
-      .map((s) => ({ heading: s.heading.trim(), items: s.items.map((i) => i.trim()).filter(Boolean) }))
-      .filter((s) => s.items.length > 0)
-      // Models sometimes add each step as its own untitled section; fold those together.
-      .reduce<Section[]>((out, s) => {
-        const last = out.at(-1);
-        if (last && !s.heading) last.items.push(...s.items);
-        else out.push(s);
-        return out;
-      }, [])
-  );
-}
-
-type PageRecipe = Pick<
-  RecipeDraft,
-  "title" | "description" | "author" | "yields" | "prepMinutes" | "cookMinutes" | "totalMinutes" | "ingredients" | "instructions" | "tips"
->;
-
-/** Reads a recipe from a page's text, or returns null when the page has none. */
-export async function extractRecipe(llm: LlmSettings, pageText: string, title: string | null, url: string | null): Promise<PageRecipe | null> {
-  const lines = pageText.split("\n");
-  const parts = { ingredients: [] as Section[], steps: [] as Section[], tips: [] as Section[] };
-  const selected = { ingredients: [] as [number, number][], steps: [] as [number, number][], tips: [] as [number, number][] };
-  let result: PageRecipe | null | undefined;
-  const positive = (n: number | null | undefined) => (n && n > 0 ? n : null);
-
-  const adder = (part: keyof typeof parts, noun: string, description: string) =>
-    tool(`add_${part}`, description, SectionInput, ({ heading, start, end }) => {
-      if (start < 1 || end < start || end > lines.length) {
-        throw new Error(`Choose a valid line range from 1 to ${lines.length}.`);
-      }
-      if (selected[part].some(([first, last]) => start <= last && end >= first)) {
-        throw new Error("Those lines overlap lines already added. Choose only the new lines.");
-      }
-      const pageHeading = (line: string) => /^(?:\*\*(.+)\*\*|#{1,6} (.+))$/.exec(line)?.slice(1).find(Boolean);
-      const sections: Section[] = [{ heading: heading?.trim() || pageHeading(lines[start - 2] ?? "") || "", items: [] }];
-      for (const line of lines.slice(start - 1, end)) {
-        const title = pageHeading(line);
-        if (title) sections.push({ heading: title, items: [] });
-        else if (line.trim()) sections[sections.length - 1].items.push(line.replace(/^(?:- |\d+\. )/, "").trim());
-      }
-      const count = sections.reduce((total, section) => total + section.items.length, 0);
-      if (count === 0) throw new Error(`No ${part} were given.`);
-      selected[part].push([start, end]);
-      parts[part].push(...sections.filter((section) => section.items.length));
-      return `Added ${count} ${count === 1 ? noun : part}.`;
-    });
-
-  const tools = [
-    adder("ingredients", "ingredient", "Select the ingredient lines, including optional ingredients. Call once per section with its heading, or without a heading if there are no sections. Do not include the heading line."),
-    adder("steps", "step", "Select all instruction lines, including final cooling and serving directions. Keep inline notes with their steps. Call once per section with its heading, or without a heading if there are no sections. Do not include the heading line."),
-    adder("tips", "tip", "Select separate recipe notes, variations, make-ahead, and storage advice. Call once per section with its heading, or without a heading if there are no sections. Do not include the heading line."),
-    tool("done", "Saves the recipe with its title and details, once its ingredients and steps are added.", DetailsInput, (details) => {
-      const ingredients = cleanSections(parts.ingredients);
-      const instructions = cleanSections(parts.steps);
-      const missing = [
-        ...(details.title.trim() ? [] : ["The title is empty."]),
-        ...(ingredients.length > 0 ? [] : ["Add the ingredients with add_ingredients."]),
-        ...(instructions.length > 0 ? [] : ["Add the steps with add_steps."]),
-      ];
-      if (missing.length > 0) {
-        throw new Error(`Nothing was saved:\n${missing.join("\n")}\nIf the page doesn't have a recipe, call no_recipe instead.`);
-      }
-      if (details.description && (details.description.start < 1 || details.description.end < details.description.start || details.description.end > lines.length)) {
-        throw new Error(`Choose a valid description line range from 1 to ${lines.length}.`);
-      }
-      result = {
-        title: details.title.trim(),
-        description: details.description ? lines.slice(details.description.start - 1, details.description.end).join("\n").trim() : "",
-        author: details.author?.trim() || null,
-        yields: details.yields?.trim() || null,
-        prepMinutes: positive(details.prepMinutes),
-        cookMinutes: positive(details.cookMinutes),
-        totalMinutes: positive(details.totalMinutes),
-        ingredients,
-        instructions,
-        tips: cleanSections(parts.tips),
-      };
-      return "Saved the recipe.";
-    }),
-    tool("no_recipe", "Reports that the page doesn't contain a recipe.", z.strictObject({ reason: z.string() }), () => {
-      result = null;
-      return "Noted.";
-    }),
-  ];
-
-  const numberedPage = lines.map((line, index) => `${index + 1}: ${line}`).join("\n");
-  const message = [url && `URL: ${url}`, title && `Page title: ${title}`, "", numberedPage].filter((x) => x !== null).join("\n");
-  try {
-    await runJob(llm, READ_INSTRUCTIONS, message, tools);
-  } catch (e) {
-    if (result === undefined) throw e;
-  }
-  if (result === undefined) throw new Error("The AI finished without reading the page");
-  return result;
 }

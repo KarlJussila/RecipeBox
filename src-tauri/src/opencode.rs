@@ -15,12 +15,14 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
+use tokio::sync::Notify;
 
 use crate::tools::ToolDef;
 
@@ -113,8 +115,9 @@ pub async fn version(binary: &Path) -> Option<String> {
 }
 
 /// Runs a job to the end and returns the model's closing words. Results arrive
-/// through the job's tools, not this text.
-pub async fn run(data_dir: &Path, job: &Job, tools: &[ToolDef]) -> Result<String, String> {
+/// through the job's tools, not this text. A tool answer can end the job early
+/// through `end`; opencode is then stopped and the closing words are empty.
+pub async fn run(data_dir: &Path, job: &Job, tools: &[ToolDef], end: Arc<Notify>) -> Result<String, String> {
     let binary = find_binary().ok_or("opencode isn't installed on this computer")?;
     let sandbox = data_dir.join("opencode-sandbox");
     let config_dir = data_dir.join("opencode-config");
@@ -164,9 +167,11 @@ pub async fn run(data_dir: &Path, job: &Job, tools: &[ToolDef]) -> Result<String
         let status = child.wait().await;
         (out, err, status)
     };
-    let (out, err, status) = tokio::time::timeout(TIMEOUT, collect)
-        .await
-        .map_err(|_| "opencode took too long to answer".to_string())?;
+    let (out, err, status) = tokio::select! {
+        finished = tokio::time::timeout(TIMEOUT, collect) => finished.map_err(|_| "opencode took too long to answer".to_string())?,
+        // Returning drops the child, which kills it (kill_on_drop).
+        _ = end.notified() => return Ok(String::new()),
+    };
 
     // opencode retries a failed model call itself, so an error event only matters
     // when the run as a whole fails.

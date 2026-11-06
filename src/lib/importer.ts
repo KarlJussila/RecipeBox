@@ -1,7 +1,8 @@
 import { api, type LlmSettings } from "./api";
 import { extractFromHtml, readableText } from "./extract/page";
 import { headlineCase } from "./extract/text";
-import { extractRecipe, llmConfigured, suggestTags } from "./llm";
+import { llmConfigured, suggestTags } from "./llm";
+import { extractRecipe } from "./reader";
 import { splitTips } from "./steps";
 import { emptyRecipe, type Recipe } from "./types";
 
@@ -67,8 +68,8 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
   const { steps, tips } = splitTips(draft.instructions);
   const recipe: Recipe = {
     ...emptyRecipe(),
-    // Some blogs (Smitten Kitchen) style their titles in lowercase.
-    title: draft.title === draft.title.toLowerCase() ? headlineCase(draft.title) : draft.title,
+    // Some blogs (Smitten Kitchen) style their titles in lowercase, and old pages in capitals.
+    title: draft.title === draft.title.toLowerCase() || draft.title === draft.title.toUpperCase() ? headlineCase(draft.title.toLowerCase()) : draft.title,
     description: draft.description,
     sourceUrl,
     sourceName: draft.sourceName,

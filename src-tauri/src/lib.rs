@@ -173,8 +173,8 @@ async fn opencode_status() -> OpencodeStatus {
 /// Runs one AI job: opencode with the job's instructions and tools.
 #[tauri::command]
 async fn opencode_run(state: State<'_, AppState>, job: opencode::Job, tools: Vec<tools::ToolDef>) -> Result<String> {
-    state.jobs.start(&job.id, tools.clone());
-    let reply = opencode::run(&state.data_dir, &job, &tools).await;
+    let end = state.jobs.start(&job.id, tools.clone());
+    let reply = opencode::run(&state.data_dir, &job, &tools, end).await;
     state.jobs.finish(&job.id);
     reply
 }

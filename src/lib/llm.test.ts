@@ -13,30 +13,10 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 vi.mock("./api", () => ({ api: { opencodeRun: bridge.run, resolveToolCall: bridge.resolve } }));
 
-import { extractRecipe, suggestTags } from "./llm";
+import { suggestTags } from "./llm";
 
 const llm = { provider: "opencode" as const, model: "test/model", baseUrl: "", apiKey: "" };
 beforeEach(() => { vi.clearAllMocks(); });
-
-test("copies selected page lines, rejects overlaps, and keeps inline notes", async () => {
-  const page = "A delicious cake, just as written.\n**For the filling**\n- 2 apples (any kind)\n- 1 cup sugar\n**For the cake**\n- 1 cup flour\nSteps\nMix well. (Do not overmix.)\nBake until golden.\nNotes\n* Tip: Keep covered.";
-  bridge.run.mockImplementation(async (job: { id: string; message: string }) => {
-    expect(job.message).toContain("3: - 2 apples (any kind)");
-    const call = (name: string, args: unknown) => bridge.listener!({ payload: { job: job.id, call: name, name, arguments: args } });
-    call("add_ingredients", { start: 3, end: 6 });
-    call("add_ingredients", { heading: "Other", start: 4, end: 4 });
-    expect(bridge.resolve.mock.lastCall?.[1].text).toContain("overlap");
-    call("add_steps", { start: 8, end: 9 });
-    call("add_tips", { start: 11, end: 11 });
-    call("done", { title: "Cake", description: { start: 1, end: 1 } });
-    return "";
-  });
-  const result = await extractRecipe(llm, page, null, null);
-  expect(result?.description).toBe("A delicious cake, just as written.");
-  expect(result?.ingredients).toEqual([{ heading: "For the filling", items: ["2 apples (any kind)", "1 cup sugar"] }, { heading: "For the cake", items: ["1 cup flour"] }]);
-  expect(result?.instructions).toEqual([{ heading: "", items: ["Mix well. (Do not overmix.)", "Bake until golden."] }]);
-  expect(result?.tips).toEqual([{ heading: "", items: ["* Tip: Keep covered."] }]);
-});
 
 test("accepts all fitting existing tags without a count or category requirement", async () => {
   const tags = [
