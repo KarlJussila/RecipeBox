@@ -58,21 +58,24 @@ pub async fn fetch_page(url: &str) -> Result<Page, String> {
     Ok(Page { url, html: decode_page(&bytes, content_type.as_deref()) })
 }
 
-/// Decodes a page the way a browser does: the charset the server names, else one in a
-/// `<meta>` tag, else UTF-8. Old pages that declare nothing and aren't UTF-8 are
-/// Windows-1252, where "¼" is a single byte.
+/// Decodes a page: UTF-8 when the bytes are valid UTF-8, else the charset the
+/// server names, else one in a `<meta>` tag. Old pages that declare nothing and
+/// aren't UTF-8 are Windows-1252, where "¼" is a single byte.
+///
+/// Valid UTF-8 wins over a declared single-byte charset, unlike in a browser:
+/// pages copied into newer sites often keep their old Latin-1 `<meta>` tag, and
+/// real Latin-1 text is almost never valid UTF-8 (its "¼" is a lone byte).
 fn decode_page(bytes: &[u8], content_type: Option<&str>) -> String {
     let declared = content_type.and_then(charset_in).or_else(|| {
         let head = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]).to_ascii_lowercase();
         head.split("<meta").skip(1).find_map(|tag| charset_in(&tag[..tag.find('>').unwrap_or(tag.len())]))
     });
-    if let Some(encoding) = declared.and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes())) {
-        return encoding.decode(bytes).0.into_owned();
+    let encoding = declared.and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()));
+    let utf16 = encoding.is_some_and(|e| e == encoding_rs::UTF_16LE || e == encoding_rs::UTF_16BE);
+    if let (Ok(text), false) = (std::str::from_utf8(bytes), utf16) {
+        return text.to_owned();
     }
-    match std::str::from_utf8(bytes) {
-        Ok(text) => text.to_owned(),
-        Err(_) => encoding_rs::WINDOWS_1252.decode(bytes).0.into_owned(),
-    }
+    encoding.unwrap_or(encoding_rs::WINDOWS_1252).decode(bytes).0.into_owned()
 }
 
 /// The value after `charset=` in a Content-Type header or a `<meta>` tag.
@@ -98,6 +101,11 @@ mod tests {
         assert_eq!(
             decode_page(b"<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=iso-8859-1\"><p>\xbc</p>", None),
             "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=iso-8859-1\"><p>¼</p>"
+        );
+        // A Latin-1 declaration on a page that is really UTF-8.
+        assert_eq!(
+            decode_page("<meta charset=\"iso-8859-1\"><p>¼ cup</p>".as_bytes(), None),
+            "<meta charset=\"iso-8859-1\"><p>¼ cup</p>"
         );
         // Nothing declared: UTF-8 when it is valid, otherwise the old Windows default.
         assert_eq!(decode_page("<p>¼ cup</p>".as_bytes(), Some("text/html")), "<p>¼ cup</p>");
