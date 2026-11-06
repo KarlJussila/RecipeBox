@@ -163,7 +163,8 @@ async function opencodeRun(job: Job, tools: ToolDef[]): Promise<string> {
       });
       let err = "";
       child.stderr!.on("data", (chunk) => { err += chunk; });
-      child.stdout!.resume();
+      // opencode reports a failed run on stdout, as a JSON event.
+      child.stdout!.on("data", (chunk) => { err = (err + chunk).slice(-4000); });
       child.on("error", reject);
       child.on("close", (code, signal) => (code === 0 || signal === "SIGKILL" ? resolve() : reject(new Error(`opencode failed (${code}): ${err.slice(-400)}`))));
       child.stdin!.end(job.message);
