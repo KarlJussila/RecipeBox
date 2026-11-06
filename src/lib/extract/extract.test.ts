@@ -232,6 +232,29 @@ describe("readableText", () => {
     ).toBe("### Zucchini Bread\n3 eggs");
   });
 
+  test("reads ingredients typed in two columns down each column", () => {
+    const gap = "&nbsp; &nbsp; &nbsp; &nbsp;";
+    expect(
+      text(
+        `<h2>Casserole</h2><p>1 pound ground beef${gap}1 (10 ounce) can cream of</p><p>1 cup onion, chopped${gap}mushroom soup</p>` +
+          `<p>1 (8 ounce) package${gap}1 cup milk</p><p>&nbsp; noodles, cooked and drained${gap}1/4 teaspoon pepper</p><p>1. Brown the beef.</p>`,
+      ),
+    ).toBe(
+      "## Casserole\n1 pound ground beef\n1 cup onion, chopped\n1 (8 ounce) package noodles, cooked and drained\n" +
+        "1 (10 ounce) can cream of mushroom soup\n1 cup milk\n1/4 teaspoon pepper\n1. Brown the beef.",
+    );
+  });
+
+  test("keeps lines spaced out as labels and values, amounts and ingredients, or alone, as they are", () => {
+    const gap = "&nbsp; &nbsp; &nbsp; &nbsp;";
+    expect(text(`<p>Prep time:${gap}10 min</p><p>Cook time:${gap}20 min</p><p>Serves:${gap}4</p><p>Bake${gap}at 350.</p>`)).toBe(
+      "Prep time: 10 min\nCook time: 20 min\nServes: 4\nBake at 350.",
+    );
+    expect(text(`<p>1${gap}cup sugar</p><p>1/2${gap}cup flour</p><p>3/4${gap}teaspoon cinnamon</p>`)).toBe(
+      "1 cup sugar\n1/2 cup flour\n3/4 teaspoon cinnamon",
+    );
+  });
+
   test("breaks preformatted text at its newlines, but not where an email wrapped a line", () => {
     expect(
       text(

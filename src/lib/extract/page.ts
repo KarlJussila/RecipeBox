@@ -154,9 +154,17 @@ const BLOCKS = new Set([
 const CELLS = new Set(["TD", "TH"]);
 const EMPHASIS = new Set(["B", "STRONG", "U"]);
 
+/**
+ * A gap of three or more non-breaking spaces inside a line, which lines up a second
+ * column, as on a recipe card typed with its ingredients side by side.
+ */
+const COLUMN_GAP = /\s*(?:\u00a0\s*){3,}/;
+
 /** Collects a page's text as Markdown lines. */
 class Lines {
   lines: string[] = [];
+  /** Each line's two cells when spaces line it up as two columns. */
+  private columns: (string[] | null)[] = [];
   private parts: { text: string; emphasized: boolean }[] = [];
   private prefix = "";
 
@@ -198,11 +206,14 @@ class Lines {
 
   /** Ends the current line. */
   end() {
-    const line = this.parts.map((p) => p.text).join("").replace(/\s+/g, " ").trim();
+    const raw = this.parts.map((p) => p.text).join("").trim();
+    const line = raw.replace(/\s+/g, " ");
     if (line) {
       // A line that's all bold or underlined is usually a heading, like "For the sauce".
       const heading = this.parts.every((p) => p.emphasized || !p.text.trim());
+      const cells = raw.split(COLUMN_GAP).map((cell) => cell.replace(/\s+/g, " "));
       this.lines.push(this.prefix + (heading ? `**${line}**` : line));
+      this.columns.push(!this.prefix && !heading && cells.length === 2 ? cells : null);
       this.prefix = "";
     }
     this.parts = [];
@@ -211,7 +222,41 @@ class Lines {
   heading(level: number, text: string) {
     this.end();
     const line = text.replace(/\s+/g, " ").trim();
-    if (line) this.lines.push(`${"#".repeat(level)} ${line}`);
+    if (line) {
+      this.lines.push(`${"#".repeat(level)} ${line}`);
+      this.columns.push(null);
+    }
+  }
+
+  /**
+   * Reads three or more rows lined up as two columns down the left column, then the
+   * right, joining a cell that starts in lowercase to the one above it, since it
+   * continues that ingredient. Rows like "Prep time:   10 min" stay as they are.
+   */
+  unfoldColumns() {
+    const lines: string[] = [];
+    for (let i = 0; i < this.lines.length; ) {
+      let j = i;
+      while (this.columns[j]) j++;
+      const rows = this.columns.slice(i, j) as string[][];
+      // Amounts spaced out from their ingredients, like "1   cup sugar", aren't a column.
+      if (rows.length < 3 || rows.some(([left]) => left.endsWith(":") || !/\p{L}{3}/u.test(left))) {
+        lines.push(...this.lines.slice(i, Math.max(j, i + 1)));
+        i = Math.max(j, i + 1);
+        continue;
+      }
+      for (const side of [0, 1]) {
+        const cells: string[] = [];
+        for (const cell of rows.map((row) => row[side])) {
+          if (cells.length > 0 && /^[a-z]/.test(cell)) cells[cells.length - 1] += ` ${cell}`;
+          else cells.push(cell);
+        }
+        lines.push(...cells);
+      }
+      i = j;
+    }
+    this.lines = lines;
+    this.columns = lines.map(() => null);
   }
 }
 
@@ -250,6 +295,7 @@ export function readableText(doc: Document, limit = 60_000): string {
   const out = new Lines();
   collect(clone.querySelector("main, article, [role=main]") ?? clone, out, false);
   out.end();
+  out.unfoldColumns();
   // A heading with nothing under it, like "Video" over a removed player, is left over.
   const lines = out.lines.filter((line, i, all) => {
     const level = headingLevel(line);
