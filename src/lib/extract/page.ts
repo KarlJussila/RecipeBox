@@ -139,12 +139,19 @@ const SKIPPED =
   // tags into classes on the article itself, like "tag-social-gatherings".
   '.sharedaddy, [class^="share"], [class*=" share"], [class^="sharing"], [class*=" sharing"], [class^="social"], [class*=" social"], ' +
   // Reader comments can dwarf the recipe itself (hundreds of thousands of characters on popular blogs).
-  "#comments, #respond, .comments, .comments-area, .comment-list, .commentlist, .comment";
+  "#comments, #respond, .comments, .comments-area, .comment-list, .commentlist, .comment, " +
+  // MediaWiki's "[edit | edit source]" links beside each heading.
+  ".mw-editsection";
+
+// Blog sidebars: archives, category lists, profiles. Blogger wraps the post itself in a widget too.
+const SIDEBARS = "#sidebar, [id^=sidebar], .sidebar, .widget";
+const POST = "article, [itemprop=articleBody], .post-body, .entry-content, .post, h1";
 
 const BLOCKS = new Set([
   "ADDRESS", "ARTICLE", "BLOCKQUOTE", "DD", "DETAILS", "DIV", "DL", "DT", "FIGCAPTION", "FIGURE", "HR", "LI", "MAIN",
-  "OL", "P", "PRE", "SECTION", "SUMMARY", "TABLE", "TD", "TH", "TR", "UL",
+  "OL", "P", "PRE", "SECTION", "SUMMARY", "TABLE", "TR", "UL",
 ]);
+const CELLS = new Set(["TD", "TH"]);
 const EMPHASIS = new Set(["B", "STRONG", "U"]);
 
 /** Collects a page's text as Markdown lines. */
@@ -153,8 +160,34 @@ class Lines {
   private parts: { text: string; emphasized: boolean }[] = [];
   private prefix = "";
 
+  private newCell = false;
+
   add(text: string, emphasized: boolean) {
+    if (this.newCell && text.trim()) {
+      // Between two cells with text; empty cells get no separator. It doesn't count against a bold heading.
+      if (this.parts.some((p) => p.text.trim())) this.parts.push({ text: " | ", emphasized: true });
+      this.newCell = false;
+    }
     this.parts.push({ text, emphasized });
+  }
+
+  /**
+   * Adds preformatted text, like an email in a mailing-list archive, where a newline ends
+   * a line. A line as long as the email's wrap width continues on the next one.
+   */
+  addPreformatted(text: string, emphasized: boolean) {
+    text.split("\n").forEach((segment, i, all) => {
+      this.add(segment, emphasized);
+      if (i === all.length - 1) return;
+      const length = this.parts.map((p) => p.text).join("").trim().length;
+      if (length >= 60 && all[i + 1].trim()) this.add(" ", emphasized);
+      else this.end();
+    });
+  }
+
+  /** Starts a table cell. A row stays one line, with its cells separated. */
+  cell() {
+    this.newCell = true;
   }
 
   /** Starts a list item, whose first line gets the marker. */
@@ -182,9 +215,10 @@ class Lines {
   }
 }
 
-function collect(node: Node, out: Lines, emphasized: boolean) {
+function collect(node: Node, out: Lines, emphasized: boolean, preformatted = false) {
   if (node.nodeType === Node.TEXT_NODE) {
-    out.add(node.textContent ?? "", emphasized);
+    if (preformatted) out.addPreformatted(node.textContent ?? "", emphasized);
+    else out.add(node.textContent ?? "", emphasized);
     return;
   }
   if (!(node instanceof Element)) return;
@@ -193,8 +227,9 @@ function collect(node: Node, out: Lines, emphasized: boolean) {
   if (heading) return out.heading(Number(heading[1]), node.textContent ?? "");
   if (tag === "BR") return out.end();
   if (tag === "LI") out.item(node.parentElement?.tagName === "OL" ? "1. " : "- ");
+  else if (CELLS.has(tag)) out.cell();
   else if (BLOCKS.has(tag)) out.end();
-  for (const child of node.childNodes) collect(child, out, emphasized || EMPHASIS.has(tag));
+  for (const child of node.childNodes) collect(child, out, emphasized || EMPHASIS.has(tag), preformatted || tag === "PRE");
   if (BLOCKS.has(tag)) out.end();
 }
 
@@ -209,6 +244,9 @@ export function readableText(doc: Document, limit = 60_000): string {
   const clone = doc.body?.cloneNode(true) as HTMLElement | undefined;
   if (!clone) return "";
   clone.querySelectorAll(SKIPPED).forEach((el) => el.remove());
+  clone.querySelectorAll(SIDEBARS).forEach((el) => {
+    if (!el.querySelector(POST) && !el.closest(".post-body, .entry-content")) el.remove();
+  });
   const out = new Lines();
   collect(clone.querySelector("main, article, [role=main]") ?? clone, out, false);
   out.end();

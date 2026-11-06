@@ -214,4 +214,31 @@ describe("readableText", () => {
       ),
     ).toBe("##### Notes\nGood cold.");
   });
+
+  test("keeps each table row on one line", () => {
+    expect(
+      text(
+        "<table><tr><td>&nbsp;</td><th><b>Jar</b></th><th><b>Time</b></th></tr>\n<tr>\n<td>Pints</td>\n<td>15 min</td>\n<td></td></tr></table>",
+      ),
+    ).toBe("**Jar | Time**\nPints | 15 min");
+  });
+
+  test("drops blog sidebars, but not the widget a post is in", () => {
+    expect(
+      text(
+        '<div class="widget Blog"><div class="post"><h3>Zucchini Bread</h3><div class="post-body">3 eggs</div></div></div>' +
+          '<div id="sidebar-right-1"><div class="widget Label"><h2>Categories</h2><ul><li><a>Aldi</a></li></ul></div></div>',
+      ),
+    ).toBe("### Zucchini Bread\n3 eggs");
+  });
+
+  test("breaks preformatted text at its newlines, but not where an email wrapped a line", () => {
+    expect(
+      text(
+        "<pre>    Ingredients:\n\n*1 pound <b>butter</b> *\n*12 eggs *\n\nBeat butter and sugar until creamed, add lightly beaten egg yolks. Beat \nwell then add flour.</pre>",
+      ),
+    ).toBe(
+      "Ingredients:\n*1 pound butter *\n*12 eggs *\nBeat butter and sugar until creamed, add lightly beaten egg yolks. Beat well then add flour.",
+    );
+  });
 });
