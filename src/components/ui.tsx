@@ -164,30 +164,37 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
   return <p className={cx("printed-label", className)}>{children}</p>;
 }
 
-/** A printed section label with a rule running from it to the edge of the card. */
+/**
+ * A printed label, like the ones on the tin's cards. A section's heading (Ingredients,
+ * Directions) is centered between two short rules, the same wherever it falls, so it never
+ * runs into the card's other lines. A group within a section is smaller, with a light rule
+ * running from it to the edge. The rules are borders, not fills, so they still print.
+ */
 export function PrintedHeading({
   children,
   as: Tag = "h2",
   faint,
-  centered,
   className,
-  ruleClassName,
 }: {
   children: ReactNode;
   as?: "h2" | "h3" | "p";
-  /** A lighter rule, for groups within a section. */
+  /** A group within a section. */
   faint?: boolean;
-  /** Ruled on both sides, for a heading that stands over a whole sheet. */
-  centered?: boolean;
   className?: string;
-  ruleClassName?: string;
 }) {
-  const rule = <span aria-hidden className={cx("h-px min-w-6 flex-1", faint ? "bg-print-rule/50" : "bg-print-rule", ruleClassName)} />;
+  if (faint)
+    return (
+      <Tag className={cx("printed-label flex items-center gap-3.5", className)}>
+        {children}
+        <span aria-hidden className="min-w-6 flex-1 border-t border-print-rule/50" />
+      </Tag>
+    );
+  const rule = <span aria-hidden className="w-12 shrink-0 border-t border-print-rule" />;
   return (
-    <Tag className={cx("printed-label flex items-center gap-3.5", className)}>
-      {centered && rule}
+    <Tag className={cx("printed-label flex items-center justify-center gap-3.5 text-[13px]", className)}>
+      {rule}
       {/* The letterspacing trails the last letter, so the label is nudged back to center. */}
-      <span className={cx(centered && "-mr-[0.24em]")}>{children}</span>
+      <span className="-mr-[0.24em]">{children}</span>
       {rule}
     </Tag>
   );

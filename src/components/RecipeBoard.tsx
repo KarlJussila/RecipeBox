@@ -200,18 +200,17 @@ export function RecipeBoard({
       <div className="space-y-16">
         <div className="space-y-16">
           <section className="pt-1">
-            {/* Right under the divider, its own rule would only double the divider's line. */}
-            <PrintedHeading className="mb-3 text-[13px]" ruleClassName="invisible">
+            <PrintedHeading className="mb-3">
               Ingredients
             </PrintedHeading>
             {list("ingredients")}
           </section>
           <section>
-            <PrintedHeading className="mb-4 h-9 text-[13px]">Directions</PrintedHeading>
+            <PrintedHeading className="mb-4 h-9">Directions</PrintedHeading>
             {list("instructions")}
           </section>
           <section>
-            <PrintedHeading className="mb-2 h-9 text-[13px]">Notes</PrintedHeading>
+            <PrintedHeading className="mb-2 h-9">Notes</PrintedHeading>
             {list("tips")}
           </section>
         </div>
@@ -219,8 +218,8 @@ export function RecipeBoard({
         {!sheetSlot && tray && (
           // On a narrow window, a scrap set under the card's lists: the lines that didn't make it onto it.
           <aside className="rounded-[2px] bg-umber/5 px-5 pt-5 pb-4 ring-1 ring-umber/15 ring-inset">
-            <h2 className="font-serif text-xl font-semibold tracking-tight">Left out</h2>
-            <p className="mt-1 mb-3 text-sm leading-snug text-ink-faint">Lines from the recipe’s web page that aren’t in the recipe.</p>
+            <PrintedHeading>Left out</PrintedHeading>
+            <p className="mt-1.5 mb-3 text-center text-sm leading-snug text-ink-faint">Lines from the recipe’s web page that aren’t in the recipe.</p>
             {list("unused")}
           </aside>
         )}
@@ -232,7 +231,7 @@ export function RecipeBoard({
           // while the lists scroll past. It stays when it's empty, as a place to set a line aside.
           <div className="card-stock stock-aged flex max-h-full min-h-0 animate-fade-in flex-col text-ink shadow-card">
             <div className="scrollbar-quiet min-h-0 overflow-x-hidden overflow-y-auto px-7 pt-7 pb-7">
-              <PrintedHeading centered className="text-[13px]">
+              <PrintedHeading>
                 Left out
               </PrintedHeading>
               <p className="mt-1.5 mb-4 text-center text-sm leading-snug text-ink-faint">

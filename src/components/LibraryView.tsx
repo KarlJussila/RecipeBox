@@ -1,9 +1,9 @@
 import { ChevronDown, Menu, Plus, Puzzle, Search, SearchX, X } from "lucide-react";
-import type { RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { RecipeSummary } from "../lib/types";
 import { hasFilters, NO_FILTERS, type Filters, type Sort } from "../state";
 import { FeaturedRecipe, RecipeGrid } from "./RecipeGrid";
-import { Button, cx, IconButton, isMac, Sprig, TagPill } from "./ui";
+import { Button, cx, isMac, Sprig, TagPill } from "./ui";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -73,15 +73,26 @@ export function LibraryView({
   const rest = featured ? results.slice(1) : results;
   const clearAll = () => onFiltersChange({ ...NO_FILTERS, sort: filters.sort });
 
+  // When the index is put away, her place goes back to the button that drew it out.
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !menu?.open) menuButton.current?.focus();
+    wasOpen.current = !!menu?.open;
+  }, [menu?.open]);
+
   return (
     <div ref={scrollRef} className="scrollbar-quiet @container h-full overflow-y-auto">
-      <header data-tauri-drag-region className={cx("px-8 pb-6 @3xl:px-12", isMac ? "pt-12" : "pt-10")}>
+      {menu && (
+        // Where the recipe page keeps its way back, so the way around the box is always in the same corner.
+        <div data-tauri-drag-region className={cx("flex h-16 items-center px-8 @3xl:px-12", isMac && "pt-2 pl-24")}>
+          <Button ref={menuButton} variant="ghost" icon={<Menu className="size-[18px]" />} onClick={menu.toggle} aria-expanded={menu.open} className="-ml-3">
+            Browse
+          </Button>
+        </div>
+      )}
+      <header data-tauri-drag-region className={cx("px-8 pb-6 @3xl:px-12", menu ? "pt-2" : isMac ? "pt-12" : "pt-10")}>
         <div className="flex items-start gap-6" data-tauri-drag-region>
-          {menu && (
-            <IconButton label={menu.open ? "Hide the index" : "Show the index"} active={menu.open} onClick={menu.toggle} className="-mr-3 -ml-2.5 mt-[3px]">
-              <Menu className="size-5" />
-            </IconButton>
-          )}
           <div className="min-w-0 flex-1" data-tauri-drag-region>
             <p className="font-serif text-lg text-ink-soft italic" data-tauri-drag-region>
               {greeting()}

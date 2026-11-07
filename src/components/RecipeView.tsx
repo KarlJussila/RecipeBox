@@ -97,7 +97,7 @@ function IngredientList({ sections, checked, small }: { sections: Section[]; che
 function IngredientsHeading({ servings }: { servings: string | null }) {
   return (
     <div className="mb-4 text-center">
-      <PrintedHeading centered className="text-[13px]">
+      <PrintedHeading>
         Ingredients
       </PrintedHeading>
       {servings && <p className="mt-1 text-sm text-ink-faint">Serves {servings}</p>}
@@ -125,13 +125,12 @@ function StepHeading({ children }: { children: string }) {
   return <h3 className="mb-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink">{children}</h3>;
 }
 
-function Steps({ sections, tips, underDivider }: { sections: Section[]; tips: Section[]; underDivider: boolean }) {
+function Steps({ sections, tips }: { sections: Section[]; tips: Section[] }) {
   const [current, setCurrent] = useState<string | null>(null);
   let number = 0;
   return (
     <div>
-      {/* Right under the divider, its own rule would only double the divider's line. */}
-      <PrintedHeading className="mb-7 text-[13px] print:mb-3" ruleClassName={underDivider ? "invisible print:visible" : undefined}>
+      <PrintedHeading className="mb-7 print:mb-3">
         Directions
       </PrintedHeading>
       {sections.length === 0 && <p className="text-ink-faint">No steps listed.</p>}
@@ -414,7 +413,7 @@ export function RecipeView({
               <IngredientsHeading servings={recipe.servings} />
               <IngredientList sections={ingredients} checked={checked} />
             </div>
-            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} underDivider={!alone} />
+            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} />
           </section>
 
           <div className={cx(!recipe.notes.trim() && "print:hidden")}>

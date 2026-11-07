@@ -277,7 +277,7 @@ export default function App() {
     await reload();
   };
 
-  const sidebar = (sheetRef?: (el: HTMLDivElement | null) => void) => (
+  const sidebar = ({ sheetRef, onClose }: { sheetRef?: (el: HTMLDivElement | null) => void; onClose?: () => void } = {}) => (
     <Sidebar
       recipes={library}
       tags={tags}
@@ -287,6 +287,7 @@ export default function App() {
       onManageTags={() => setTagsOpen(true)}
       onSettings={() => setSettingsTab("ai")}
       sheetRef={sheetRef}
+      onClose={onClose}
     />
   );
 
@@ -294,12 +295,12 @@ export default function App() {
 
   return (
     <div className="flex h-full print:block print:h-auto">
-      {!alone && !tucked && sidebar(sheetMode ? setSheetSlot : undefined)}
+      {!alone && !tucked && sidebar({ sheetRef: sheetMode ? setSheetSlot : undefined })}
       {tucked && menuOpen && (
         // Kept open while she picks filters; Escape, the page, or the button puts it away.
         <>
           <div aria-hidden onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 animate-fade-in bg-black/30" />
-          <div className="fixed inset-y-0 left-0 z-50 animate-slide-in">{sidebar()}</div>
+          <div className="fixed inset-y-0 left-0 z-50 animate-slide-in">{sidebar({ onClose: () => setMenuOpen(false) })}</div>
         </>
       )}
 

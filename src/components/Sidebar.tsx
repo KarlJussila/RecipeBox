@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, EyeOff, Heart, Settings, Sprout } from "lucide-react";
+import { BookOpen, ChevronDown, EyeOff, Heart, Settings, Sprout, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { groupTags, type Tag } from "../lib/tags";
 import type { RecipeSummary } from "../lib/types";
@@ -62,6 +62,7 @@ export function Sidebar({
   onManageTags,
   onSettings,
   sheetRef,
+  onClose,
 }: {
   recipes: RecipeSummary[];
   tags: Tag[];
@@ -72,6 +73,8 @@ export function Sidebar({
   onSettings: () => void;
   /** On a recipe page, the sidebar holds the recipe's ingredients instead of the index. */
   sheetRef?: (el: HTMLDivElement | null) => void;
+  /** Drawn out over a narrow window, the index puts itself away from its own corner. */
+  onClose?: () => void;
 }) {
   const [collapsed, toggleCollapsed] = useCollapsed();
   const set = (patch: Partial<Filters>) => onFiltersChange({ ...filters, ...patch });
@@ -114,6 +117,18 @@ export function Sidebar({
         <span className="font-serif text-[27px] leading-none font-medium tracking-tight italic" data-tauri-drag-region>
           Recipe Box
         </span>
+        {onClose && (
+          <button
+            type="button"
+            autoFocus
+            onClick={onClose}
+            aria-label="Put the index away"
+            title="Put the index away"
+            className="-mr-2 ml-auto flex size-9 items-center justify-center rounded-full text-cream-soft transition-colors duration-150 hover:bg-white/8 hover:text-cream"
+          >
+            <X className="size-5" />
+          </button>
+        )}
       </div>
 
       {sheetRef ? (
