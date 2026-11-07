@@ -171,6 +171,7 @@ export function PrintedHeading({
   faint,
   centered,
   className,
+  ruleClassName,
 }: {
   children: ReactNode;
   as?: "h2" | "h3" | "p";
@@ -179,8 +180,9 @@ export function PrintedHeading({
   /** Ruled on both sides, for a heading that stands over a whole sheet. */
   centered?: boolean;
   className?: string;
+  ruleClassName?: string;
 }) {
-  const rule = <span aria-hidden className={cx("h-px min-w-6 flex-1", faint ? "bg-print-rule/50" : "bg-print-rule")} />;
+  const rule = <span aria-hidden className={cx("h-px min-w-6 flex-1", faint ? "bg-print-rule/50" : "bg-print-rule", ruleClassName)} />;
   return (
     <Tag className={cx("printed-label flex items-center gap-3.5", className)}>
       {centered && rule}

@@ -11,22 +11,21 @@ const EXAMPLES: Record<string, string> = {
 };
 
 /**
- * One divider tab, outlined. Pointing at it shades it and slides its name aside for the
- * "×" that removes it.
+ * One divider tab, outlined. Pointing at it shades it and shows the "×" that removes it,
+ * in room kept for it beside the name. Nothing moves or fades: animating a tab repaints
+ * the aged card under it every frame, and sweeping the pointer along the tabs doubled
+ * the GPU's load.
  */
 function Tab({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
-    <div className="group/tab tab-cut relative flex h-[30px] shrink-0 items-start px-[22px] pt-[9px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft transition-colors duration-150 hover:text-ink">
-      {/* Moved with `left` rather than a transform, which would put it on its own layer. */}
-      <span className="relative left-0 transition-[left] duration-200 ease-out group-focus-within/tab:-left-[7px] group-hover/tab:-left-[7px]">
-        {name}
-      </span>
+    <div className="group/tab tab-cut relative flex h-[30px] shrink-0 items-start pt-[9px] pr-[28px] pl-[20px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft hover:text-ink">
+      <span className="relative">{name}</span>
       <button
         type="button"
         onClick={onRemove}
         aria-label={`Remove tag ${name}`}
         title="Remove this tag"
-        className="absolute top-[8px] right-[12px] flex size-4 items-center justify-center text-ink-faint opacity-0 transition-opacity duration-200 group-hover/tab:opacity-100 hover:text-ink focus-visible:opacity-100"
+        className="absolute top-[8px] right-[7px] flex size-4 items-center justify-center text-ink-faint opacity-0 group-hover/tab:opacity-100 hover:text-ink focus-visible:opacity-100"
       >
         <X className="size-[9px]" strokeWidth={2.25} />
       </button>
@@ -148,7 +147,7 @@ export function TagEditor({
         aria-label="Add a tag"
         title="Add a tag"
         className={cx(
-          "tab-cut relative flex h-[31px] shrink-0 items-start px-[18px] pt-[7px] transition-colors duration-150 hover:text-ink",
+          "tab-cut relative flex h-[31px] shrink-0 items-start px-[18px] pt-[7px] hover:text-ink",
           adding ? "text-ink" : "text-ink-soft",
         )}
       >

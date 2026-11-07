@@ -125,12 +125,15 @@ function StepHeading({ children }: { children: string }) {
   return <h3 className="mb-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink">{children}</h3>;
 }
 
-function Steps({ sections, tips }: { sections: Section[]; tips: Section[] }) {
+function Steps({ sections, tips, underDivider }: { sections: Section[]; tips: Section[]; underDivider: boolean }) {
   const [current, setCurrent] = useState<string | null>(null);
   let number = 0;
   return (
     <div>
-      <PrintedHeading className="mb-7 text-[13px] print:mb-3">Directions</PrintedHeading>
+      {/* Right under the divider, its own rule would only double the divider's line. */}
+      <PrintedHeading className="mb-7 text-[13px] print:mb-3" ruleClassName={underDivider ? "invisible print:visible" : undefined}>
+        Directions
+      </PrintedHeading>
       {sections.length === 0 && <p className="text-ink-faint">No steps listed.</p>}
       <div className="space-y-8 print:space-y-5">
         {sections.map((section, si) => (
@@ -411,7 +414,7 @@ export function RecipeView({
               <IngredientsHeading servings={recipe.servings} />
               <IngredientList sections={ingredients} checked={checked} />
             </div>
-            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} />
+            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} underDivider={!alone} />
           </section>
 
           <div className={cx(!recipe.notes.trim() && "print:hidden")}>
