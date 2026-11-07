@@ -66,8 +66,8 @@ export function layOut(page: PageLines): PageLayout {
     while (end + 1 < lines.length && end < Math.max(...parts) + AFTER && heading(end + 1) === null) end++;
     for (let i = start; i <= end; i++) {
       if (used.has(i)) continue;
-      const text = heading(i);
-      unused.push(text === null ? { text: clean(lines[i]), heading: false } : { text, heading: true });
+      // Left-out lines are all plain lines; a heading among them keeps only its words.
+      unused.push({ text: heading(i) ?? clean(lines[i]), heading: false });
     }
   }
 

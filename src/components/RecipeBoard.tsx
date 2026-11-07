@@ -34,13 +34,16 @@ export type Buckets = Record<BucketName, EditItem[]>;
 
 let nextId = 0;
 const withIds = (items: Item[]): EditItem[] => items.map((item) => ({ ...item, id: `item-${nextId++}` }));
+/** Left-out lines are plain lines, never headings. */
+const plain = <T extends Item>(item: T): T => ({ ...item, heading: false });
+const into = <T extends Item>(bucket: BucketName, item: T): T => (bucket === "unused" ? plain(item) : item);
 
 export function toBuckets(recipe: Pick<Recipe, BucketName>): Buckets {
   return {
     ingredients: withIds(bucketItems(recipe.ingredients)),
     instructions: withIds(bucketItems(recipe.instructions)),
     tips: withIds(bucketItems(recipe.tips)),
-    unused: withIds(bucketItems(recipe.unused)),
+    unused: withIds(bucketItems(recipe.unused)).map(plain),
   };
 }
 
@@ -54,7 +57,7 @@ const ADD_LABEL: Partial<Record<BucketName, string>> = { ingredients: "Add ingre
 
 // Each list's rows, matching the recipe page. A row's box bleeds past its text by
 // `bleed` on each side, so the text lines up with the headings above it.
-const LOOK: Record<BucketName, { row: string; bleed: string; text: string; heading: string }> = {
+const LOOK: Record<BucketName, { row: string; bleed: string; text: string; heading?: string }> = {
   ingredients: {
     row: "-mx-3 rounded-lg px-3 py-2.5",
     bleed: "1.5rem",
@@ -77,7 +80,6 @@ const LOOK: Record<BucketName, { row: string; bleed: string; text: string; headi
     row: "-mx-2.5 rounded-lg px-2.5 py-1.5",
     bleed: "1.25rem",
     text: "text-[15px] leading-snug text-ink-soft",
-    heading: "pt-2 text-[11px] font-bold tracking-[0.14em] text-ink-faint uppercase",
   },
 };
 
@@ -113,7 +115,7 @@ export function RecipeBoard({
   const moveTo = (item: EditItem, to: Destination) => {
     const rest = without(item.id);
     if (to === "description") onToDescription(item.text);
-    else rest[to] = [...rest[to], item];
+    else rest[to] = [...rest[to], into(to, item)];
     onChange(rest);
     setMenu(null);
   };
@@ -138,9 +140,9 @@ export function RecipeBoard({
     if (!from || !to || from === to) return;
     const item = buckets[from].find((i) => i.id === active.id)!;
     const at = buckets[to].findIndex((i) => i.id === over.id);
-    const into = [...buckets[to]];
-    into.splice(at < 0 ? into.length : at, 0, item);
-    onChange({ ...buckets, [from]: buckets[from].filter((i) => i.id !== active.id), [to]: into });
+    const list = [...buckets[to]];
+    list.splice(at < 0 ? list.length : at, 0, into(to, item));
+    onChange({ ...buckets, [from]: buckets[from].filter((i) => i.id !== active.id), [to]: list });
   };
   const dragEnd = ({ active, over }: DragEndEvent) => {
     setDragging(null);
@@ -366,7 +368,7 @@ function Row({
           className={cx(
             box,
             "group cursor-grab pr-8 text-left transition-colors duration-150 active:cursor-grabbing",
-            isDragging ? "opacity-35" : open ? "bg-leaf-wash ring-1 ring-leaf/30" : "hover:bg-ink/4",
+            isDragging ? "opacity-35" : open ? "bg-leaf-wash ring-1 ring-leaf/30" : "hover:bg-ink/5",
           )}
         >
           <RowContent item={item} bucket={bucket} number={number} />
@@ -432,7 +434,7 @@ function AddLines({ label, first, onAdd }: { label: string; first: boolean; onAd
         type="button"
         onClick={() => setOpen(true)}
         className={cx(
-          "flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-faint/35 px-4 py-2.5 text-[15px] font-medium text-ink-faint transition-colors hover:border-leaf/60 hover:bg-leaf-wash/60 hover:text-leaf-strong",
+          "flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-faint/35 px-4 py-2.5 text-[15px] font-medium text-ink-faint transition-colors hover:border-ink-faint/60 hover:bg-ink/5 hover:text-ink-soft",
           first ? "mt-1" : "mt-4",
         )}
       >

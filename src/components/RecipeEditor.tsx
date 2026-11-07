@@ -18,7 +18,7 @@ function minutesText(minutes: number | null): string {
 
 /** Text that looks like the page until it's pointed at or clicked into. */
 const IN_PLACE =
-  "bg-transparent transition-[background-color,box-shadow] duration-150 placeholder:text-ink-faint/70 hover:bg-ink/4 focus:bg-card focus:ring-2 focus:ring-leaf/45 focus:outline-none";
+  "bg-transparent transition-[background-color,box-shadow] duration-150 placeholder:text-ink-faint/70 hover:bg-ink/5 focus:bg-card focus:ring-2 focus:ring-leaf/45 focus:outline-none";
 
 export function RecipeEditor({
   id,
@@ -182,7 +182,7 @@ export function RecipeEditor({
               ))}
             </div>
 
-            <label className="mt-4 -mx-3 flex h-11 items-center gap-2.5 rounded-xl px-3 text-[15px] text-ink-soft transition-[background-color,box-shadow] duration-150 focus-within:bg-card focus-within:ring-2 focus-within:ring-leaf/45 hover:bg-ink/4">
+            <label className="mt-4 -mx-3 flex h-11 items-center gap-2.5 rounded-xl px-3 text-[15px] text-ink-soft transition-[background-color,box-shadow] duration-150 focus-within:bg-card focus-within:ring-2 focus-within:ring-leaf/45 hover:bg-ink/5">
               <Link2 className="size-4 shrink-0 text-ink-faint" />
               <input
                 value={recipe.sourceUrl ?? ""}

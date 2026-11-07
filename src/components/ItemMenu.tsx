@@ -16,6 +16,9 @@ const DESTINATIONS: { to: Destination; label: string; icon: ReactNode }[] = [
 
 /** Space kept between the menu and the item, and between the menu and the window's edges. */
 const GAP = 8;
+/** The menu's padding, on both sides together, around the panel showing. */
+const PAD = 10;
+const EASE = "ease-[cubic-bezier(0.2,0.8,0.3,1)]";
 
 /**
  * A small toolbar floating under an item of the recipe: move it, make it a heading,
@@ -34,7 +37,7 @@ export function ItemMenu({
 }: {
   /** The item's row, which the menu sits under. */
   anchor: HTMLElement;
-  /** Where across the row it was clicked, so the menu opens under the pointer. */
+  /** Where across the row it was clicked; the menu centers on it. */
   x: number;
   bucket: BucketName;
   heading: boolean;
@@ -46,7 +49,9 @@ export function ItemMenu({
 }) {
   const [view, setView] = useState<"actions" | "move">("actions");
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
+  const [place, setPlace] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+  /** Once it's in place, it slides sideways as it changes width, instead of jumping. */
+  const [settled, setSettled] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const panels = { actions: useRef<HTMLDivElement>(null), move: useRef<HTMLDivElement>(null) };
 
@@ -58,17 +63,21 @@ export function ItemMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
-  // Under the item, or over it when there's no room below; it follows the item as the page scrolls.
+  // Centered on the click and kept inside the window. It sits under the item, or over it
+  // when the taller of its two panels wouldn't fit below, so it never flips while open.
+  // Over the item, it hangs from its bottom edge and grows upward. It follows the item
+  // as the page scrolls.
   useLayoutEffect(() => {
     if (!size) return;
     const position = () => {
       const row = anchor.getBoundingClientRect();
-      const width = size.width + 10;
-      const height = size.height + 10;
-      const left = Math.min(Math.max(x - 28, GAP), window.innerWidth - width - GAP);
+      const width = size.width + PAD;
+      const tallest = Math.max(panels.actions.current!.offsetHeight, panels.move.current!.offsetHeight) + PAD;
+      const left = Math.min(Math.max(x - width / 2, GAP), window.innerWidth - width - GAP);
       const below = row.bottom + GAP;
-      const top = below + height > window.innerHeight - GAP ? row.top - height - GAP : below;
-      setPlace({ left, top });
+      if (below + tallest <= window.innerHeight - GAP) setPlace({ left, top: below });
+      else if (row.top - GAP - tallest >= GAP) setPlace({ left, bottom: window.innerHeight - row.top + GAP });
+      else setPlace({ left, top: Math.max(GAP, window.innerHeight - size.height - PAD - GAP) });
     };
     position();
     window.addEventListener("scroll", position, true);
@@ -77,7 +86,12 @@ export function ItemMenu({
       window.removeEventListener("scroll", position, true);
       window.removeEventListener("resize", position);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchor, x, size]);
+
+  useEffect(() => {
+    if (place && !settled) requestAnimationFrame(() => setSettled(true));
+  }, [place, settled]);
 
   // A press anywhere else closes it; a press on the item is the item's to handle.
   useEffect(() => {
@@ -120,12 +134,15 @@ export function ItemMenu({
       role="menu"
       aria-label="Change this line"
       onKeyDown={keyDown}
-      style={{ left: place?.left ?? -9999, top: place?.top ?? -9999 }}
-      className="fixed z-50 animate-pop-in rounded-2xl bg-card p-[5px] shadow-lift ring-1 ring-line"
+      style={place ? { left: place.left, top: place.top, bottom: place.bottom } : { left: -9999, top: -9999 }}
+      className={cx(
+        "fixed z-50 animate-pop-in rounded-2xl bg-card p-[5px] shadow-lift ring-1 ring-line",
+        settled && `transition-[left] duration-[240ms] motion-reduce:transition-none ${EASE}`,
+      )}
     >
       <div
         style={size ?? undefined}
-        className="relative overflow-hidden transition-[width,height] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.3,1)] motion-reduce:transition-none"
+        className={`relative overflow-hidden transition-[width,height] duration-[240ms] motion-reduce:transition-none ${EASE}`}
       >
         {panel(
           "actions",
@@ -135,16 +152,18 @@ export function ItemMenu({
               role="menuitem"
               aria-haspopup="menu"
               onClick={() => setView("move")}
-              className="flex h-9 items-center gap-2 rounded-xl pr-2 pl-3 text-sm font-semibold text-ink transition-colors hover:bg-paper-deep"
+              className="flex h-9 items-center gap-2 rounded-xl pr-2 pl-3 text-sm font-semibold text-ink transition-colors hover:bg-ink/5"
             >
               <ArrowRightLeft className="size-4 text-ink-faint" />
               Move to
               <ChevronRight className="size-4 text-ink-faint" />
             </button>
             <span className="mx-1 h-5 w-px bg-line" aria-hidden />
-            <Tool label={heading ? "Make it a line again" : "Make it a heading"} pressed={heading} onClick={onToggleHeading}>
-              <Heading className="size-[18px]" />
-            </Tool>
+            {bucket !== "unused" && (
+              <Tool label={heading ? "Make it a line again" : "Make it a heading"} pressed={heading} onClick={onToggleHeading}>
+                <Heading className="size-[18px]" />
+              </Tool>
+            )}
             <Tool label="Edit" onClick={onEdit}>
               <Pencil className="size-[17px]" />
             </Tool>
@@ -171,9 +190,9 @@ export function ItemMenu({
                     type="button"
                     role="menuitem"
                     onClick={() => onMove(d.to)}
-                    className="group flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-medium text-ink-soft transition-colors hover:bg-leaf-wash hover:text-leaf-strong focus-visible:bg-leaf-wash"
+                    className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-medium text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink focus-visible:bg-ink/5"
                   >
-                    <span className="text-ink-faint transition-colors group-hover:text-leaf">{d.icon}</span>
+                    <span className="text-ink-faint">{d.icon}</span>
                     {d.label}
                   </button>
                 </li>
@@ -198,7 +217,7 @@ function Tool({ label, pressed, danger, onClick, children }: { label: string; pr
       onClick={onClick}
       className={cx(
         "flex size-9 items-center justify-center rounded-xl transition-colors",
-        pressed ? "bg-leaf-tint text-leaf-strong" : danger ? "text-ink-soft hover:bg-tomato/10 hover:text-tomato" : "text-ink-soft hover:bg-paper-deep hover:text-ink",
+        pressed ? "bg-leaf-tint text-leaf-strong" : danger ? "text-ink-soft hover:bg-tomato/10 hover:text-tomato" : "text-ink-soft hover:bg-ink/5 hover:text-ink",
       )}
     >
       {children}

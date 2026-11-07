@@ -287,9 +287,9 @@ test("puts a heading over a part's ingredients and its steps in both", () => {
   ]);
 });
 
-test("keeps unused headings as headings, and stops after the recipe at a heading or fifteen lines", () => {
+test("keeps unused headings as plain lines, and stops after the recipe at a heading or fifteen lines", () => {
   const lines = ["Soup", "### Extras", "Serve with bread.", "- 1 onion", "1. Simmer.", ...Array.from({ length: 20 }, (_, i) => `Line ${i}`)];
   const soup = lay(lines, { ingredientLines: [3], stepLines: [4] }, 0);
-  expect(soup.unused.split("\n").slice(0, 2)).toEqual(["# Extras", "Serve with bread."]);
+  expect(soup.unused.split("\n").slice(0, 2)).toEqual(["Extras", "Serve with bread."]);
   expect(soup.unused.split("\n").at(-1)).toBe("Line 14");
 });
