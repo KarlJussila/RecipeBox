@@ -1,3 +1,19 @@
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { bucketItems, itemsToBucket, type Item } from "../lib/buckets";
@@ -45,6 +61,15 @@ export function RecipeBoard({
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<EditItem | null>(null);
+  /** Whether the unused lines were showing when the drag began, so they stay while it lasts. */
+  const [unusedAtStart, setUnusedAtStart] = useState(false);
+  /** The buckets as they were when a drag started, to put back if it's cancelled. */
+  const before = useRef<Buckets | null>(null);
+  /** A drag ends with a click on the item let go of, which shouldn't open its menu. */
+  const justDropped = useRef(false);
+  // A press that moves a few pixels drags; one that doesn't is a click.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const without = (id: string): Buckets =>
     Object.fromEntries(ORDER.map((name) => [name, buckets[name].filter((item) => item.id !== id)])) as Buckets;
@@ -66,11 +91,155 @@ export function RecipeBoard({
     },
   };
 
-  const list = (name: BucketName, look: Look) => {
-    let number = 0;
-    return (
-      <ul className={cx(look === "ingredient" && "divide-y divide-leaf/12", look === "step" && "space-y-1", look === "note" && "space-y-1")}>
-        {buckets[name].map((item) => {
+  /** The bucket an item is in, or the bucket itself when dropping on its empty space. */
+  const bucketOf = (id: string): BucketName | null =>
+    (ORDER as string[]).includes(id) ? (id as BucketName) : (ORDER.find((name) => buckets[name].some((item) => item.id === id)) ?? null);
+
+  const dragStart = ({ active }: DragStartEvent) => {
+    before.current = buckets;
+    setUnusedAtStart(buckets.unused.length > 0);
+    setSelected(null);
+    setDragging(ORDER.flatMap((name) => buckets[name]).find((item) => item.id === active.id) ?? null);
+  };
+  // Over another bucket, the item moves into it at once, so that bucket makes room for it.
+  const dragOver = ({ active, over }: DragOverEvent) => {
+    if (!over) return;
+    const from = bucketOf(String(active.id));
+    const to = bucketOf(String(over.id));
+    if (!from || !to || from === to) return;
+    const item = buckets[from].find((i) => i.id === active.id)!;
+    const at = buckets[to].findIndex((i) => i.id === over.id);
+    const into = [...buckets[to]];
+    into.splice(at < 0 ? into.length : at, 0, item);
+    onChange({ ...buckets, [from]: buckets[from].filter((i) => i.id !== active.id), [to]: into });
+  };
+  const dragEnd = ({ active, over }: DragEndEvent) => {
+    setDragging(null);
+    justDropped.current = true;
+    setTimeout(() => (justDropped.current = false));
+    const name = over && bucketOf(String(active.id));
+    if (!over || !name || bucketOf(String(over.id)) !== name) return;
+    const from = buckets[name].findIndex((i) => i.id === active.id);
+    const to = buckets[name].findIndex((i) => i.id === over.id);
+    if (to >= 0 && from !== to) onChange({ ...buckets, [name]: arrayMove(buckets[name], from, to) });
+  };
+  const dragCancel = () => {
+    setDragging(null);
+    if (before.current) onChange(before.current);
+  };
+
+  const list = (name: BucketName, look: Look) => (
+    <BucketList
+      name={name}
+      look={look}
+      items={buckets[name]}
+      selected={selected}
+      editing={editing}
+      onSelect={(id) => {
+        if (!justDropped.current) setSelected(selected === id ? null : id);
+      }}
+      onEdited={(id, text) => {
+        if (text !== null) change(id, { text });
+        setEditing(null);
+      }}
+      actions={actions}
+    />
+  );
+  const add = (name: BucketName) => (text: string) => onChange({ ...buckets, [name]: [...buckets[name], ...withIds(bucketItems(text))] });
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={collisions}
+      onDragStart={dragStart}
+      onDragOver={dragOver}
+      onDragEnd={dragEnd}
+      onDragCancel={dragCancel}
+    >
+      <div className={cx("grid gap-10", (buckets.unused.length > 0 || (dragging && unusedAtStart)) && "@5xl:grid-cols-[minmax(0,1fr)_19rem]")}>
+        <div className="min-w-0 space-y-12">
+          <section className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
+            <h2 className="mb-3 border-b-2 border-tomato/50 pb-3 font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
+            {list("ingredients", "ingredient")}
+            <AddItems what="ingredients" onAdd={add("ingredients")} />
+          </section>
+          <section>
+            <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
+            {list("instructions", "step")}
+            <AddItems what="steps" onAdd={add("instructions")} />
+          </section>
+          <section>
+            <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Notes</h2>
+            {list("tips", "note")}
+            <AddItems what="notes" onAdd={add("tips")} />
+          </section>
+        </div>
+        {(buckets.unused.length > 0 || (dragging && unusedAtStart)) && (
+          // On wide windows it stays in view beside the steps, since that's where most of its lines go.
+          <aside className="scrollbar-quiet min-w-0 @5xl:sticky @5xl:top-24 @5xl:max-h-[calc(100vh-8rem)] @5xl:self-start @5xl:overflow-y-auto">
+            <h2 className="font-serif text-[22px] font-semibold tracking-tight">Not used</h2>
+            <p className="mt-1 mb-4 text-[15px] text-ink-faint">From the recipe’s page, but not in the recipe.</p>
+            {list("unused", "unused")}
+          </aside>
+        )}
+      </div>
+      <DragOverlay>
+        {dragging && (
+          <div
+            className={cx(
+              "cursor-grabbing rounded-xl bg-card px-4 py-2.5 text-[17px] leading-snug text-ink shadow-soft ring-2 ring-leaf",
+              dragging.heading && "font-serif font-semibold",
+            )}
+          >
+            {dragging.text}
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+// Over a list, the item under the pointer; between lists, the nearest one.
+const collisions: CollisionDetection = (args) => {
+  const within = pointerWithin(args);
+  return within.length > 0 ? within : closestCenter(args);
+};
+
+function BucketList({
+  name,
+  look,
+  items,
+  selected,
+  editing,
+  onSelect,
+  onEdited,
+  actions,
+}: {
+  name: BucketName;
+  look: Look;
+  items: EditItem[];
+  selected: string | null;
+  editing: string | null;
+  onSelect: (id: string) => void;
+  onEdited: (id: string, text: string | null) => void;
+  actions: ItemActions;
+}) {
+  // The list itself takes drops too, so an empty one can be filled.
+  const { setNodeRef, isOver } = useDroppable({ id: name });
+  let number = 0;
+  return (
+    <SortableContext id={name} items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+      <ul
+        ref={setNodeRef}
+        className={cx(
+          look === "ingredient" && "divide-y divide-leaf/12",
+          (look === "step" || look === "note") && "space-y-1",
+          items.length === 0 && "rounded-xl py-2 transition-colors",
+          items.length === 0 && isOver && "bg-ink/5",
+        )}
+      >
+        {items.length === 0 && <li className="text-ink-faint">{EMPTY[name]}</li>}
+        {items.map((item) => {
           if (!item.heading) number += 1;
           return (
             <ItemRow
@@ -81,53 +250,23 @@ export function RecipeBoard({
               number={look === "step" && !item.heading ? number : null}
               selected={selected === item.id}
               editing={editing === item.id}
-              onSelect={() => setSelected(selected === item.id ? null : item.id)}
-              onEdited={(text) => {
-                if (text !== null) change(item.id, { text });
-                setEditing(null);
-              }}
+              onSelect={() => onSelect(item.id)}
+              onEdited={(text) => onEdited(item.id, text)}
               actions={actions}
             />
           );
         })}
       </ul>
-    );
-  };
-  const add = (name: BucketName) => (text: string) => onChange({ ...buckets, [name]: [...buckets[name], ...withIds(bucketItems(text))] });
-
-  return (
-    <div className={cx("grid gap-10", buckets.unused.length > 0 && "@5xl:grid-cols-[minmax(0,1fr)_19rem]")}>
-      <div className="min-w-0 space-y-12">
-        <section className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
-          <h2 className="mb-3 border-b-2 border-tomato/50 pb-3 font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
-          {buckets.ingredients.length === 0 && <Empty>No ingredients yet.</Empty>}
-          {list("ingredients", "ingredient")}
-          <AddItems what="ingredients" onAdd={add("ingredients")} />
-        </section>
-        <section>
-          <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
-          {buckets.instructions.length === 0 && <Empty>No steps yet.</Empty>}
-          {list("instructions", "step")}
-          <AddItems what="steps" onAdd={add("instructions")} />
-        </section>
-        <section>
-          <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Notes</h2>
-          {buckets.tips.length === 0 && <Empty>No notes from the recipe.</Empty>}
-          {list("tips", "note")}
-          <AddItems what="notes" onAdd={add("tips")} />
-        </section>
-      </div>
-      {buckets.unused.length > 0 && (
-        // On wide windows it stays in view beside the steps, since that's where most of its lines go.
-        <aside className="scrollbar-quiet min-w-0 @5xl:sticky @5xl:top-24 @5xl:max-h-[calc(100vh-8rem)] @5xl:self-start @5xl:overflow-y-auto">
-          <h2 className="font-serif text-[22px] font-semibold tracking-tight">Not used</h2>
-          <p className="mt-1 mb-4 text-[15px] text-ink-faint">From the recipe’s page, but not in the recipe.</p>
-          {list("unused", "unused")}
-        </aside>
-      )}
-    </div>
+    </SortableContext>
   );
 }
+
+const EMPTY: Record<BucketName, string> = {
+  ingredients: "No ingredients yet.",
+  instructions: "No steps yet.",
+  tips: "No notes from the recipe.",
+  unused: "Drop lines here to leave them out.",
+};
 
 type Look = "ingredient" | "step" | "note" | "unused";
 
@@ -136,10 +275,6 @@ interface ItemActions {
   toggleHeading: (item: EditItem) => void;
   edit: (item: EditItem) => void;
   remove: (item: EditItem) => void;
-}
-
-function Empty({ children }: { children: string }) {
-  return <p className="py-2 text-ink-faint">{children}</p>;
 }
 
 function ItemRow({
@@ -164,6 +299,7 @@ function ItemRow({
   onEdited: (text: string | null) => void;
   actions: ItemActions;
 }) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: item.id, disabled: editing });
   const text = item.heading ? (
     look === "ingredient" ? (
       <Eyebrow className="pt-2">{item.text}</Eyebrow>
@@ -184,7 +320,11 @@ function ItemRow({
     </span>
   );
   return (
-    <li className={cx(item.heading && look !== "ingredient" && "pt-3")}>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cx(item.heading && look !== "ingredient" && "pt-3", isDragging && "opacity-30")}
+    >
       {editing ? (
         <EditText text={item.text} onDone={onEdited} />
       ) : (
@@ -192,6 +332,7 @@ function ItemRow({
           type="button"
           aria-expanded={selected}
           onClick={onSelect}
+          {...listeners}
           className={cx(
             "-mx-3 grid w-[calc(100%+1.5rem)] items-start gap-3 rounded-xl px-3 text-left transition-colors",
             number !== null ? "grid-cols-[2.5rem_minmax(0,1fr)] py-3" : "grid-cols-[minmax(0,1fr)] py-2",

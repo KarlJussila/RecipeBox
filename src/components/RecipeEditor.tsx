@@ -36,6 +36,8 @@ export function RecipeEditor({
   const toast = useToast();
   const [recipe, setRecipe] = useState<Recipe | null>(id ? null : emptyRecipe());
   const [buckets, setBuckets] = useState<Buckets>(() => toBuckets(emptyRecipe()));
+  /** Room for the unused lines beside the recipe, set once so the page doesn't jump as they're moved. */
+  const [wide, setWide] = useState(false);
   const [times, setTimes] = useState({ prep: "", cook: "", total: "" });
   const [saving, setSaving] = useState(false);
   const [newCategories, setNewCategories] = useState<Record<string, string>>({});
@@ -47,6 +49,7 @@ export function RecipeEditor({
       if (!r) return;
       setRecipe(r);
       setBuckets(toBuckets(r));
+      setWide(r.unused.trim() !== "");
       setTimes({ prep: minutesText(r.prepMinutes), cook: minutesText(r.cookMinutes), total: minutesText(r.totalMinutes) });
     });
   }, [id]);
@@ -118,7 +121,7 @@ export function RecipeEditor({
       </header>
 
       <form
-        className={cx("mx-auto w-full animate-fade-in px-10 pt-8 pb-24", buckets.unused.length > 0 ? "max-w-6xl" : "max-w-4xl")}
+        className={cx("mx-auto w-full animate-fade-in px-10 pt-8 pb-24", wide ? "max-w-6xl" : "max-w-4xl")}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
