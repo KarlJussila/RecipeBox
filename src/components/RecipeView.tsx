@@ -106,12 +106,13 @@ function IngredientsHeading({ servings }: { servings: string | null }) {
 }
 
 /**
- * The ingredients on their own sheet, laid on the tin beside the card so they stay in
- * view while she works down the steps. It scrolls on its own when the list is long.
+ * The ingredients on their own sheet of the same old stock as the card, laid on the tin
+ * beside it so they stay in view while she works down the steps. It scrolls on its own
+ * when the list is long.
  */
 function IngredientsSheet({ sections, servings, checked }: { sections: Section[]; servings: string | null; checked: Checked }) {
   return (
-    <div className="card-stock flex max-h-full min-h-0 animate-fade-in flex-col text-ink shadow-card">
+    <div className="card-stock stock-aged flex max-h-full min-h-0 animate-fade-in flex-col text-ink shadow-card">
       <div className="scrollbar-quiet min-h-0 overflow-y-auto px-7 pt-7 pb-8">
         <IngredientsHeading servings={servings} />
         <IngredientList sections={sections} checked={checked} small />
