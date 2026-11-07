@@ -61,3 +61,13 @@ export function titleCase(value: string): string {
 export function tidyTitle(title: string): string {
   return title === title.toLowerCase() || title === title.toUpperCase() ? headlineCase(title.toLowerCase()) : title;
 }
+
+/**
+ * How many a recipe serves, as just the number or range ("4", "6–8"), from however the
+ * page or the reader put it ("Serves 4", "6 to 8 servings"). Without a number, nothing.
+ */
+export function servingsFrom(text: string | null | undefined): string | null {
+  const match = text?.match(/(\d+)(?:\s*(?:-|–|—|to)\s*(\d+))?/i);
+  if (!match) return null;
+  return match[2] ? `${match[1]}–${match[2]}` : match[1];
+}

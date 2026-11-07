@@ -31,7 +31,7 @@ pub struct Recipe {
     pub author: Option<String>,
     /// File name inside the images directory.
     pub image: Option<String>,
-    pub yields: Option<String>,
+    pub servings: Option<String>,
     pub prep_minutes: Option<i64>,
     pub cook_minutes: Option<i64>,
     pub total_minutes: Option<i64>,
@@ -140,7 +140,7 @@ impl Db {
                         source_name TEXT,
                         author TEXT,
                         image TEXT,
-                        yields TEXT,
+                        servings TEXT,
                         prep_minutes INTEGER,
                         cook_minutes INTEGER,
                         total_minutes INTEGER,
@@ -242,7 +242,7 @@ impl Db {
         let recipe = self
             .conn
             .query_row(
-                "SELECT id, title, description, source_url, source_name, author, image, yields,
+                "SELECT id, title, description, source_url, source_name, author, image, servings,
                         prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
                         notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, source_page
                  FROM recipes WHERE id = ?1",
@@ -261,7 +261,7 @@ impl Db {
                         source_name: r.get(4)?,
                         author: r.get(5)?,
                         image: r.get(6)?,
-                        yields: r.get(7)?,
+                        servings: r.get(7)?,
                         prep_minutes: r.get(8)?,
                         cook_minutes: r.get(9)?,
                         total_minutes: r.get(10)?,
@@ -326,13 +326,13 @@ impl Db {
 
         tx.execute(
             "INSERT INTO recipes (id, title, description, source_url, source_name, author, image,
-                yields, prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
+                servings, prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
                 notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, source_page)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
              ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title, description = excluded.description,
                 source_url = excluded.source_url, source_name = excluded.source_name,
-                author = excluded.author, image = excluded.image, yields = excluded.yields,
+                author = excluded.author, image = excluded.image, servings = excluded.servings,
                 prep_minutes = excluded.prep_minutes, cook_minutes = excluded.cook_minutes,
                 total_minutes = excluded.total_minutes, ingredients = excluded.ingredients,
                 instructions = excluded.instructions, notes = excluded.notes,
@@ -348,7 +348,7 @@ impl Db {
                 recipe.source_name,
                 recipe.author,
                 recipe.image,
-                recipe.yields,
+                recipe.servings,
                 recipe.prep_minutes,
                 recipe.cook_minutes,
                 recipe.total_minutes,

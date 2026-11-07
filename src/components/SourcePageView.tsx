@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { clean, headingText } from "../lib/page-lines";
-import type { LinePart, SourcePage } from "../lib/source-page";
+import { headingLines, type LinePart, type SourcePage } from "../lib/source-page";
 import type { Section } from "../lib/types";
 import { cx } from "./ui";
 
@@ -33,6 +33,7 @@ function Chip({ className, children }: { className: string; children: string }) 
 export function SourcePageView({ source, onChoose }: { source: SourcePage; onChoose: (line: number, choice: LineChoice) => void }) {
   const [open, setOpen] = useState<number | null>(null);
   const firstRef = useRef<HTMLLIElement>(null);
+  const headings = headingLines(source);
   // The recipe usually starts well down the page, below the site's menus.
   const first = source.titleLine ?? source.parts.findIndex((p) => p !== null);
 
@@ -43,6 +44,9 @@ export function SourcePageView({ source, onChoose }: { source: SourcePage; onCho
       {source.lines.map((line, i) => {
         const part = source.parts[i];
         const isTitle = source.titleLine === i;
+        // A heading the recipe uses, like "For the cake", over the part it heads.
+        const heads = part ? undefined : headings.get(i);
+        const look = part ?? heads;
         const choose = (choice: LineChoice) => {
           onChoose(i, choice);
           setOpen(null);
@@ -55,19 +59,20 @@ export function SourcePageView({ source, onChoose }: { source: SourcePage; onCho
               onClick={() => setOpen(open === i ? null : i)}
               className={cx("flex w-full items-stretch gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-ink/5", open === i && "bg-ink/5")}
             >
-              <span aria-hidden="true" className={cx("w-1 shrink-0 rounded-full", part ? LOOKS[part].bar : isTitle ? "bg-tomato" : "bg-transparent")} />
+              <span aria-hidden="true" className={cx("w-1 shrink-0 rounded-full", look ? LOOKS[look].bar : isTitle ? "bg-ink" : "bg-transparent")} />
               <span
                 className={cx(
                   "min-w-0 flex-1 text-[16px] leading-relaxed [overflow-wrap:anywhere]",
                   headingText(line) !== null && "font-semibold",
-                  !part && !isTitle && "text-ink-faint",
+                  !look && !isTitle && "text-ink-faint",
                 )}
               >
                 {clean(line)}
               </span>
               <span className="flex shrink-0 items-start gap-1.5 pt-0.5">
-                {isTitle && <Chip className="bg-tomato/15 text-tomato">Title</Chip>}
+                {isTitle && <Chip className="bg-ink text-paper">Title</Chip>}
                 {part && <Chip className={LOOKS[part].chip}>{LOOKS[part].label}</Chip>}
+                {heads && <Chip className={LOOKS[heads].chip}>{`${LOOKS[heads].label} heading`}</Chip>}
               </span>
             </button>
             {source.quotes

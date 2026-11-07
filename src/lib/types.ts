@@ -15,7 +15,7 @@ export interface Recipe {
   author: string | null;
   /** File name inside the app's images directory. */
   image: string | null;
-  yields: string | null;
+  servings: string | null;
   prepMinutes: number | null;
   cookMinutes: number | null;
   totalMinutes: number | null;
@@ -60,7 +60,7 @@ export interface RecipeDraft {
   sourceName: string | null;
   author: string | null;
   imageUrl: string | null;
-  yields: string | null;
+  servings: string | null;
   prepMinutes: number | null;
   cookMinutes: number | null;
   totalMinutes: number | null;
@@ -82,7 +82,7 @@ export function emptyRecipe(): Recipe {
     sourceName: null,
     author: null,
     image: null,
-    yields: null,
+    servings: null,
     prepMinutes: null,
     cookMinutes: null,
     totalMinutes: null,

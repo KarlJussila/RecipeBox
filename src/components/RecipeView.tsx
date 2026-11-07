@@ -50,12 +50,12 @@ const COLLAPSED_KEY = "recipebox.ingredientsCollapsed";
 
 function Ingredients({
   sections,
-  yields,
+  servings,
   collapsed,
   onCollapsedChange,
 }: {
   sections: Section[];
-  yields: string | null;
+  servings: string | null;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
@@ -82,7 +82,7 @@ function Ingredients({
           <h2 className="font-serif text-2xl font-semibold tracking-tight">Ingredients</h2>
           <span className="flex-1 text-[15px] text-ink-faint">
             {count} {count === 1 ? "item" : "items"}
-            {yields && ` · ${yields}`}
+            {servings && ` · Serves ${servings}`}
           </span>
           <span className="inline-flex h-10 items-center gap-2 rounded-full bg-leaf px-5 text-[15px] font-semibold text-white shadow-soft group-hover:bg-leaf-strong dark:text-spine-deep">
             Show ingredients <ChevronDown className="size-4" />
@@ -94,7 +94,7 @@ function Ingredients({
         <div className="mb-4 flex items-center justify-between gap-3 border-b-2 border-tomato/50 pb-3">
           <div>
             <h2 className="font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
-            {yields && <p className="text-sm text-ink-faint">{yields}</p>}
+            {servings && <p className="text-sm text-ink-faint">Serves {servings}</p>}
           </div>
           <button
             type="button"
@@ -338,7 +338,7 @@ export function RecipeView({
     recipe.prepMinutes !== null && { label: "Prep", value: formatMinutes(recipe.prepMinutes) },
     recipe.cookMinutes !== null && { label: "Cook", value: formatMinutes(recipe.cookMinutes) },
     recipe.totalMinutes !== null && { label: "Total", value: formatMinutes(recipe.totalMinutes) },
-    recipe.yields && { label: "Makes", value: recipe.yields.replace(/^(makes|serves|yield:?)\s+/i, "") },
+    recipe.servings && { label: "Serves", value: recipe.servings },
   ].filter((s): s is { label: string; value: string } => Boolean(s));
   const hasSteps = recipe.instructions.some((s) => s.items.length > 0);
 
@@ -440,7 +440,7 @@ export function RecipeView({
             <Ingredients
               key={recipe.id}
               sections={recipe.ingredients}
-              yields={recipe.yields}
+              servings={recipe.servings}
               collapsed={ingredientsCollapsed}
               onCollapsedChange={(collapsed) => {
                 setIngredientsCollapsed(collapsed);

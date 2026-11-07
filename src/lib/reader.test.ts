@@ -27,7 +27,7 @@ vi.mock("./api", () => ({
 
 import { findQuote, headingText } from "./page-lines";
 import { readPage } from "./reader";
-import { partsToRecipe } from "./source-page";
+import { headingLines, partsToRecipe, type SourcePage } from "./source-page";
 
 const llm = { provider: "opencode" as const, model: "test/model", baseUrl: "", apiKey: "" };
 beforeEach(() => {
@@ -81,13 +81,13 @@ test.each([true, false])("reads ingredient lists that steps split apart, and kee
     return_step_range: [{ first: "Mix the flour", last: "Cook until thick" }],
     return_note_range: [{ first: "Keeps for three days", last: "Keeps for three days" }],
     return_description: [{ opening: "My grandmother made this" }],
-    return_details: [{ yields: "1 pie" }],
+    return_details: [{ servings: "Serves 8" }],
   });
   const reading = await readPage(llm, PAGE, null, null, { warm });
   expect(reading?.recipe).toEqual({
     title: "Grandma's Cream Pie",
     description: "My grandmother made this every Sunday, and the crust is the best part.",
-    yields: "1 pie",
+    servings: "8",
     prepMinutes: null,
     cookMinutes: null,
     totalMinutes: null,
@@ -261,4 +261,19 @@ test("keeps what each line of the page became, and rebuilds the recipe from it",
   const fixed = partsToRecipe(source);
   expect(fixed.instructions).toEqual([{ heading: "", items: ["Mix and bake.", "Cool on a rack."] }]);
   expect(fixed.description).toBe("These are soft.");
+});
+
+test("puts steps under a part's heading only when each part has its own steps", () => {
+  // Like Mom's Apple Cake: two ingredient parts, then all the steps.
+  const source: SourcePage = {
+    lines: ["Apple Cake", "**For the apples**", "- 6 apples", "**For the cake**", "- 2 cups flour", "1. Toss the apples.", "1. Bake."],
+    parts: [null, null, "ingredient", null, "ingredient", "step", "step"],
+    titleLine: 0,
+    quotes: [],
+  };
+  expect(partsToRecipe(source).instructions).toEqual([{ heading: "", items: ["Toss the apples.", "Bake."] }]);
+  expect([...headingLines(source)]).toEqual([
+    [1, "ingredient"],
+    [3, "ingredient"],
+  ]);
 });

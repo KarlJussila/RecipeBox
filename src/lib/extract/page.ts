@@ -115,7 +115,7 @@ export function extractFromHtml(html: string, url: string | null): Extraction {
       sourceName: page.siteName ?? (page.url ? new URL(page.url).hostname.replace(/^www\./, "") : null),
       author: null,
       imageUrl: page.image,
-      yields: null,
+      servings: null,
       prepMinutes: null,
       cookMinutes: null,
       totalMinutes: null,

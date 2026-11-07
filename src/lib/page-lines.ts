@@ -47,22 +47,31 @@ export function headingText(line: string): string | null {
  * that follow a part's ingredients come under that part's heading.
  */
 export function group(lines: string[], items: { index: number; text: string }[], skip: (index: number) => boolean = () => false): Section[] {
+  return groupAt(lines, items, skip).map((g) => g.section);
+}
+
+/** Like `group`, along with the line each section's heading came from, if any. */
+export function groupAt(
+  lines: string[],
+  items: { index: number; text: string }[],
+  skip: (index: number) => boolean = () => false,
+): { section: Section; line: number | null }[] {
   items = [...items].sort((a, b) => a.index - b.index);
   if (items.length === 0) return [];
-  const sections: Section[] = [];
+  const sections: { section: Section; line: number | null }[] = [];
   let back = items[0].index - 1;
   while (back >= 0 && skip(back)) back--;
   const before = headingText(lines[back] ?? "");
-  let current: Section = { heading: before ?? "", items: [] };
+  let current = { section: { heading: before ?? "", items: [] as string[] }, line: before === null ? null : back };
   let last = items[0].index - 1;
   for (const item of items) {
     for (let i = last + 1; i < item.index; i++) {
       const heading = headingText(lines[i]);
       if (heading === null) continue;
-      if (current.items.length > 0) sections.push(current);
-      current = { heading, items: [] };
+      if (current.section.items.length > 0) sections.push(current);
+      current = { section: { heading, items: [] }, line: i };
     }
-    current.items.push(item.text);
+    current.section.items.push(item.text);
     last = item.index;
   }
   sections.push(current);

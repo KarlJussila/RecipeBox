@@ -1,7 +1,7 @@
 // The page an AI-read recipe came from, kept with the recipe so the cook can see what
 // each line of the page became and fix what the reader got wrong.
 
-import { clean, group } from "./page-lines";
+import { clean, groupAt } from "./page-lines";
 import { splitTips } from "./steps";
 import type { Section } from "./types";
 
@@ -28,18 +28,42 @@ export interface PageParts {
 
 /** The recipe's parts as the page's lines make them. */
 export function partsToRecipe(source: SourcePage): PageParts {
+  const { description, ingredients, steps, tips } = build(source);
+  // Trailing "Do ahead: ..." steps move to the tips, as they do on import.
+  const split = splitTips(steps.map((g) => g.section));
+  return {
+    description,
+    ingredients: ingredients.map((g) => g.section),
+    instructions: split.steps,
+    tips: [...split.tips, ...tips.map((g) => g.section)],
+  };
+}
+
+/** The page's lines the recipe takes as headings, and the part each one heads. */
+export function headingLines(source: SourcePage): Map<number, LinePart> {
+  const { ingredients, steps, tips } = build(source);
+  const headings = new Map<number, LinePart>();
+  for (const [part, groups] of [["ingredient", ingredients], ["step", steps], ["tip", tips]] as const) {
+    for (const { line } of groups) if (line !== null && !headings.has(line)) headings.set(line, part);
+  }
+  return headings;
+}
+
+function build(source: SourcePage) {
   const { lines, parts } = source;
   const of = (part: LinePart) => parts.flatMap((p, i) => (p === part ? [{ index: i, text: clean(lines[i]) }] : []));
   const isIngredient = (i: number) => parts[i] === "ingredient";
   // A line taken whole as an ingredient already holds what was quoted from it.
   const quotes = source.quotes.filter((q) => !isIngredient(q.line)).map((q) => ({ index: q.line, text: q.text }));
-  // Steps that follow a part's ingredients come under that part's heading, and trailing
-  // "Do ahead: ..." steps move to the tips, as they do on import.
-  const { steps, tips } = splitTips(group(lines, of("step"), isIngredient));
+  // When each part of the recipe has its own ingredients and then its steps, the steps
+  // come under that part's heading. When all the steps follow all the ingredients, the
+  // last part's heading heads only its ingredients.
+  const firstStep = parts.indexOf("step");
+  const interleaved = firstStep >= 0 && parts.some((p, i) => p === "ingredient" && i > firstStep);
   return {
     description: of("description").map((d) => d.text).join("\n\n"),
-    ingredients: group(lines, [...of("ingredient"), ...quotes]),
-    instructions: steps,
-    tips: [...tips, ...group(lines, of("tip"))],
+    ingredients: groupAt(lines, [...of("ingredient"), ...quotes]),
+    steps: groupAt(lines, of("step"), interleaved ? isIngredient : undefined),
+    tips: groupAt(lines, of("tip")),
   };
 }

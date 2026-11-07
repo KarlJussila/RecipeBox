@@ -4,7 +4,7 @@
 
 import type { RecipeDraft, Section } from "../types";
 import { parseDuration } from "./duration";
-import { cleanLine, cleanText, splitList } from "./text";
+import { cleanLine, cleanText, servingsFrom, splitList } from "./text";
 
 type Json = unknown;
 type Node = Record<string, Json>;
@@ -178,14 +178,14 @@ export function ingredientSections(value: Json): Section[] {
   return sections.filter((s) => s.items.length > 0);
 }
 
-function pickYield(value: Json): string | null {
+/**
+ * How many the recipe serves, from a yield that says so ("Serves 6", "4 servings", a bare
+ * "4"). A yield that counts what it makes instead, like "4 dozen cookies", isn't kept.
+ */
+function pickServings(value: Json): string | null {
   const options = asArray(value).map(cleanLine).filter(Boolean);
-  if (options.length === 0) return null;
-  // Prefer "4 dozen cookies" over a bare "48".
-  const descriptive = options.find((o) => /[a-z]/i.test(o));
-  // Drop labels like "Servings:" or "Yield:" that leak in from page markup.
-  const chosen = (descriptive ?? options[0]).replace(/^(servings|yields?|serves|makes)\s*:\s*/i, "");
-  return /^\d+$/.test(chosen) ? `${chosen} servings` : chosen;
+  const servings = options.find((o) => /serv|people|person|portion/i.test(o) || /^(about\s+)?\d+(\s*(-|–|to)\s*\d+)?\s*($|[,;(])/i.test(o));
+  return servingsFrom(servings);
 }
 
 function hostName(url: string | null): string | null {
@@ -226,7 +226,7 @@ export function draftFromSchema(node: Node, page: PageMeta): RecipeDraft {
     sourceName,
     author: authors.length ? authors.join(", ") : null,
     imageUrl: pickImage(node.image ?? node.thumbnailUrl, sourceUrl) ?? page.image,
-    yields: pickYield(node.recipeYield ?? node.yield),
+    servings: pickServings(node.recipeYield ?? node.yield),
     prepMinutes: prep,
     cookMinutes: cook,
     totalMinutes: total,

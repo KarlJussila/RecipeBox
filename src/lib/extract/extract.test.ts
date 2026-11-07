@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { parseDuration } from "./duration";
 import { extractFromHtml, readablePage, readableText } from "./page";
-import { ingredientSections, instructionSections, pickImage } from "./schema";
-import { cleanText } from "./text";
+import { draftFromSchema, ingredientSections, instructionSections, pickImage } from "./schema";
+import { cleanText, servingsFrom } from "./text";
 
 function page(jsonLd: unknown, head = ""): string {
   return `<html><head>${head}<script type="application/ld+json">${JSON.stringify(jsonLd)}</script></head><body></body></html>`;
@@ -125,7 +125,7 @@ describe("extractFromHtml", () => {
       sourceName: "Good Food",
       sourceUrl: "https://example.com/roast-chicken",
       imageUrl: "https://cdn.example/chicken.jpg",
-      yields: "4 servings",
+      servings: "4",
       prepMinutes: 15,
       cookMinutes: 60,
       totalMinutes: 75,
@@ -179,7 +179,7 @@ describe("extractFromHtml", () => {
     </div>`;
     const { draft, complete } = extractFromHtml(html, "https://blog.example/risotto");
     expect(complete).toBe(true);
-    expect(draft).toMatchObject({ title: "Tomato Risotto", yields: "4 servings", totalMinutes: 50 });
+    expect(draft).toMatchObject({ title: "Tomato Risotto", servings: "4", totalMinutes: 50 });
     expect(draft.instructions).toEqual([{ heading: "", items: ["Heat oven: To 350°F.", "Grate the tomatoes."] }]);
   });
 
@@ -275,4 +275,15 @@ describe("readableText", () => {
       "Ingredients:\n*1 pound butter *\n*12 eggs *\nBeat butter and sugar until creamed, add lightly beaten egg yolks. Beat well then add flour.",
     );
   });
+});
+
+test("keeps how many a recipe serves, and nothing that only says what it makes", () => {
+  expect(servingsFrom("Serves 6")).toBe("6");
+  expect(servingsFrom("About 8 servings")).toBe("8");
+  expect(servingsFrom("6 to 8")).toBe("6–8");
+  expect(servingsFrom("None")).toBeNull();
+  const yieldOf = (recipeYield: unknown) => draftFromSchema({ "@type": "Recipe", name: "Cake", recipeYield } as never, {} as never).servings;
+  expect(yieldOf("4, more as a side")).toBe("4");
+  expect(yieldOf("4 dozen cookies")).toBeNull();
+  expect(yieldOf("Makes 16")).toBeNull();
 });

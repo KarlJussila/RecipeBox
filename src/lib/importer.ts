@@ -77,7 +77,7 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     sourceName: draft.sourceName,
     author: draft.author,
     image,
-    yields: draft.yields,
+    servings: draft.servings,
     prepMinutes: draft.prepMinutes,
     cookMinutes: draft.cookMinutes,
     totalMinutes: draft.totalMinutes,

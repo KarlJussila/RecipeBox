@@ -11,6 +11,7 @@ import type { LlmSettings } from "./api";
 import { runJob, tool, type ToolReply } from "./llm";
 import { PageLines, flat } from "./page-lines";
 import type { ReadablePage } from "./extract/page";
+import { servingsFrom } from "./extract/text";
 import { partsToRecipe, type LinePart, type SourcePage } from "./source-page";
 import type { RecipeDraft } from "./types";
 
@@ -18,7 +19,7 @@ const INSTRUCTIONS = "You read recipes from web pages for a home cook's recipe c
 
 type PageRecipe = Pick<
   RecipeDraft,
-  "title" | "description" | "yields" | "prepMinutes" | "cookMinutes" | "totalMinutes" | "ingredients" | "instructions" | "tips"
+  "title" | "description" | "servings" | "prepMinutes" | "cookMinutes" | "totalMinutes" | "ingredients" | "instructions" | "tips"
 >;
 
 /** Where each part of the recipe came from on the page, by line index. */
@@ -309,9 +310,9 @@ export async function readPage(
   const detailAnswers = [
     answer(
       "return_details",
-      "Return your answer: the recipe's yield and times, as the page states them.",
+      "Return your answer: how many the recipe serves, and its times, as the page states them.",
       z.strictObject({
-        yields: z.string().nullish().describe('How much it makes, like "12 muffins"'),
+        servings: z.string().nullish().describe('How many people it serves, like "4" or "6 to 8". Leave it out if the page doesn\'t say'),
         prepMinutes: minutes.describe("Preparation time in minutes"),
         cookMinutes: minutes.describe("Cooking or baking time in minutes"),
         totalMinutes: minutes.describe("Total time in minutes, only if the page states a total"),
@@ -388,7 +389,7 @@ export async function readPage(
     const recipe: PageRecipe = {
       ...partsToRecipe(source),
       title: name,
-      yields: details?.yields?.trim() || null,
+      servings: servingsFrom(details?.servings),
       prepMinutes: details?.prepMinutes ?? null,
       cookMinutes: details?.cookMinutes ?? null,
       totalMinutes: details?.totalMinutes ?? null,

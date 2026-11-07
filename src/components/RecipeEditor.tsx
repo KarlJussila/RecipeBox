@@ -2,7 +2,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { formatMinutes, parseDuration } from "../lib/extract/duration";
-import { tidyTitle } from "../lib/extract/text";
+import { servingsFrom, tidyTitle } from "../lib/extract/text";
 import { clean } from "../lib/page-lines";
 import { partsToRecipe } from "../lib/source-page";
 import { emptyRecipe, type Recipe, type Section } from "../lib/types";
@@ -147,7 +147,7 @@ export function RecipeEditor({
         cookMinutes: cook,
         totalMinutes: parseDuration(times.total) ?? (prep || cook ? (prep ?? 0) + (cook ?? 0) : null),
         sourceUrl: recipe.sourceUrl?.trim() || null,
-        yields: recipe.yields?.trim() || null,
+        servings: servingsFrom(recipe.servings),
       });
       for (const tag of saved.tags) {
         if (newCategories[tag]) await api.setTagCategory(tag, newCategories[tag]);
@@ -302,8 +302,8 @@ export function RecipeEditor({
 
             <FormSection title="Details">
               <div className="grid gap-5 @2xl:grid-cols-2">
-                <Field label="Makes">
-                  <Input value={recipe.yields ?? ""} onChange={(e) => set({ yields: e.target.value })} placeholder="4 servings" />
+                <Field label="Serves">
+                  <Input value={recipe.servings ?? ""} onChange={(e) => set({ servings: e.target.value })} placeholder="4" />
                 </Field>
                 <Field label="Prep time">
                   <Input value={times.prep} onChange={(e) => setTimes({ ...times, prep: e.target.value })} placeholder="15 min" />
