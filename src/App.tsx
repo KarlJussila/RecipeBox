@@ -148,28 +148,43 @@ export default function App() {
     [finishImport],
   );
 
-  // Pages sent from the browser extension.
+  // Pages sent from the browser extension. A page can arrive while the last batch is
+  // still being saved, after the queue was last checked, so a call that finds the loop
+  // busy has it check once more before stopping; otherwise that page would wait for
+  // the next one to arrive. The listener stays put for the app's whole life, so no
+  // arrival falls between one listener and the next.
+  const finishImportRef = useRef(finishImport);
+  finishImportRef.current = finishImport;
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
   useEffect(() => {
     let running = false;
+    let again = false;
     const drain = async () => {
-      if (running) return;
+      if (running) {
+        again = true;
+        return;
+      }
       running = true;
       try {
-        for (let batch = await api.takePendingImports(); batch.length; batch = await api.takePendingImports()) {
-          for (const request of batch) {
-            const progress = toast({ message: "Saving recipe…", tone: "info", busy: true }, 0);
-            let result: ImportResult;
-            try {
-              result = await importHtml(request.html, request.url, effectiveLlm(settingsRef.current.llm));
-            } catch (e) {
-              result = { status: "error", message: String(e) };
+        do {
+          again = false;
+          for (let batch = await api.takePendingImports(); batch.length; batch = await api.takePendingImports()) {
+            for (const request of batch) {
+              const progress = toastRef.current({ message: "Saving recipe…", tone: "info", busy: true }, 0);
+              let result: ImportResult;
+              try {
+                result = await importHtml(request.html, request.url, effectiveLlm(settingsRef.current.llm));
+              } catch (e) {
+                result = { status: "error", message: String(e) };
+              }
+              await api.resolveImport(request.id, result);
+              progress.dismiss();
+              if (result.status === "error") toastRef.current({ message: result.message, tone: "error" }, 8000);
+              else await finishImportRef.current(result);
             }
-            await api.resolveImport(request.id, result);
-            progress.dismiss();
-            if (result.status === "error") toast({ message: result.message, tone: "error" }, 8000);
-            else await finishImport(result);
           }
-        }
+        } while (again);
       } finally {
         running = false;
       }
@@ -177,7 +192,7 @@ export default function App() {
     void drain();
     const unlisten = listen("import-requested", () => void drain());
     return () => void unlisten.then((fn) => fn());
-  }, [finishImport, toast]);
+  }, []);
 
   // Pasting or dropping a link anywhere (outside a text field) imports it.
   useEffect(() => {
