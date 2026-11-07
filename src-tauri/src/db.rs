@@ -77,7 +77,7 @@ const STARTER_TAGS: &[(&str, &[&str])] = &[
     (
         "Dish",
         &[
-            "Main Course", "Side Dish", "Soup", "Stew", "Salad", "Sandwich", "Casserole", "Breakfast", "Appetizer", "Snack",
+            "Main Course", "Side Dish", "Soup", "Stew", "Curry", "Salad", "Sandwich", "Casserole", "Breakfast", "Appetizer", "Snack",
             "Bread", "Sauce", "Drink", "Dessert", "Cake", "Cookies", "Pie",
         ],
     ),
@@ -85,7 +85,7 @@ const STARTER_TAGS: &[(&str, &[&str])] = &[
         "Ingredient",
         &[
             "Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Cheese", "Potatoes", "Spinach",
-            "Broccoli", "Asparagus", "Green Beans", "Squash", "Tomatoes", "Mushrooms", "Fruit", "Nuts", "Chocolate",
+            "Broccoli", "Asparagus", "Green Beans", "Squash", "Pumpkin", "Zucchini", "Tomatoes", "Mushrooms", "Fruit", "Nuts", "Chocolate",
         ],
     ),
     (
