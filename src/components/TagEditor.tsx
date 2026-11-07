@@ -1,5 +1,5 @@
 import { ArrowLeft, ChevronRight, Plus, X } from "lucide-react";
-import { type CSSProperties, type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { headlineCase } from "../lib/extract/text";
 import { CATEGORY_NAMES, OTHER, TAG_CATEGORIES } from "../lib/tags";
 import { CATEGORY_ICONS, cx, Spinner } from "./ui";
@@ -10,79 +10,23 @@ const EXAMPLES: Record<string, string> = {
   [OTHER]: "Anything else",
 };
 
-const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-/** How far the tabs overlap, matching `-mr-1.5`. */
-const OVERLAP = 6;
-
 /**
  * One divider tab: a trapezoid cut from the card, with a fine edge and a browned rim.
- * It stands a little lower than the divider's edge, so lifting it shows more of it
- * instead of a gap. A pointer brushing across tips it the way the pointer is moving.
+ * Pointing at it lightens it and slides its name aside for the "×" that removes it.
  */
-function Tab({ name, entering, onRemove }: { name: string; entering: boolean; onRemove: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [tilt, setTilt] = useState(0);
-  const [leaving, setLeaving] = useState(false);
-
-  // A new tab opens a space in the row, then slides up into it from behind the divider.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!entering || !el || still()) return;
-    const width = el.offsetWidth;
-    el.animate([{ width: "0px", paddingLeft: "0px", paddingRight: "0px", marginRight: "0px" }, { width: `${width}px` }], {
-      duration: 160,
-      easing: "ease-out",
-    });
-    el.animate([{ translate: "0 100%" }, { translate: "0 100%", offset: 0.4 }, { translate: "0 0" }], {
-      duration: 420,
-      easing: "cubic-bezier(0.2, 0.8, 0.3, 1)",
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const remove = async () => {
-    const el = ref.current;
-    if (leaving) return;
-    if (!el || still()) return onRemove();
-    setLeaving(true);
-    const width = el.offsetWidth;
-    await el.animate([{ translate: "0 0" }, { translate: "0 100%" }], { duration: 180, easing: "ease-in", fill: "forwards" }).finished;
-    await el.animate([{ width: `${width}px` }, { width: "0px", paddingLeft: "0px", paddingRight: "0px", marginRight: `-${OVERLAP}px` }], {
-      duration: 150,
-      easing: "ease-in-out",
-      fill: "forwards",
-    }).finished;
-    onRemove();
-  };
-
-  const brush = (e: MouseEvent) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const fromLeft = e.movementX !== 0 ? e.movementX > 0 : e.clientX < r.left + r.width / 2;
-    setTilt(fromLeft ? 1.6 : -1.6);
-  };
-
+function Tab({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
-    <div
-      ref={ref}
-      onMouseEnter={brush}
-      onMouseLeave={() => setTilt(0)}
-      style={{ "--tilt": `${tilt}deg` } as CSSProperties}
-      className={cx(
-        "group/tab tab-cut relative -mr-1.5 flex h-[38px] shrink-0 items-start px-[22px] pt-[10px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft",
-        "origin-bottom transition-transform duration-200 ease-out hover:z-10 hover:-translate-y-[3px] hover:rotate-(--tilt)",
-        leaving && "pointer-events-none",
-      )}
-    >
-      {/* Pointing at the tab slides its name aside for the "×" that removes it. */}
-      <span className="transition-transform duration-200 ease-out group-focus-within/tab:-translate-x-[7px] group-hover/tab:-translate-x-[7px]">
+    <div className="group/tab tab-cut relative -mr-1.5 flex h-[30px] shrink-0 items-start px-[22px] pt-[9px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft transition-colors duration-150 hover:text-ink">
+      {/* Moved with `left` rather than a transform, which would put it on its own layer. */}
+      <span className="relative left-0 transition-[left] duration-200 ease-out group-focus-within/tab:-left-[7px] group-hover/tab:-left-[7px]">
         {name}
       </span>
       <button
         type="button"
-        onClick={remove}
+        onClick={onRemove}
         aria-label={`Remove tag ${name}`}
         title="Remove this tag"
-        className="absolute top-[9px] right-[12px] flex size-4 items-center justify-center text-ink-faint opacity-0 transition-opacity duration-200 group-hover/tab:opacity-100 hover:text-ink focus-visible:opacity-100"
+        className="absolute top-[8px] right-[12px] flex size-4 items-center justify-center text-ink-faint opacity-0 transition-opacity duration-200 group-hover/tab:opacity-100 hover:text-ink focus-visible:opacity-100"
       >
         <X className="size-[9px]" strokeWidth={2.25} />
       </button>
@@ -109,14 +53,6 @@ export function TagEditor({
   /** Shown while tags are being chosen for the recipe. */
   busy?: boolean;
 }) {
-  // Tabs already on the divider when it's first drawn don't slide in.
-  const shown = useRef<Set<string> | null>(null);
-  if (shown.current === null) shown.current = new Set(tags);
-  const entering = (t: string) => {
-    const fresh = !shown.current!.has(t);
-    shown.current!.add(t);
-    return fresh;
-  };
   const addRef = useRef<HTMLButtonElement>(null);
   const [menuLeft, setMenuLeft] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -196,11 +132,10 @@ export function TagEditor({
 
   return (
     <div className="no-print relative mt-22 mb-14 h-px bg-edge print:mt-14">
-      {/* Clipped at the divider's edge, so tabs can slide up from behind it. */}
-      <div className="absolute bottom-0 left-6 flex items-end [clip-path:inset(-3rem_-3rem_0_-3rem)]">
-        <div className="-mb-2 flex items-end">
+      <div className="absolute bottom-0 left-6 flex items-end">
+        <div className="flex items-end">
           {tags.map((t) => (
-            <Tab key={t} name={t} entering={entering(t)} onRemove={() => onChange(tags.filter((x) => x !== t))} />
+            <Tab key={t} name={t} onRemove={() => onChange(tags.filter((x) => x !== t))} />
           ))}
           <button
             ref={addRef}
@@ -211,8 +146,8 @@ export function TagEditor({
             aria-label="Add a tag"
             title="Add a tag"
             className={cx(
-              "tab-cut tab-plain relative flex h-[38px] shrink-0 items-start px-[18px] pt-[9px] transition-[translate,color] duration-200 ease-out hover:-translate-y-[3px] hover:text-ink-soft",
-              adding ? "-translate-y-[3px] text-ink-soft" : "text-ink-faint",
+              "tab-cut relative flex h-[30px] shrink-0 items-start px-[18px] pt-[7px] transition-colors duration-150 hover:text-ink",
+              adding ? "text-ink" : "text-ink-soft",
             )}
           >
             <Plus className="size-4" strokeWidth={2.25} />
