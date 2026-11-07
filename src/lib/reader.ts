@@ -12,14 +12,14 @@ import { runJob, tool, type ToolReply } from "./llm";
 import { PageLines, flat } from "./page-lines";
 import type { ReadablePage } from "./extract/page";
 import { servingsFrom } from "./extract/text";
-import { markHeadings, partsToRecipe, type LinePart, type SourcePage } from "./source-page";
+import { layOut } from "./layout";
 import type { RecipeDraft } from "./types";
 
 const INSTRUCTIONS = "You read recipes from web pages for a home cook's recipe collection.";
 
 type PageRecipe = Pick<
   RecipeDraft,
-  "title" | "description" | "servings" | "prepMinutes" | "cookMinutes" | "totalMinutes" | "ingredients" | "instructions" | "tips"
+  "title" | "description" | "servings" | "prepMinutes" | "cookMinutes" | "totalMinutes" | "ingredients" | "instructions" | "tips" | "unused"
 >;
 
 /** Where each part of the recipe came from on the page, by line index. */
@@ -32,8 +32,6 @@ export interface Reading {
   stepLines: number[];
   tipLines: number[];
   descriptionLine: number | null;
-  /** The page's lines and what each became, to keep with the recipe. */
-  source: SourcePage;
 }
 
 // ---------------------------------------------------------------------------
@@ -379,35 +377,28 @@ export async function readPage(
       detailAnswers,
     );
 
-    const parts: (LinePart | null)[] = lines.map(() => null);
-    for (const i of ingredientLines) parts[i] = "ingredient";
-    for (const i of stepLines) parts[i] = "step";
-    for (const i of tipLines) parts[i] = "tip";
-    if (descriptionLine !== null) parts[descriptionLine] = "description";
-    const source: SourcePage = markHeadings({ lines, parts, titleLine, quotes });
-
     const recipe: PageRecipe = {
-      ...partsToRecipe(source),
+      ...layOut({ lines, ingredientLines, stepLines, tipLines, descriptionLine, titleLine, quotes }),
       title: name,
       servings: servingsFrom(details?.servings),
       prepMinutes: details?.prepMinutes ?? null,
       cookMinutes: details?.cookMinutes ?? null,
       totalMinutes: details?.totalMinutes ?? null,
     };
-    return { recipe, lines, ingredientLines, ingredientParts, stepLines, tipLines, descriptionLine, source };
+    return { recipe, lines, ingredientLines, ingredientParts, stepLines, tipLines, descriptionLine };
   } finally {
     questions.finish();
   }
 }
 
-/** Reads a recipe from a page's text, with the page it came from, or returns null when the page has none. */
+/** Reads a recipe from a page's text, or returns null when the page has none. */
 export async function extractRecipe(
   llm: LlmSettings,
   page: ReadablePage,
   title: string | null,
   url: string | null,
-): Promise<{ recipe: PageRecipe; source: SourcePage } | null> {
+): Promise<PageRecipe | null> {
   const reading = await readPage(llm, page.text, title, url, { links: page.links });
   if (!reading || (reading.recipe.ingredients.length === 0 && reading.recipe.instructions.length === 0)) return null;
-  return { recipe: reading.recipe, source: reading.source };
+  return reading.recipe;
 }

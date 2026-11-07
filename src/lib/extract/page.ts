@@ -122,6 +122,7 @@ export function extractFromHtml(html: string, url: string | null): Extraction {
       ingredients: [],
       instructions: [],
       tips: [],
+      unused: "",
       keywords: [],
       categories: [],
       cuisines: [],

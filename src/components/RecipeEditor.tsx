@@ -2,39 +2,12 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { formatMinutes, parseDuration } from "../lib/extract/duration";
-import { servingsFrom, tidyTitle } from "../lib/extract/text";
-import { clean } from "../lib/page-lines";
-import { choosePart, partsToRecipe, type HeadedPart } from "../lib/source-page";
-import { emptyRecipe, type Recipe, type Section } from "../lib/types";
+import { servingsFrom } from "../lib/extract/text";
+import { emptyRecipe, type Recipe } from "../lib/types";
+import { fromBuckets, RecipeBoard, toBuckets, type Buckets } from "./RecipeBoard";
 import { RecipeImage } from "./RecipeImage";
-import { RecipePreview, SourcePageView, type LineChoice } from "./SourcePageView";
 import { TagEditor } from "./TagEditor";
 import { Button, Field, Input, Textarea, cx, useToast } from "./ui";
-
-// In the editor, sections are plain text: one item per line, and a line ending in
-// a colon starts a new section ("For the sauce:").
-export function sectionsToText(sections: Section[]): string {
-  return sections
-    .map((s) => [s.heading && `${s.heading}:`, ...s.items].filter(Boolean).join("\n"))
-    .join("\n\n");
-}
-
-export function textToSections(text: string): Section[] {
-  const sections: Section[] = [];
-  let current: Section = { heading: "", items: [] };
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (line.endsWith(":") && line.length <= 60) {
-      if (current.items.length || current.heading) sections.push(current);
-      current = { heading: line.slice(0, -1).trim(), items: [] };
-    } else {
-      current.items.push(line);
-    }
-  }
-  sections.push(current);
-  return sections.filter((s) => s.items.length > 0);
-}
 
 function minutesText(minutes: number | null): string {
   return minutes === null ? "" : formatMinutes(minutes);
@@ -52,28 +25,20 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
 export function RecipeEditor({
   id,
   allTags,
-  startOnPage = false,
   onCancel,
   onSaved,
 }: {
   id: string | null;
   allTags: string[];
-  /** Open on the page the recipe was read from, when it has one. */
-  startOnPage?: boolean;
   onCancel: () => void;
   onSaved: (id: string) => void;
 }) {
   const toast = useToast();
   const [recipe, setRecipe] = useState<Recipe | null>(id ? null : emptyRecipe());
-  const [ingredients, setIngredients] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [tips, setTips] = useState("");
+  const [buckets, setBuckets] = useState<Buckets>(() => toBuckets(emptyRecipe()));
   const [times, setTimes] = useState({ prep: "", cook: "", total: "" });
   const [saving, setSaving] = useState(false);
   const [newCategories, setNewCategories] = useState<Record<string, string>>({});
-  const [tab, setTab] = useState<"recipe" | "page">(startOnPage ? "page" : "recipe");
-  /** The text of the line last made part of the recipe, to point out in the preview. */
-  const [changed, setChanged] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -81,9 +46,7 @@ export function RecipeEditor({
     api.getRecipe(id).then((r) => {
       if (!r) return;
       setRecipe(r);
-      setIngredients(sectionsToText(r.ingredients));
-      setInstructions(sectionsToText(r.instructions));
-      setTips(sectionsToText(r.tips));
+      setBuckets(toBuckets(r));
       setTimes({ prep: minutesText(r.prepMinutes), cook: minutesText(r.cookMinutes), total: minutesText(r.totalMinutes) });
     });
   }, [id]);
@@ -91,25 +54,8 @@ export function RecipeEditor({
   if (!recipe) return null;
   const set = (patch: Partial<Recipe>) => setRecipe({ ...recipe, ...patch });
 
-  // A line of the page changed part: the recipe's parts are made again from the page's lines.
-  const choose = (line: number, choice: LineChoice, heading?: HeadedPart) => {
-    const source = recipe.sourcePage!;
-    if (choice === "title") {
-      set({ title: tidyTitle(clean(source.lines[line])), sourcePage: { ...source, titleLine: line } });
-      return;
-    }
-    const sourcePage = choosePart(source, line, choice, heading);
-    if (sourcePage === source) return;
-    setChanged(choice && choice !== "heading" ? clean(source.lines[line]) : null);
-    const rebuilt = partsToRecipe(sourcePage);
-    const changed = [heading ? "heading" : source.parts[line], choice];
-    if (changed.some((p) => p === "heading" || p === "ingredient" || p === "step" || p === "tip")) {
-      setIngredients(sectionsToText(rebuilt.ingredients));
-      setInstructions(sectionsToText(rebuilt.instructions));
-      setTips(sectionsToText(rebuilt.tips));
-    }
-    set({ sourcePage, ...(changed.includes("description") ? { description: rebuilt.description } : {}) });
-  };
+  const toDescription = (text: string) =>
+    setRecipe((r) => r && { ...r, description: r.description.trim() ? `${r.description.trim()}\n\n${text}` : text });
 
   const useImageBytes = async (bytes: ArrayBuffer) => {
     try {
@@ -127,9 +73,7 @@ export function RecipeEditor({
       const saved = await api.saveRecipe({
         ...recipe,
         title: recipe.title.trim() || "Untitled recipe",
-        ingredients: textToSections(ingredients),
-        instructions: textToSections(instructions),
-        tips: textToSections(tips),
+        ...fromBuckets(buckets),
         prepMinutes: prep,
         cookMinutes: cook,
         totalMinutes: parseDuration(times.total) ?? (prep || cook ? (prep ?? 0) + (cook ?? 0) : null),
@@ -148,8 +92,7 @@ export function RecipeEditor({
 
   return (
     <div
-      // The page and the recipe beside it scroll on their own, so the editor itself doesn't.
-      className={cx("paper-grain scrollbar-quiet @container h-full", tab === "page" ? "flex flex-col overflow-hidden" : "overflow-y-auto")}
+      className="paper-grain scrollbar-quiet @container h-full overflow-y-auto"
       onPaste={(e) => {
         const file = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
         if (file) {
@@ -175,177 +118,105 @@ export function RecipeEditor({
       </header>
 
       <form
-        className={cx("mx-auto w-full animate-fade-in px-10 pt-8", tab === "page" ? "flex min-h-0 max-w-6xl flex-1 flex-col" : "max-w-4xl pb-24")}
+        className={cx("mx-auto w-full animate-fade-in px-10 pt-8 pb-24", buckets.unused.length > 0 ? "max-w-6xl" : "max-w-4xl")}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
-        {recipe.sourcePage && (
-          <div role="tablist" aria-label="Show" className="mb-8 inline-flex self-start rounded-full bg-paper-deep p-1 ring-1 ring-line">
-            {(
-              [
-                ["recipe", "Recipe"],
-                ["page", "The page it came from"],
-              ] as const
-            ).map(([name, label]) => (
-              <button
-                key={name}
-                type="button"
-                role="tab"
-                aria-selected={tab === name}
-                onClick={() => setTab(name)}
-                className={cx(
-                  "h-9 rounded-full px-4 text-[15px] font-semibold transition-colors",
-                  tab === name ? "bg-card text-ink shadow-soft" : "text-ink-soft hover:text-ink",
+        <FormSection title="Basics">
+          <Field label="Title">
+            <Input
+              value={recipe.title}
+              onChange={(e) => set({ title: e.target.value })}
+              autoFocus={!id}
+              placeholder="Grandma’s apple pie"
+              className="h-12 font-serif text-xl"
+            />
+          </Field>
+          <Field label="Description">
+            <Textarea value={recipe.description} onChange={(e) => set({ description: e.target.value })} rows={3} />
+          </Field>
+          <Field label="Photo" hint="Drop a picture here, paste one, or choose a file.">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
+                if (file) void file.arrayBuffer().then(useImageBytes);
+              }}
+              className="flex items-center gap-5"
+            >
+              <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-48 shrink-0 rounded-2xl shadow-soft ring-1 ring-black/5" />
+              <div className="flex flex-col gap-2">
+                <Button icon={<ImagePlus className="size-4" />} onClick={() => fileRef.current?.click()}>
+                  {recipe.image ? "Replace photo" : "Choose photo"}
+                </Button>
+                {recipe.image && (
+                  <Button variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => set({ image: null })}>
+                    Remove photo
+                  </Button>
                 )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {tab === "page" && recipe.sourcePage ? (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-10 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <div className="scrollbar-quiet overflow-y-auto pb-16">
-              <SourcePageView source={recipe.sourcePage} onChoose={choose} />
-            </div>
-            <aside className="scrollbar-quiet hidden overflow-y-auto pb-16 @4xl:block">
-              <RecipePreview
-                title={recipe.title}
-                ingredients={textToSections(ingredients)}
-                steps={textToSections(instructions)}
-                tips={textToSections(tips)}
-                changed={changed}
-              />
-            </aside>
-          </div>
-        ) : (
-          <>
-            <FormSection title="Basics">
-              <Field label="Title">
-                <Input
-                  value={recipe.title}
-                  onChange={(e) => set({ title: e.target.value })}
-                  autoFocus={!id}
-                  placeholder="Grandma’s apple pie"
-                  className="h-12 font-serif text-xl"
-                />
-              </Field>
-              <Field label="Description">
-                <Textarea value={recipe.description} onChange={(e) => set({ description: e.target.value })} rows={3} />
-              </Field>
-              <Field label="Photo" hint="Drop a picture here, paste one, or choose a file.">
-                <div
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
-                    if (file) void file.arrayBuffer().then(useImageBytes);
-                  }}
-                  className="flex items-center gap-5"
-                >
-                  <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-48 shrink-0 rounded-2xl shadow-soft ring-1 ring-black/5" />
-                  <div className="flex flex-col gap-2">
-                    <Button icon={<ImagePlus className="size-4" />} onClick={() => fileRef.current?.click()}>
-                      {recipe.image ? "Replace photo" : "Choose photo"}
-                    </Button>
-                    {recipe.image && (
-                      <Button variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => set({ image: null })}>
-                        Remove photo
-                      </Button>
-                    )}
-                  </div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void file.arrayBuffer().then(useImageBytes);
-                      e.target.value = "";
-                    }}
-                  />
-                </div>
-              </Field>
-              <Field label="Tags">
-                <TagEditor tags={recipe.tags} allTags={allTags} onChange={(tags, categories) => {
-                    set({ tags, needsTags: false });
-                    if (categories) setNewCategories({ ...newCategories, ...categories });
-                  }}
-                />
-              </Field>
-            </FormSection>
-
-            <FormSection title="Details">
-              <div className="grid gap-5 @2xl:grid-cols-2">
-                <Field label="Serves">
-                  <Input value={recipe.servings ?? ""} onChange={(e) => set({ servings: e.target.value })} placeholder="4" />
-                </Field>
-                <Field label="Prep time">
-                  <Input value={times.prep} onChange={(e) => setTimes({ ...times, prep: e.target.value })} placeholder="15 min" />
-                </Field>
-                <Field label="Cook time">
-                  <Input value={times.cook} onChange={(e) => setTimes({ ...times, cook: e.target.value })} placeholder="1 hr" />
-                </Field>
-                <Field label="Total time">
-                  <Input
-                    value={times.total}
-                    onChange={(e) => setTimes({ ...times, total: e.target.value })}
-                    placeholder="Prep + cook if left empty"
-                  />
-                </Field>
               </div>
-              <Field label="Original recipe link">
-                <Input
-                  value={recipe.sourceUrl ?? ""}
-                  onChange={(e) => set({ sourceUrl: e.target.value })}
-                  placeholder="https://"
-                  type="url"
-                />
-              </Field>
-            </FormSection>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void file.arrayBuffer().then(useImageBytes);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          </Field>
+          <Field label="Tags">
+            <TagEditor tags={recipe.tags} allTags={allTags} onChange={(tags, categories) => {
+                set({ tags, needsTags: false });
+                if (categories) setNewCategories({ ...newCategories, ...categories });
+              }}
+            />
+          </Field>
+        </FormSection>
 
-            <FormSection title="Ingredients">
-              <Field label="One ingredient per line" hint="To group ingredients, put a heading on its own line ending in a colon, like “For the sauce:”.">
-                <Textarea
-                  value={ingredients}
-                  onChange={(e) => setIngredients(e.target.value)}
-                  rows={Math.max(8, ingredients.split("\n").length + 1)}
-                  placeholder={"2 cups flour\n1 teaspoon salt\n…"}
-                />
-              </Field>
-            </FormSection>
+        <FormSection title="Details">
+          <div className="grid gap-5 @2xl:grid-cols-2">
+            <Field label="Serves">
+              <Input value={recipe.servings ?? ""} onChange={(e) => set({ servings: e.target.value })} placeholder="4" />
+            </Field>
+            <Field label="Prep time">
+              <Input value={times.prep} onChange={(e) => setTimes({ ...times, prep: e.target.value })} placeholder="15 min" />
+            </Field>
+            <Field label="Cook time">
+              <Input value={times.cook} onChange={(e) => setTimes({ ...times, cook: e.target.value })} placeholder="1 hr" />
+            </Field>
+            <Field label="Total time">
+              <Input
+                value={times.total}
+                onChange={(e) => setTimes({ ...times, total: e.target.value })}
+                placeholder="Prep + cook if left empty"
+              />
+            </Field>
+          </div>
+          <Field label="Original recipe link">
+            <Input
+              value={recipe.sourceUrl ?? ""}
+              onChange={(e) => set({ sourceUrl: e.target.value })}
+              placeholder="https://"
+              type="url"
+            />
+          </Field>
+        </FormSection>
 
-            <FormSection title="Steps">
-              <Field label="One step per line" hint="Headings ending in a colon work here too.">
-                <Textarea
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                  rows={Math.max(8, instructions.split("\n").length + 2)}
-                  placeholder={"Heat the oven to 350°F.\nWhisk the dry ingredients together.\n…"}
-                />
-              </Field>
-            </FormSection>
+        <section className="border-t border-line py-8">
+          <h2 className="mb-6 font-serif text-xl font-semibold tracking-tight">Recipe</h2>
+          <RecipeBoard buckets={buckets} onChange={setBuckets} onToDescription={toDescription} />
+        </section>
 
-            <FormSection title="Tips">
-              <Field label="Notes and tips from the recipe" hint="Shown after the steps, without numbers. Group them under headings like “Do ahead:”.">
-                <Textarea
-                  value={tips}
-                  onChange={(e) => setTips(e.target.value)}
-                  rows={Math.max(4, tips.split("\n").length + 2)}
-                  placeholder={"Do ahead:\nThe dough keeps in the fridge for 3 days."}
-                />
-              </Field>
-            </FormSection>
-
-            <FormSection title="Kitchen notes">
-              <Textarea value={recipe.notes} onChange={(e) => set({ notes: e.target.value })} rows={4} placeholder="Your own notes" />
-            </FormSection>
-          </>
-        )}
+        <FormSection title="Kitchen notes">
+          <Textarea value={recipe.notes} onChange={(e) => set({ notes: e.target.value })} rows={4} placeholder="Your own notes" />
+        </FormSection>
       </form>
     </div>
   );

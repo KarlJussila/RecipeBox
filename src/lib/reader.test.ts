@@ -27,7 +27,7 @@ vi.mock("./api", () => ({
 
 import { findQuote, headingText } from "./page-lines";
 import { readPage } from "./reader";
-import { choosePart, markHeadings, partsToRecipe } from "./source-page";
+import { layOut } from "./layout";
 
 const llm = { provider: "opencode" as const, model: "test/model", baseUrl: "", apiKey: "" };
 beforeEach(() => {
@@ -97,6 +97,7 @@ test.each([true, false])("reads ingredient lists that steps split apart, and kee
       { heading: "Filling", items: ["Cook until thick, then pour into the crust."] },
     ],
     tips: [{ heading: "", items: ["Keeps for three days in the fridge."] }],
+    unused: "Comments\nLovely pie!",
   });
   await settle();
   // Warm, one job takes every question and the last answer ends it; otherwise each answer ends its own.
@@ -243,8 +244,8 @@ test("finds quotes and headings the way pages write them", () => {
   expect(headingText("Mix the flour and salt.")).toBeNull();
 });
 
-test("keeps what each line of the page became, and rebuilds the recipe from it", async () => {
-  const page = "Cookies\nThese are soft.\n- 2 cups flour\n1. Mix and bake.\n1. Cool on a rack.\nTip: They freeze well.";
+test("keeps the lines the reader left out near the recipe, for the cook to move in", async () => {
+  const page = "Cookies\nThese are soft.\n- 2 cups flour\n1. Mix and bake.\n1. Cool on a rack.\nTip: They freeze well.\n### Comments\nYum!";
   model({
     return_recipe_names: [{ names: ["Cookies"] }],
     return_ingredients: [{ ingredients: ["2 cups flour"] }],
@@ -252,53 +253,43 @@ test("keeps what each line of the page became, and rebuilds the recipe from it",
     return_note_range: [{ first: "Tip: They freeze", last: "Tip: They freeze" }],
     return_description: [{ opening: "These are soft" }],
   });
-  const reading = await readPage(llm, page, null, null);
-  const source = reading!.source;
-  expect(source.titleLine).toBe(0);
-  expect(source.parts).toEqual([null, "description", "ingredient", "step", null, "tip"]);
-
-  source.parts[4] = "step";
-  const fixed = partsToRecipe(source);
-  expect(fixed.instructions).toEqual([{ heading: "", items: ["Mix and bake.", "Cool on a rack."] }]);
-  expect(fixed.description).toBe("These are soft.");
+  const recipe = (await readPage(llm, page, null, null))!.recipe;
+  expect(recipe.description).toBe("These are soft.");
+  expect(recipe.instructions).toEqual([{ heading: "", items: ["Mix and bake."] }]);
+  // The comments start at a heading, so they're left out.
+  expect(recipe.unused).toBe("Cool on a rack.");
 });
 
-test("marks the headings the recipe uses once, and puts steps under one only when each part has its own steps", () => {
+const lay = (lines: string[], parts: Partial<Record<"ingredientLines" | "stepLines" | "tipLines", number[]>>, titleLine: number | null = null) =>
+  layOut({ lines, ingredientLines: [], stepLines: [], tipLines: [], descriptionLine: null, titleLine, quotes: [], ...parts });
+
+test("puts steps under a heading only when each part has its own steps", () => {
   // Like Mom's Apple Cake: two ingredient parts, then all the steps.
-  const cake = markHeadings({
-    lines: ["**Apple Cake**", "**For the apples**", "- 6 apples", "**For the cake**", "- 2 cups flour", "1. Toss the apples.", "1. Bake."],
-    parts: [null, null, "ingredient", null, "ingredient", "step", "step"],
-    titleLine: 0,
-    quotes: [],
-  });
-  expect(cake.headings).toEqual([
-    { line: 1, of: "ingredient" },
-    { line: 3, of: "ingredient" },
-  ]);
-  expect(partsToRecipe(cake).ingredients.map((s) => s.heading)).toEqual(["For the apples", "For the cake"]);
-  expect(partsToRecipe(cake).instructions).toEqual([{ heading: "", items: ["Toss the apples.", "Bake."] }]);
-
-  // A heading marked as not used no longer splits the ingredients.
-  const one = choosePart(cake, 3, null, "ingredient");
-  expect(partsToRecipe(one).ingredients).toEqual([{ heading: "For the apples", items: ["6 apples", "2 cups flour"] }]);
-  // And marked again, it heads what follows it.
-  expect(choosePart(one, 3, "heading").headings).toEqual(cake.headings.slice(0, 1).concat({ line: 3, of: "ingredient" }));
+  const cake = lay(
+    ["**Apple Cake**", "**For the apples**", "- 6 apples", "**For the cake**", "- 2 cups flour", "1. Toss the apples.", "1. Bake."],
+    { ingredientLines: [2, 4], stepLines: [5, 6] },
+    0,
+  );
+  expect(cake.ingredients.map((s) => s.heading)).toEqual(["For the apples", "For the cake"]);
+  expect(cake.instructions).toEqual([{ heading: "", items: ["Toss the apples.", "Bake."] }]);
+  expect(cake.unused).toBe("");
 });
 
-test("keeps a heading over a part's ingredients and its steps twice, so either can be unmarked", () => {
-  const pie = markHeadings({
-    lines: ["### Crust", "- 1 cup flour", "1. Roll it out.", "### Filling", "- 2 eggs", "1. Whisk the eggs."],
-    parts: [null, "ingredient", "step", null, "ingredient", "step"],
-    titleLine: null,
-    quotes: [],
+test("puts a heading over a part's ingredients and its steps in both", () => {
+  const pie = lay(["### Crust", "- 1 cup flour", "1. Roll it out.", "### Filling", "- 2 eggs", "1. Whisk the eggs."], {
+    ingredientLines: [1, 4],
+    stepLines: [2, 5],
   });
-  expect(pie.headings).toEqual([
-    { line: 0, of: "ingredient" },
-    { line: 3, of: "ingredient" },
-    { line: 0, of: "step" },
-    { line: 3, of: "step" },
+  expect(pie.ingredients.map((s) => s.heading)).toEqual(["Crust", "Filling"]);
+  expect(pie.instructions).toEqual([
+    { heading: "Crust", items: ["Roll it out."] },
+    { heading: "Filling", items: ["Whisk the eggs."] },
   ]);
-  const steps = partsToRecipe(choosePart(pie, 3, null, "step")).instructions;
-  expect(steps).toEqual([{ heading: "Crust", items: ["Roll it out.", "Whisk the eggs."] }]);
-  expect(partsToRecipe(choosePart(pie, 3, null, "step")).ingredients.map((s) => s.heading)).toEqual(["Crust", "Filling"]);
+});
+
+test("keeps unused headings as headings, and stops after the recipe at a heading or fifteen lines", () => {
+  const lines = ["Soup", "### Extras", "Serve with bread.", "- 1 onion", "1. Simmer.", ...Array.from({ length: 20 }, (_, i) => `Line ${i}`)];
+  const soup = lay(lines, { ingredientLines: [3], stepLines: [4] }, 0);
+  expect(soup.unused.split("\n").slice(0, 2)).toEqual(["# Extras", "Serve with bread."]);
+  expect(soup.unused.split("\n").at(-1)).toBe("Line 14");
 });

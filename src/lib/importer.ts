@@ -3,7 +3,7 @@ import { extractFromHtml, readablePage } from "./extract/page";
 import { tidyTitle } from "./extract/text";
 import { llmConfigured, suggestTags } from "./llm";
 import { extractRecipe } from "./reader";
-import type { SourcePage } from "./source-page";
+import { sectionsToBucket } from "./buckets";
 import { splitTips } from "./steps";
 import { emptyRecipe, type Recipe } from "./types";
 
@@ -32,18 +32,16 @@ function stripTracking(url: string): string {
  */
 export async function importHtml(html: string, pageUrl: string, llm: LlmSettings | undefined): Promise<ImportResult> {
   const { draft, complete, doc } = extractFromHtml(html, pageUrl);
-  let sourcePage: SourcePage | null = null;
 
   if (!complete && llmConfigured(llm)) {
     try {
       const found = await extractRecipe(llm, readablePage(doc), draft.title || null, draft.sourceUrl);
       if (found) {
         Object.assign(draft, {
-          ...found.recipe,
-          title: found.recipe.title || draft.title,
-          description: found.recipe.description || draft.description,
+          ...found,
+          title: found.title || draft.title,
+          description: found.description || draft.description,
         });
-        sourcePage = found.source;
       }
     } catch (e) {
       console.warn("LLM extraction failed", e);
@@ -81,13 +79,13 @@ export async function importHtml(html: string, pageUrl: string, llm: LlmSettings
     prepMinutes: draft.prepMinutes,
     cookMinutes: draft.cookMinutes,
     totalMinutes: draft.totalMinutes,
-    ingredients: draft.ingredients,
-    instructions: steps,
-    tips: [...tips, ...draft.tips],
+    ingredients: sectionsToBucket(draft.ingredients),
+    instructions: sectionsToBucket(steps),
+    tips: sectionsToBucket([...tips, ...draft.tips]),
+    unused: draft.unused,
     // Site categories and cuisines are good search terms even when they aren't tags.
     keywords: [...new Set([...draft.keywords, ...draft.categories, ...draft.cuisines])],
     needsTags: true,
-    sourcePage,
   };
   const saved = await api.saveRecipe(recipe);
   return { status: "saved", id: saved.id, title: saved.title };

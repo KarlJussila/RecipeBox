@@ -28,6 +28,6 @@ test("accepts all fitting existing tags without a count or category requirement"
     bridge.listener!({ payload: { job: job.id, call: "1", name: "set_tags", arguments: { tags: tags.map((t) => t.name) } } });
     return "";
   });
-  const recipe = { title: "Cake", description: "", ingredients: [], instructions: [], keywords: [] };
+  const recipe = { title: "Cake", description: "", ingredients: "", instructions: "", keywords: [] };
   expect(await suggestTags(llm, recipe, tags)).toHaveLength(6);
 });

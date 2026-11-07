@@ -1,6 +1,4 @@
-import type { SourcePage } from "./source-page";
-
-/** A titled group of ingredient lines or instruction steps. Heading may be empty. */
+/** A titled group of ingredient lines or instruction steps, as a page gives them. Heading may be empty. */
 export interface Section {
   heading: string;
   items: string[];
@@ -19,10 +17,14 @@ export interface Recipe {
   prepMinutes: number | null;
   cookMinutes: number | null;
   totalMinutes: number | null;
-  ingredients: Section[];
-  instructions: Section[];
+  // The recipe's parts, each as bucket text (see buckets.ts): one item per line, and
+  // "# " before a heading.
+  ingredients: string;
+  instructions: string;
   /** Notes and tips from the recipe itself ("Do ahead", "Storage", ...), apart from the steps. */
-  tips: Section[];
+  tips: string;
+  /** Lines from around the recipe on its page that the reader didn't use; not shown with the recipe. */
+  unused: string;
   /** The cook's own notes. */
   notes: string;
   keywords: string[];
@@ -31,8 +33,6 @@ export interface Recipe {
   tags: string[];
   /** True until the LLM has chosen tags for an imported recipe. */
   needsTags: boolean;
-  /** The page the AI read the recipe from, for comparing the recipe with it. */
-  sourcePage: SourcePage | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +67,8 @@ export interface RecipeDraft {
   ingredients: Section[];
   instructions: Section[];
   tips: Section[];
+  /** Lines from around the recipe the AI reader didn't use, as bucket text. */
+  unused: string;
   keywords: string[];
   /** schema.org recipeCategory / recipeCuisine values, used for automatic tags. */
   categories: string[];
@@ -86,16 +88,16 @@ export function emptyRecipe(): Recipe {
     prepMinutes: null,
     cookMinutes: null,
     totalMinutes: null,
-    ingredients: [],
-    instructions: [],
-    tips: [],
+    ingredients: "",
+    instructions: "",
+    tips: "",
+    unused: "",
     notes: "",
     keywords: [],
     rating: null,
     favorite: false,
     tags: [],
     needsTags: false,
-    sourcePage: null,
     createdAt: "",
     updatedAt: "",
   };

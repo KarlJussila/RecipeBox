@@ -11,7 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { z } from "zod";
 import { api, type LlmSettings, type ToolCall } from "./api";
 import { AI_CATEGORY_NAMES, TIME_TAG, type Tag } from "./tags";
-import type { Section } from "./types";
+import { bucketItems } from "./buckets";
 
 export const DEFAULT_OPENCODE_MODEL = "opencode/mimo-v2.6-flash-free";
 export const DEFAULT_LLM: LlmSettings = { provider: "opencode", baseUrl: "", apiKey: "", model: DEFAULT_OPENCODE_MODEL };
@@ -111,8 +111,9 @@ const TagInput = z.strictObject({ tags: z.array(z.string()) });
 export interface TaggableRecipe {
   title: string;
   description: string;
-  ingredients: Section[];
-  instructions: Section[];
+  /** Bucket text, as a recipe keeps it. */
+  ingredients: string;
+  instructions: string;
   keywords: string[];
 }
 
@@ -158,8 +159,8 @@ function tagMessage(recipe: TaggableRecipe, tags: SuggestedTag[]): string {
   const lines = [`Recipe: ${recipe.title}`];
   if (recipe.description) lines.push("", recipe.description);
   if (recipe.keywords.length > 0) lines.push("", `Website keywords: ${recipe.keywords.join(", ")}`);
-  lines.push("", "Ingredients:", ...recipe.ingredients.flatMap((s) => s.items).map((i) => `- ${i}`));
-  const steps = recipe.instructions.flatMap((s) => s.items);
+  lines.push("", "Ingredients:", ...bucketItems(recipe.ingredients).flatMap((i) => (i.heading ? [] : [`- ${i.text}`])));
+  const steps = bucketItems(recipe.instructions).flatMap((i) => (i.heading ? [] : [i.text]));
   if (steps.length > 0) lines.push("", "Steps:", ...steps.map((step, i) => `${i + 1}. ${step}`));
   lines.push("", "Tags you can use:");
   for (const category of AI_CATEGORY_NAMES) {
@@ -171,6 +172,6 @@ function tagMessage(recipe: TaggableRecipe, tags: SuggestedTag[]): string {
 
 /** Tags a tiny made-up recipe, without saving anything, to check the settings work. */
 export async function testConnection(llm: LlmSettings): Promise<void> {
-  const recipe = { title: "Grilled Cheese", description: "", ingredients: [{ heading: "", items: ["bread", "cheddar", "butter"] }], instructions: [], keywords: [] };
+  const recipe = { title: "Grilled Cheese", description: "", ingredients: "bread\ncheddar\nbutter", instructions: "", keywords: [] };
   await suggestTags(llm, recipe, await api.allTags());
 }

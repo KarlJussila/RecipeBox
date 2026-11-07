@@ -233,6 +233,7 @@ export function draftFromSchema(node: Node, page: PageMeta): RecipeDraft {
     ingredients: ingredientSections(node.recipeIngredient ?? node.ingredients),
     instructions: instructionSections(node.recipeInstructions),
     tips: [],
+    unused: "",
     keywords: splitList(node.keywords).filter((k) => !/^\d+$/.test(k)),
     categories: splitList(node.recipeCategory),
     cuisines: splitList(node.recipeCuisine),

@@ -2,6 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, FileSearch, Heart, Pencil, Printer, Trash2 } from "lucide-react";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { bucketSections } from "../lib/buckets";
 import { formatMinutes } from "../lib/extract/duration";
 import { splitAmount } from "../lib/ingredients";
 import type { Tag } from "../lib/tags";
@@ -286,7 +287,7 @@ export function RecipeView({
   tagging: boolean;
   onBack: () => void;
   /** Opens the editor, on the page the recipe came from when `page` is set. */
-  onEdit: (page?: boolean) => void;
+  onEdit: () => void;
   onDeleted: () => void;
   onChanged: () => void;
 }) {
@@ -340,7 +341,9 @@ export function RecipeView({
     recipe.totalMinutes !== null && { label: "Total", value: formatMinutes(recipe.totalMinutes) },
     recipe.servings && { label: "Serves", value: recipe.servings },
   ].filter((s): s is { label: string; value: string } => Boolean(s));
-  const hasSteps = recipe.instructions.some((s) => s.items.length > 0);
+  const ingredients = bucketSections(recipe.ingredients);
+  const steps = bucketSections(recipe.instructions);
+  const hasSteps = steps.length > 0;
 
   // `relative` keeps the ingredients' visually hidden checkboxes positioned inside this
   // scroller; otherwise they hang off the page body and the whole window scrolls.
@@ -367,7 +370,7 @@ export function RecipeView({
         <IconButton label="Delete recipe" onClick={() => setConfirmDelete(true)}>
           <Trash2 className="size-5" />
         </IconButton>
-        <Button icon={<Pencil className="size-4" />} onClick={() => onEdit()} className="ml-2">
+        <Button icon={<Pencil className="size-4" />} onClick={onEdit} className="ml-2">
           Edit
         </Button>
       </header>
@@ -439,7 +442,7 @@ export function RecipeView({
           <div ref={cardRef} className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}>
             <Ingredients
               key={recipe.id}
-              sections={recipe.ingredients}
+              sections={ingredients}
               servings={recipe.servings}
               collapsed={ingredientsCollapsed}
               onCollapsedChange={(collapsed) => {
@@ -448,25 +451,25 @@ export function RecipeView({
               }}
             />
           </div>
-          <Steps key={recipe.id} sections={recipe.instructions} tips={recipe.tips} card={cardRef} />
+          <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} card={cardRef} />
         </section>
 
         <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
 
-        {recipe.sourcePage && (
+        {recipe.unused && (
           <div className="no-print mx-auto mt-16 flex max-w-xl flex-col items-center gap-3 rounded-2xl bg-leaf-wash px-6 py-5 text-center ring-1 ring-leaf-tint">
             <p className="text-[16px] leading-relaxed text-ink-soft">
-              Recipe Box read this recipe from its web page. If a step or ingredient is missing or in the wrong place, you
-              can fix it from the page.
+              Recipe Box read this recipe from its web page and left a few of its lines out. If a step or ingredient is
+              missing or in the wrong place, you can fix it.
             </p>
-            <Button icon={<FileSearch className="size-4" />} onClick={() => onEdit(true)}>
-              Compare with the page
+            <Button icon={<FileSearch className="size-4" />} onClick={onEdit}>
+              Fix the recipe
             </Button>
           </div>
         )}
 
         {recipe.sourceUrl && (
-          <p className={cx("no-print text-center text-[15px]", recipe.sourcePage ? "mt-8" : "mt-16")}>
+          <p className={cx("no-print text-center text-[15px]", recipe.unused ? "mt-8" : "mt-16")}>
             <button
               type="button"
               onClick={() => openUrl(recipe.sourceUrl!)}

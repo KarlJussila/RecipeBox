@@ -10,16 +10,6 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-/// A titled group of ingredient lines or instruction steps.
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct Section {
-    #[serde(default)]
-    pub heading: String,
-    #[serde(default)]
-    pub items: Vec<String>,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Recipe {
@@ -35,10 +25,13 @@ pub struct Recipe {
     pub prep_minutes: Option<i64>,
     pub cook_minutes: Option<i64>,
     pub total_minutes: Option<i64>,
-    pub ingredients: Vec<Section>,
-    pub instructions: Vec<Section>,
+    // The recipe's parts as the frontend's bucket text: one item per line, "# " before a heading.
+    pub ingredients: String,
+    pub instructions: String,
     /// Notes and tips from the recipe itself ("Do ahead", "Storage", ...), kept apart from the steps.
-    pub tips: Vec<Section>,
+    pub tips: String,
+    /// Lines from around the recipe on its page that the AI reader didn't use.
+    pub unused: String,
     /// The cook's own notes.
     pub notes: String,
     pub keywords: Vec<String>,
@@ -47,8 +40,6 @@ pub struct Recipe {
     pub tags: Vec<String>,
     /// Set until the LLM has chosen tags (it may have been offline or unconfigured).
     pub needs_tags: bool,
-    /// The page the AI read the recipe from, as the frontend's SourcePage; the app only stores it.
-    pub source_page: Option<serde_json::Value>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -144,15 +135,15 @@ impl Db {
                         prep_minutes INTEGER,
                         cook_minutes INTEGER,
                         total_minutes INTEGER,
-                        ingredients TEXT NOT NULL DEFAULT '[]',
-                        instructions TEXT NOT NULL DEFAULT '[]',
-                        tips TEXT NOT NULL DEFAULT '[]',
+                        ingredients TEXT NOT NULL DEFAULT '',
+                        instructions TEXT NOT NULL DEFAULT '',
+                        tips TEXT NOT NULL DEFAULT '',
+                        unused TEXT NOT NULL DEFAULT '',
                         notes TEXT NOT NULL DEFAULT '',
                         keywords TEXT NOT NULL DEFAULT '[]',
                         rating INTEGER,
                         favorite INTEGER NOT NULL DEFAULT 0,
                         needs_tags INTEGER NOT NULL DEFAULT 0,
-                        source_page TEXT,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL
                     );
@@ -244,15 +235,11 @@ impl Db {
             .query_row(
                 "SELECT id, title, description, source_url, source_name, author, image, servings,
                         prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
-                        notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, source_page
+                        notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, unused
                  FROM recipes WHERE id = ?1",
                 [id],
                 |r| {
-                    let ingredients: String = r.get(11)?;
-                    let instructions: String = r.get(12)?;
                     let keywords: String = r.get(14)?;
-                    let tips: String = r.get(20)?;
-                    let source_page: Option<String> = r.get(21)?;
                     Ok(Recipe {
                         id: r.get(0)?,
                         title: r.get(1)?,
@@ -265,16 +252,16 @@ impl Db {
                         prep_minutes: r.get(8)?,
                         cook_minutes: r.get(9)?,
                         total_minutes: r.get(10)?,
-                        ingredients: serde_json::from_str(&ingredients).unwrap_or_default(),
-                        instructions: serde_json::from_str(&instructions).unwrap_or_default(),
-                        tips: serde_json::from_str(&tips).unwrap_or_default(),
+                        ingredients: r.get(11)?,
+                        instructions: r.get(12)?,
+                        tips: r.get(20)?,
+                        unused: r.get(21)?,
                         notes: r.get(13)?,
                         keywords: serde_json::from_str(&keywords).unwrap_or_default(),
                         rating: r.get(15)?,
                         favorite: r.get(16)?,
                         tags: Vec::new(),
                         needs_tags: r.get(19)?,
-                        source_page: source_page.and_then(|s| serde_json::from_str(&s).ok()),
                         created_at: r.get(17)?,
                         updated_at: r.get(18)?,
                     })
@@ -327,7 +314,7 @@ impl Db {
         tx.execute(
             "INSERT INTO recipes (id, title, description, source_url, source_name, author, image,
                 servings, prep_minutes, cook_minutes, total_minutes, ingredients, instructions,
-                notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, source_page)
+                notes, keywords, rating, favorite, created_at, updated_at, needs_tags, tips, unused)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
              ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title, description = excluded.description,
@@ -339,7 +326,7 @@ impl Db {
                 keywords = excluded.keywords, rating = excluded.rating,
                 favorite = excluded.favorite, updated_at = excluded.updated_at,
                 needs_tags = excluded.needs_tags, tips = excluded.tips,
-                source_page = excluded.source_page",
+                unused = excluded.unused",
             params![
                 recipe.id,
                 recipe.title,
@@ -352,8 +339,8 @@ impl Db {
                 recipe.prep_minutes,
                 recipe.cook_minutes,
                 recipe.total_minutes,
-                serde_json::to_string(&recipe.ingredients).map_err(err)?,
-                serde_json::to_string(&recipe.instructions).map_err(err)?,
+                recipe.ingredients,
+                recipe.instructions,
                 recipe.notes,
                 serde_json::to_string(&recipe.keywords).map_err(err)?,
                 recipe.rating,
@@ -361,8 +348,8 @@ impl Db {
                 recipe.created_at,
                 recipe.updated_at,
                 recipe.needs_tags,
-                serde_json::to_string(&recipe.tips).map_err(err)?,
-                recipe.source_page.as_ref().map(|page| page.to_string()),
+                recipe.tips,
+                recipe.unused,
             ],
         )
         .map_err(err)?;
@@ -631,11 +618,11 @@ fn index_recipe(tx: &Transaction, recipe_id: &str) -> Result<()> {
     let Some((rowid, title, description, ingredients, instructions, tips, notes, keywords)) = row else {
         return Ok(());
     };
-    let flatten = |json: &str| {
-        let sections: Vec<Section> = serde_json::from_str(json).unwrap_or_default();
-        sections
-            .into_iter()
-            .flat_map(|s| std::iter::once(s.heading).chain(s.items))
+    // Headings are searched like the items, without their "# ".
+    let flatten = |bucket: &str| {
+        bucket
+            .lines()
+            .map(|line| line.strip_prefix("# ").unwrap_or(line))
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -693,10 +680,7 @@ mod tests {
     fn recipe(title: &str, tags: &[&str]) -> Recipe {
         Recipe {
             title: title.into(),
-            ingredients: vec![Section {
-                heading: String::new(),
-                items: vec!["2 cups chickpeas".into(), "1 lemon".into()],
-            }],
+            ingredients: "2 cups chickpeas\n1 lemon".into(),
             tags: tags.iter().map(|t| t.to_string()).collect(),
             ..Default::default()
         }
@@ -788,22 +772,16 @@ mod tests {
     fn tips_are_saved_and_searched() {
         let mut db = temp_db();
         let mut r = recipe("Apple Cake", &[]);
-        r.tips = vec![Section { heading: "Do ahead".into(), items: vec!["Wrap in foil overnight.".into()] }];
+        r.tips = "# Do ahead\nWrap in foil overnight.".into();
+        r.unused = "Two years ago: Flower Cupcakes".into();
         db.save(&mut r).unwrap();
-        assert_eq!(db.get(&r.id).unwrap().unwrap().tips[0].items, vec!["Wrap in foil overnight."]);
+        let saved = db.get(&r.id).unwrap().unwrap();
+        assert_eq!(saved.tips, "# Do ahead\nWrap in foil overnight.");
+        assert_eq!(saved.unused, "Two years ago: Flower Cupcakes");
         assert_eq!(db.search("foil").unwrap(), vec![r.id.clone()]);
-    }
-
-    #[test]
-    fn source_page_is_kept_as_saved() {
-        let mut db = temp_db();
-        let mut r = recipe("Apple Cake", &[]);
-        db.save(&mut r).unwrap();
-        assert_eq!(db.get(&r.id).unwrap().unwrap().source_page, None);
-        let page = serde_json::json!({ "lines": ["Apple Cake", "- 2 apples"], "parts": [null, "ingredient"], });
-        r.source_page = Some(page.clone());
-        db.save(&mut r).unwrap();
-        assert_eq!(db.get(&r.id).unwrap().unwrap().source_page, Some(page));
+        assert_eq!(db.search("ahead").unwrap(), vec![r.id.clone()]);
+        // Lines the recipe doesn't use aren't searched.
+        assert_eq!(db.search("cupcakes").unwrap(), Vec::<String>::new());
     }
 
     #[test]

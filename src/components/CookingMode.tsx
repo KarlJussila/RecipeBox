@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Recipe } from "../lib/types";
+import { bucketSections } from "../lib/buckets";
 import { IngredientText } from "./RecipeView";
 import { Button, cx, Eyebrow, IconButton } from "./ui";
 
@@ -9,7 +10,7 @@ import { Button, cx, Eyebrow, IconButton } from "./ui";
  * big type, arrow keys or buttons to move, and the screen kept awake.
  */
 export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void }) {
-  const steps = recipe.instructions.flatMap((s) => s.items.map((text) => ({ heading: s.heading, text })));
+  const steps = bucketSections(recipe.instructions).flatMap((s) => s.items.map((text) => ({ heading: s.heading, text })));
   const [index, setIndex] = useState(0);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const step = steps[index];
@@ -42,7 +43,7 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
         <Eyebrow>You’ll need</Eyebrow>
         <h2 className="mt-2 font-serif text-2xl leading-tight font-semibold">{recipe.title}</h2>
         <div className="mt-6 space-y-5">
-          {recipe.ingredients.map((section, si) => (
+          {bucketSections(recipe.ingredients).map((section, si) => (
             <div key={si}>
               {section.heading && <p className="mb-1 text-sm font-semibold text-ink-faint">{section.heading}</p>}
               <ul className="space-y-1">
