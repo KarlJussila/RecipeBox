@@ -14,16 +14,19 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { GripVertical, Plus } from "lucide-react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { bucketItems, itemsToBucket, type Item } from "../lib/buckets";
 import type { Recipe } from "../lib/types";
-import { Button, cx, Eyebrow } from "./ui";
+import { ItemMenu, type BucketName, type Destination } from "./ItemMenu";
+import { IngredientText } from "./RecipeView";
+import { Button, cx, GrowingTextarea } from "./ui";
 
-// The recipe's ingredients, steps, notes, and unused lines, laid out like the recipe
-// page, for moving items between them, making them headings, editing, and deleting.
+// The recipe's ingredients, steps, and notes, drawn as they are on the recipe's page,
+// with the lines the reader left out beside them. Any line can be dragged to a new
+// place, or clicked for a menu to move, retitle, edit, or delete it.
 
-export type BucketName = "ingredients" | "instructions" | "tips" | "unused";
+export type { BucketName };
 export interface EditItem extends Item {
   id: string;
 }
@@ -32,7 +35,7 @@ export type Buckets = Record<BucketName, EditItem[]>;
 let nextId = 0;
 const withIds = (items: Item[]): EditItem[] => items.map((item) => ({ ...item, id: `item-${nextId++}` }));
 
-export function toBuckets(recipe: Recipe): Buckets {
+export function toBuckets(recipe: Pick<Recipe, BucketName>): Buckets {
   return {
     ingredients: withIds(bucketItems(recipe.ingredients)),
     instructions: withIds(bucketItems(recipe.instructions)),
@@ -46,8 +49,37 @@ export function fromBuckets(buckets: Buckets): Pick<Recipe, BucketName> {
   return { ingredients: text(buckets.ingredients), instructions: text(buckets.instructions), tips: text(buckets.tips), unused: text(buckets.unused) };
 }
 
-const NAMES: Record<BucketName, string> = { ingredients: "Ingredients", instructions: "Steps", tips: "Notes", unused: "Not used" };
 const ORDER: BucketName[] = ["ingredients", "instructions", "tips", "unused"];
+const ADD_LABEL: Partial<Record<BucketName, string>> = { ingredients: "Add ingredients", instructions: "Add steps", tips: "Add notes" };
+
+// Each list's rows, matching the recipe page. A row's box bleeds past its text by
+// `bleed` on each side, so the text lines up with the headings above it.
+const LOOK: Record<BucketName, { row: string; bleed: string; text: string; heading: string }> = {
+  ingredients: {
+    row: "-mx-3 rounded-lg px-3 py-2.5",
+    bleed: "1.5rem",
+    text: "text-[17px] leading-snug text-ink-soft",
+    heading: "pt-3 text-xs font-bold tracking-[0.14em] text-leaf uppercase",
+  },
+  instructions: {
+    row: "-mx-5 rounded-2xl px-5 py-4",
+    bleed: "2.5rem",
+    text: "pt-1 text-[18px] leading-[1.65] text-ink",
+    heading: "pt-4 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink",
+  },
+  tips: {
+    row: "-mx-3 rounded-xl px-3 py-2",
+    bleed: "1.5rem",
+    text: "text-[17px] leading-[1.65] text-ink-soft",
+    heading: "pt-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink",
+  },
+  unused: {
+    row: "-mx-2.5 rounded-lg px-2.5 py-1.5",
+    bleed: "1.25rem",
+    text: "text-[15px] leading-snug text-ink-soft",
+    heading: "pt-2 text-[11px] font-bold tracking-[0.14em] text-ink-faint uppercase",
+  },
+};
 
 export function RecipeBoard({
   buckets,
@@ -59,49 +91,46 @@ export function RecipeBoard({
   /** An item moved into the description, as a paragraph of its own. */
   onToDescription: (text: string) => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string; x: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  const [dragging, setDragging] = useState<EditItem | null>(null);
-  /** Whether the unused lines were showing when the drag began, so they stay while it lasts. */
-  const [unusedAtStart, setUnusedAtStart] = useState(false);
+  const [dragging, setDragging] = useState<{ item: EditItem; bucket: BucketName; number: number | null } | null>(null);
+  /** Whether the left-out lines were showing when a drag began, so they stay while it lasts. */
+  const [trayAtStart, setTrayAtStart] = useState(false);
   /** The buckets as they were when a drag started, to put back if it's cancelled. */
   const before = useRef<Buckets | null>(null);
-  /** A drag ends with a click on the item let go of, which shouldn't open its menu. */
+  /** Letting go of a drag clicks the item, which shouldn't open its menu. */
   const justDropped = useRef(false);
   // A press that moves a few pixels drags; one that doesn't is a click.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const closeMenu = useCallback(() => setMenu(null), []);
 
+  const bucketOf = (id: string): BucketName | null =>
+    (ORDER as string[]).includes(id) ? (id as BucketName) : (ORDER.find((name) => buckets[name].some((item) => item.id === id)) ?? null);
   const without = (id: string): Buckets =>
     Object.fromEntries(ORDER.map((name) => [name, buckets[name].filter((item) => item.id !== id)])) as Buckets;
   const change = (id: string, patch: Partial<Item>) =>
     onChange(Object.fromEntries(ORDER.map((name) => [name, buckets[name].map((item) => (item.id === id ? { ...item, ...patch } : item))])) as Buckets);
-  const actions: ItemActions = {
-    moveTo: (item, to) => {
-      const rest = without(item.id);
-      if (to === "description") onToDescription(item.text);
-      else rest[to] = [...rest[to], item];
-      onChange(rest);
-      setSelected(null);
-    },
-    toggleHeading: (item) => change(item.id, { heading: !item.heading }),
-    edit: (item) => setEditing(item.id),
-    remove: (item) => {
-      onChange(without(item.id));
-      setSelected(null);
-    },
+  const moveTo = (item: EditItem, to: Destination) => {
+    const rest = without(item.id);
+    if (to === "description") onToDescription(item.text);
+    else rest[to] = [...rest[to], item];
+    onChange(rest);
+    setMenu(null);
   };
-
-  /** The bucket an item is in, or the bucket itself when dropping on its empty space. */
-  const bucketOf = (id: string): BucketName | null =>
-    (ORDER as string[]).includes(id) ? (id as BucketName) : (ORDER.find((name) => buckets[name].some((item) => item.id === id)) ?? null);
 
   const dragStart = ({ active }: DragStartEvent) => {
+    const bucket = bucketOf(String(active.id))!;
+    const item = buckets[bucket].find((i) => i.id === active.id)!;
+    const number =
+      bucket === "instructions" && !item.heading
+        ? buckets.instructions.slice(0, buckets.instructions.indexOf(item) + 1).filter((i) => !i.heading).length
+        : null;
     before.current = buckets;
-    setUnusedAtStart(buckets.unused.length > 0);
-    setSelected(null);
-    setDragging(ORDER.flatMap((name) => buckets[name]).find((item) => item.id === active.id) ?? null);
+    setTrayAtStart(buckets.unused.length > 0);
+    setMenu(null);
+    setDragging({ item, bucket, number });
   };
-  // Over another bucket, the item moves into it at once, so that bucket makes room for it.
+  // Over another list, the item moves into it at once, so that list makes room for it.
   const dragOver = ({ active, over }: DragOverEvent) => {
     if (!over) return;
     const from = bucketOf(String(active.id));
@@ -128,24 +157,28 @@ export function RecipeBoard({
     if (before.current) onChange(before.current);
   };
 
-  const list = (name: BucketName, look: Look) => (
+  const list = (name: BucketName) => (
     <BucketList
       name={name}
-      look={look}
       items={buckets[name]}
-      selected={selected}
+      menuFor={menu?.id ?? null}
       editing={editing}
-      onSelect={(id) => {
-        if (!justDropped.current) setSelected(selected === id ? null : id);
+      dragging={dragging !== null}
+      onOpen={(id, x) => {
+        if (justDropped.current) return;
+        setMenu(menu?.id === id ? null : { id, x });
       }}
       onEdited={(id, text) => {
         if (text !== null) change(id, { text });
         setEditing(null);
       }}
-      actions={actions}
+      onAdd={(text) => onChange({ ...buckets, [name]: [...buckets[name], ...withIds(bucketItems(text))] })}
     />
   );
-  const add = (name: BucketName) => (text: string) => onChange({ ...buckets, [name]: [...buckets[name], ...withIds(bucketItems(text))] });
+
+  const open = menu && ORDER.flatMap((name) => buckets[name]).find((item) => item.id === menu.id);
+  const anchor = menu && document.querySelector<HTMLElement>(`[data-item="${menu.id}"]`);
+  const tray = buckets.unused.length > 0 || (dragging !== null && trayAtStart);
 
   return (
     <DndContext
@@ -156,50 +189,67 @@ export function RecipeBoard({
       onDragEnd={dragEnd}
       onDragCancel={dragCancel}
     >
-      <div className={cx("grid gap-10", (buckets.unused.length > 0 || (dragging && unusedAtStart)) && "@5xl:grid-cols-[minmax(0,1fr)_19rem]")}>
-        <div className="min-w-0 space-y-12">
+      <div className={cx("grid items-start gap-x-14 gap-y-16", tray && "@5xl:grid-cols-[minmax(0,1fr)_17rem]")}>
+        <div className="min-w-0 space-y-16">
           <section className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
             <h2 className="mb-3 border-b-2 border-tomato/50 pb-3 font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
-            {list("ingredients", "ingredient")}
-            <AddItems what="ingredients" onAdd={add("ingredients")} />
+            {list("ingredients")}
           </section>
           <section>
             <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
-            {list("instructions", "step")}
-            <AddItems what="steps" onAdd={add("instructions")} />
+            {list("instructions")}
           </section>
           <section>
-            <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Notes</h2>
-            {list("tips", "note")}
-            <AddItems what="notes" onAdd={add("tips")} />
+            <h2 className="mb-2 font-serif text-[28px] font-semibold tracking-tight">Notes</h2>
+            {list("tips")}
           </section>
         </div>
-        {(buckets.unused.length > 0 || (dragging && unusedAtStart)) && (
-          // On wide windows it stays in view beside the steps, since that's where most of its lines go.
-          <aside className="scrollbar-quiet min-w-0 @5xl:sticky @5xl:top-24 @5xl:max-h-[calc(100vh-8rem)] @5xl:self-start @5xl:overflow-y-auto">
-            <h2 className="font-serif text-[22px] font-semibold tracking-tight">Not used</h2>
-            <p className="mt-1 mb-4 text-[15px] text-ink-faint">From the recipe’s page, but not in the recipe.</p>
-            {list("unused", "unused")}
+
+        {tray && (
+          // Beside the recipe on wide windows, where it stays in view while the steps scroll past.
+          <aside className="@5xl:sticky @5xl:top-20">
+            <div className="scrollbar-quiet overflow-x-hidden rounded-2xl bg-paper-deep/80 px-5 pt-5 pb-4 ring-1 ring-line @5xl:max-h-[calc(100vh-7rem)] @5xl:overflow-y-auto">
+              <h2 className="font-serif text-xl font-semibold tracking-tight">Left out</h2>
+              <p className="mt-1 mb-3 text-sm leading-snug text-ink-faint">Lines from the recipe’s web page that aren’t in the recipe.</p>
+              {list("unused")}
+            </div>
           </aside>
         )}
       </div>
-      <DragOverlay>
+
+      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" }}>
         {dragging && (
-          <div
-            className={cx(
-              "cursor-grabbing rounded-xl bg-card px-4 py-2.5 text-[17px] leading-snug text-ink shadow-soft ring-2 ring-leaf",
-              dragging.heading && "font-serif font-semibold",
-            )}
-          >
-            {dragging.text}
+          <div className={cx(LOOK[dragging.bucket].row, "mx-0 rotate-[0.8deg] cursor-grabbing bg-card shadow-lift ring-1 ring-leaf/30")}>
+            <RowContent item={dragging.item} bucket={dragging.bucket} number={dragging.number} />
           </div>
         )}
       </DragOverlay>
+
+      {open && anchor && (
+        <ItemMenu
+          key={open.id}
+          anchor={anchor}
+          x={menu.x}
+          bucket={bucketOf(open.id)!}
+          heading={open.heading}
+          onMove={(to) => moveTo(open, to)}
+          onToggleHeading={() => change(open.id, { heading: !open.heading })}
+          onEdit={() => {
+            setEditing(open.id);
+            setMenu(null);
+          }}
+          onDelete={() => {
+            onChange(without(open.id));
+            setMenu(null);
+          }}
+          onClose={closeMenu}
+        />
+      )}
     </DndContext>
   );
 }
 
-// Over a list, the item under the pointer; between lists, the nearest one.
+// Over a list, the line under the pointer; between lists, the nearest one.
 const collisions: CollisionDetection = (args) => {
   const within = pointerWithin(args);
   return within.length > 0 ? within : closestCenter(args);
@@ -207,260 +257,210 @@ const collisions: CollisionDetection = (args) => {
 
 function BucketList({
   name,
-  look,
   items,
-  selected,
+  menuFor,
   editing,
-  onSelect,
+  dragging,
+  onOpen,
   onEdited,
-  actions,
+  onAdd,
 }: {
   name: BucketName;
-  look: Look;
   items: EditItem[];
-  selected: string | null;
+  menuFor: string | null;
   editing: string | null;
-  onSelect: (id: string) => void;
+  dragging: boolean;
+  onOpen: (id: string, x: number) => void;
   onEdited: (id: string, text: string | null) => void;
-  actions: ItemActions;
+  onAdd: (text: string) => void;
 }) {
-  // The list itself takes drops too, so an empty one can be filled.
+  // The whole list takes drops, so an empty one can be filled.
   const { setNodeRef, isOver } = useDroppable({ id: name });
   let number = 0;
   return (
     <SortableContext id={name} items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-      <ul
-        ref={setNodeRef}
-        className={cx(
-          look === "ingredient" && "divide-y divide-leaf/12",
-          (look === "step" || look === "note") && "space-y-1",
-          items.length === 0 && "rounded-xl py-2 transition-colors",
-          items.length === 0 && isOver && "bg-ink/5",
+      <div ref={setNodeRef}>
+        <ul className={cx(name === "ingredients" && "divide-y divide-leaf/12", name === "instructions" && "space-y-1")}>
+          {items.map((item) => {
+            if (!item.heading) number += 1;
+            return (
+              <Row
+                key={item.id}
+                item={item}
+                bucket={name}
+                number={name === "instructions" && !item.heading ? number : null}
+                open={menuFor === item.id}
+                editing={editing === item.id}
+                onOpen={(x) => onOpen(item.id, x)}
+                onEdited={(text) => onEdited(item.id, text)}
+              />
+            );
+          })}
+        </ul>
+        {items.length === 0 && dragging && (
+          <p
+            className={cx(
+              "mt-1 rounded-xl border border-dashed px-4 py-3 text-[15px] transition-colors",
+              isOver ? "border-leaf bg-leaf-wash text-leaf-strong" : "border-ink-faint/35 text-ink-faint",
+            )}
+          >
+            Drop it here
+          </p>
         )}
-      >
-        {items.length === 0 && <li className="text-ink-faint">{EMPTY[name]}</li>}
-        {items.map((item) => {
-          if (!item.heading) number += 1;
-          return (
-            <ItemRow
-              key={item.id}
-              item={item}
-              bucket={name}
-              look={look}
-              number={look === "step" && !item.heading ? number : null}
-              selected={selected === item.id}
-              editing={editing === item.id}
-              onSelect={() => onSelect(item.id)}
-              onEdited={(text) => onEdited(item.id, text)}
-              actions={actions}
-            />
-          );
-        })}
-      </ul>
+        {ADD_LABEL[name] && !dragging && <AddLines label={ADD_LABEL[name]} first={items.length === 0} onAdd={onAdd} />}
+      </div>
     </SortableContext>
   );
 }
 
-const EMPTY: Record<BucketName, string> = {
-  ingredients: "No ingredients yet.",
-  instructions: "No steps yet.",
-  tips: "No notes from the recipe.",
-  unused: "Drop lines here to leave them out.",
-};
-
-type Look = "ingredient" | "step" | "note" | "unused";
-
-interface ItemActions {
-  moveTo: (item: EditItem, to: BucketName | "description") => void;
-  toggleHeading: (item: EditItem) => void;
-  edit: (item: EditItem) => void;
-  remove: (item: EditItem) => void;
-}
-
-function ItemRow({
-  item,
-  bucket,
-  look,
-  number,
-  selected,
-  editing,
-  onSelect,
-  onEdited,
-  actions,
-}: {
-  item: EditItem;
-  bucket: BucketName;
-  look: Look;
-  number: number | null;
-  selected: boolean;
-  editing: boolean;
-  onSelect: () => void;
-  /** The new text, or null when editing was cancelled. */
-  onEdited: (text: string | null) => void;
-  actions: ItemActions;
-}) {
-  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: item.id, disabled: editing });
-  const text = item.heading ? (
-    look === "ingredient" ? (
-      <Eyebrow className="pt-2">{item.text}</Eyebrow>
-    ) : (
-      <span className={cx("font-serif leading-snug font-semibold tracking-tight", look === "unused" ? "text-[17px]" : "text-[22px]")}>{item.text}</span>
-    )
-  ) : (
-    <span
-      className={cx(
-        "leading-snug",
-        look === "ingredient" && "text-[17px] text-ink-soft",
-        look === "step" && "text-[18px] leading-[1.6] text-ink",
-        look === "note" && "text-[17px] leading-[1.6] text-ink-soft",
-        look === "unused" && "text-[15px] text-ink-faint",
-      )}
-    >
-      {item.text}
-    </span>
-  );
+function RowContent({ item, bucket, number, children }: { item: EditItem; bucket: BucketName; number: number | null; children?: ReactNode }) {
+  const look = LOOK[bucket];
   return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cx(item.heading && look !== "ingredient" && "pt-3", isDragging && "opacity-30")}
-    >
-      {editing ? (
-        <EditText text={item.text} onDone={onEdited} />
-      ) : (
-        <button
-          type="button"
-          aria-expanded={selected}
-          onClick={onSelect}
-          {...listeners}
-          className={cx(
-            "-mx-3 grid w-[calc(100%+1.5rem)] items-start gap-3 rounded-xl px-3 text-left transition-colors",
-            number !== null ? "grid-cols-[2.5rem_minmax(0,1fr)] py-3" : "grid-cols-[minmax(0,1fr)] py-2",
-            selected ? "bg-butter" : "hover:bg-ink/5",
-          )}
-        >
-          {number !== null && <span className="font-serif text-[34px] leading-[0.9] font-medium text-leaf italic tabular-nums">{number}</span>}
-          {text}
-        </button>
-      )}
-      {selected && !editing && (
-        <div role="group" aria-label="Change this item" className="mt-1 mb-3 flex flex-wrap items-center gap-2">
-          <span className="text-[14px] font-semibold text-ink-faint">Move to</span>
-          {ORDER.filter((name) => name !== bucket).map((name) => (
-            <Choice key={name} onClick={() => actions.moveTo(item, name)}>
-              {NAMES[name]}
-            </Choice>
-          ))}
-          {!item.heading && <Choice onClick={() => actions.moveTo(item, "description")}>Description</Choice>}
-          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
-          <Choice onClick={() => actions.toggleHeading(item)}>{item.heading ? "Make it an item" : "Make it a heading"}</Choice>
-          <Choice onClick={() => actions.edit(item)}>Edit</Choice>
-          <Choice onClick={() => actions.remove(item)}>Delete</Choice>
-        </div>
-      )}
-    </li>
-  );
-}
-
-function Choice({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} className="h-9 rounded-full bg-card px-4 text-[15px] font-semibold text-ink ring-1 ring-line hover:bg-paper-deep">
-      {children}
-    </button>
-  );
-}
-
-/** A textarea that grows with its text. Enter keeps the change, Escape drops it. */
-function GrowingText({ value, onChange, onKeyDown, placeholder, autoFocus, rows = 1 }: {
-  value: string;
-  onChange: (value: string) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  placeholder?: string;
-  autoFocus?: boolean;
-  rows?: number;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight + 2}px`;
-  }, [value]);
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      rows={rows}
-      autoFocus={autoFocus}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={onKeyDown}
-      className="w-full resize-none rounded-xl bg-card px-4 py-2.5 text-[17px] leading-snug text-ink ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none"
-    />
-  );
-}
-
-function EditText({ text, onDone }: { text: string; onDone: (text: string | null) => void }) {
-  const [value, setValue] = useState(text);
-  const keep = () => onDone(value.replace(/\s+/g, " ").trim() || null);
-  return (
-    <div className="my-2 space-y-2">
-      <GrowingText
-        value={value}
-        onChange={setValue}
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            keep();
-          } else if (e.key === "Escape") {
-            onDone(null);
-          }
-        }}
-      />
-      <div className="flex gap-2">
-        <Button variant="primary" onClick={keep}>
-          Done
-        </Button>
-        <Button variant="ghost" onClick={() => onDone(null)}>
-          Cancel
-        </Button>
+    <div className="flex items-start gap-4">
+      {number !== null && <span className="w-9 shrink-0 font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums">{number}</span>}
+      <div className={cx("min-w-0 flex-1", item.heading ? look.heading : look.text)}>
+        {children ?? (bucket === "ingredients" && !item.heading ? <IngredientText line={item.text} /> : item.text)}
       </div>
     </div>
   );
 }
 
-/** Adds items, one per line; a line starting "# " is a heading. */
-function AddItems({ what, onAdd }: { what: string; onAdd: (text: string) => void }) {
+function Row({
+  item,
+  bucket,
+  number,
+  open,
+  editing,
+  onOpen,
+  onEdited,
+}: {
+  item: EditItem;
+  bucket: BucketName;
+  number: number | null;
+  open: boolean;
+  editing: boolean;
+  onOpen: (x: number) => void;
+  /** The new text, or null when editing was cancelled. */
+  onEdited: (text: string | null) => void;
+}) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: item.id, disabled: editing });
+  const look = LOOK[bucket];
+  const box = cx(look.row, "relative block w-[calc(100%+var(--bleed))]");
+  return (
+    <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition, ["--bleed" as string]: look.bleed }}>
+      {editing ? (
+        <div className={cx(box, "bg-card ring-2 ring-leaf/45")}>
+          <RowContent item={item} bucket={bucket} number={number}>
+            <EditLine text={item.text} onDone={onEdited} />
+          </RowContent>
+        </div>
+      ) : (
+        <button
+          type="button"
+          data-item={item.id}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          // A click from the keyboard has no pointer position, so the menu opens near the start of the line.
+          onClick={(e) => onOpen(e.clientX || e.currentTarget.getBoundingClientRect().left + 40)}
+          {...listeners}
+          className={cx(
+            box,
+            "group cursor-grab pr-8 text-left transition-colors duration-150 active:cursor-grabbing",
+            isDragging ? "opacity-35" : open ? "bg-leaf-wash ring-1 ring-leaf/30" : "hover:bg-ink/4",
+          )}
+        >
+          <RowContent item={item} bucket={bucket} number={number} />
+          <GripVertical
+            aria-hidden
+            className={cx(
+              "absolute top-1/2 right-2 size-4 -translate-y-1/2 text-ink-faint transition-opacity duration-150",
+              open ? "opacity-70" : "opacity-0 group-hover:opacity-70",
+            )}
+          />
+        </button>
+      )}
+    </li>
+  );
+}
+
+/** The line's text, editable where it sits. Enter or clicking away keeps the change; Escape drops it. */
+function EditLine({ text, onDone }: { text: string; onDone: (text: string | null) => void }) {
+  const [value, setValue] = useState(text);
+  const done = useRef(false);
+  const finish = (keep: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(keep ? value.replace(/\s+/g, " ").trim() || null : null);
+  };
+  return (
+    <GrowingTextarea
+      value={value}
+      autoFocus
+      onFocus={(e) => e.currentTarget.setSelectionRange(value.length, value.length)}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          finish(false);
+        }
+      }}
+      aria-label="Edit this line"
+      className="w-full bg-transparent p-0 [font:inherit] text-inherit focus:outline-none"
+    />
+  );
+}
+
+/** A dashed slot at the end of a list that opens into a box for new lines, one on each line. */
+function AddLines({ label, first, onAdd }: { label: string; first: boolean; onAdd: (text: string) => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-3 inline-flex items-center gap-1.5 text-[15px] font-semibold text-leaf hover:underline">
-        <Plus className="size-4" /> Add {what}
-      </button>
-    );
-  }
-  const done = () => {
-    if (text.trim()) onAdd(text);
+  const close = () => {
     setText("");
     setOpen(false);
   };
+  const add = () => {
+    if (text.trim()) onAdd(text);
+    close();
+  };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cx(
+          "flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-faint/35 px-4 py-2.5 text-[15px] font-medium text-ink-faint transition-colors hover:border-leaf/60 hover:bg-leaf-wash/60 hover:text-leaf-strong",
+          first ? "mt-1" : "mt-4",
+        )}
+      >
+        <Plus className="size-4" />
+        {label}
+      </button>
+    );
+  }
   return (
-    <div className="mt-3 space-y-2">
-      <GrowingText value={text} onChange={setText} autoFocus rows={3} placeholder={`One per line. Start a line with “# ” to make it a heading.`} />
-      <div className="flex gap-2">
-        <Button variant="primary" onClick={done}>
-          Add
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setText("");
-            setOpen(false);
-          }}
-        >
+    <div className={cx("animate-fade-in rounded-xl bg-card ring-2 ring-leaf/45", first ? "mt-1" : "mt-4")}>
+      <GrowingTextarea
+        value={text}
+        autoFocus
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") close();
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add();
+        }}
+        placeholder="One on each line"
+        className="min-h-[4.5rem] w-full bg-transparent px-4 pt-3 pb-1 text-[16px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+      />
+      <div className="flex items-center gap-2 py-2 pr-2 pl-4">
+        <p className="flex-1 text-[13px] text-ink-faint">Start a line with # to make it a heading.</p>
+        <Button variant="ghost" size="sm" onClick={close}>
           Cancel
+        </Button>
+        <Button variant="primary" size="sm" onClick={add}>
+          Add
         </Button>
       </div>
     </div>

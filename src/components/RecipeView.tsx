@@ -10,7 +10,7 @@ import type { Recipe, Section } from "../lib/types";
 import { CookingMode } from "./CookingMode";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
-import { Button, cx, Dialog, Eyebrow, IconButton, isMac, Spinner, Sprig } from "./ui";
+import { Button, cx, Dialog, Eyebrow, IconButton, isMac, Ornament, Spinner } from "./ui";
 
 export function IngredientText({ line }: { line: string }) {
   const [amount, rest] = splitAmount(line);
@@ -33,16 +33,6 @@ function Description({ text }: { text: string }) {
           {expanded ? "Show less" : "Read more"}
         </button>
       )}
-    </div>
-  );
-}
-
-function Ornament() {
-  return (
-    <div className="my-14 flex items-center gap-5 text-leaf/50" aria-hidden>
-      <span className="h-px flex-1 bg-line" />
-      <Sprig className="size-7" />
-      <span className="h-px flex-1 bg-line" />
     </div>
   );
 }
@@ -426,7 +416,7 @@ export function RecipeView({
           </div>
 
           {/* The photo, pinned like a snapshot tucked into a recipe box. */}
-          <figure className="rotate-[1.4deg] rounded-[4px] bg-[#fffdf8] p-3 pb-12 shadow-photo transition-transform duration-500 hover:rotate-0 dark:bg-[#e9e4d6]">
+          <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[4px] @4xl:max-w-none bg-[#fffdf8] p-3 pb-12 shadow-photo transition-transform duration-500 hover:rotate-0 dark:bg-[#e9e4d6]">
             <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full rounded-[2px]" />
             {recipe.sourceName && (
               <figcaption className="mt-3 text-center font-serif text-[17px] text-[#6b5a4c] italic">from {recipe.sourceName}</figcaption>

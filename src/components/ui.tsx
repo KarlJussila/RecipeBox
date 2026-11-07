@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -112,6 +113,49 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
     </label>
   );
 }
+
+/**
+ * A textarea as tall as its text, so it reads like the page around it rather than a box.
+ * It measures again when its width changes, since that changes where lines wrap.
+ */
+export const GrowingTextarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function GrowingTextarea({ className, value, ...props }, ref) {
+    const inner = useRef<HTMLTextAreaElement | null>(null);
+    const fit = useCallback(() => {
+      const el = inner.current;
+      if (!el) return;
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    }, []);
+    useLayoutEffect(fit, [value, fit]);
+    useEffect(() => {
+      const el = inner.current;
+      if (!el) return;
+      let width = el.offsetWidth;
+      const observer = new ResizeObserver(() => {
+        if (el.offsetWidth !== width) {
+          width = el.offsetWidth;
+          fit();
+        }
+      });
+      observer.observe(el);
+      return () => observer.disconnect();
+    }, [fit]);
+    return (
+      <textarea
+        ref={(el) => {
+          inner.current = el;
+          if (typeof ref === "function") ref(el);
+          else if (ref) ref.current = el;
+        }}
+        value={value}
+        rows={1}
+        className={cx("block resize-none overflow-hidden", className)}
+        {...props}
+      />
+    );
+  },
+);
 
 /** Small-caps label used above groups of content. */
 export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
@@ -320,6 +364,17 @@ export function Spinner({ className }: { className?: string }) {
 }
 
 /** A small hand-drawn sprig, used as the brand mark and as an ornament. */
+/** A rule with a sprig in the middle, between a recipe's top and its ingredients and steps. */
+export function Ornament() {
+  return (
+    <div className="my-14 flex items-center gap-5 text-leaf/50" aria-hidden>
+      <span className="h-px flex-1 bg-line" />
+      <Sprig className="size-7" />
+      <span className="h-px flex-1 bg-line" />
+    </div>
+  );
+}
+
 export function Sprig({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
