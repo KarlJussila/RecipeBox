@@ -74,7 +74,8 @@ const LOOK: Record<BucketName, { row: string; bleed: string; text: string; headi
     row: "-mx-3 rounded-xl px-3 py-2",
     bleed: "1.5rem",
     text: "text-[17px] leading-[1.65] text-ink-soft",
-    heading: "pt-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink",
+    // Under the card's title and rule, a note's heading is a step down from it.
+    heading: "pt-4 font-serif text-[19px] leading-snug font-semibold text-ink",
   },
   unused: {
     row: "-mx-2.5 rounded-lg px-2.5 py-1.5",
@@ -201,8 +202,9 @@ export function RecipeBoard({
             <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
             {list("instructions")}
           </section>
-          <section>
-            <h2 className="mb-2 font-serif text-[28px] font-semibold tracking-tight">Notes</h2>
+          {/* A card like the ingredients', so the notes' own headings sit inside a frame. */}
+          <section className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
+            <h2 className="mb-2 border-b-2 border-leaf/40 pb-3 font-serif text-[28px] leading-tight font-semibold tracking-tight">Notes</h2>
             {list("tips")}
           </section>
         </div>
