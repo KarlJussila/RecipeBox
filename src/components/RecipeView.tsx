@@ -46,9 +46,10 @@ function IngredientList({ sections, checked, small }: { sections: Section[]; che
   return (
     <div className="space-y-5">
       {sections.map((section, si) => (
-        <div key={si} className="print-break-avoid">
+        // On paper a long list may run onto the next page, between items, never under a group's label.
+        <div key={si}>
           {section.heading && (
-            <PrintedHeading as="p" faint className={cx("mb-1.5", small ? "pt-4" : "pt-[22px]")}>
+            <PrintedHeading as="p" faint className={cx("mb-1.5 break-after-avoid", small ? "pt-4" : "pt-[22px]")}>
               {section.heading}
             </PrintedHeading>
           )}
@@ -57,7 +58,7 @@ function IngredientList({ sections, checked, small }: { sections: Section[]; che
               const key = `${si}-${i}`;
               const done = checked.has(key);
               return (
-                <li key={key}>
+                <li key={key} className="break-inside-avoid">
                   <label className={cx("group flex cursor-pointer items-start gap-3 print:py-1.5", small ? "py-2" : "py-2.5")}>
                     <input type="checkbox" checked={done} onChange={() => checked.toggle(key)} className="peer sr-only" />
                     <span
@@ -95,8 +96,10 @@ function IngredientList({ sections, checked, small }: { sections: Section[]; che
 
 function IngredientsHeading({ servings }: { servings: string | null }) {
   return (
-    <div className="mb-4">
-      <PrintedHeading className="text-[13px]">Ingredients</PrintedHeading>
+    <div className="mb-4 text-center">
+      <PrintedHeading centered className="text-[13px]">
+        Ingredients
+      </PrintedHeading>
       {servings && <p className="mt-1 text-sm text-ink-faint">Serves {servings}</p>}
     </div>
   );
@@ -216,6 +219,7 @@ export function RecipeView({
   allTags,
   tagging,
   sheetSlot,
+  alone,
   onBack,
   onEdit,
   onDeleted,
@@ -230,6 +234,8 @@ export function RecipeView({
   tagging: boolean;
   /** Where the ingredients sheet goes, beside the card; without one they stay on the card. */
   sheetSlot: HTMLElement | null;
+  /** No sidebar beside the page: the ingredients go on the card, and the header clears the macOS window buttons. */
+  alone: boolean;
   onBack: () => void;
   /** Opens the editor, on the page the recipe came from when `page` is set. */
   onEdit: () => void;
@@ -312,6 +318,7 @@ export function RecipeView({
         className={cx(
           "no-print sticky top-0 z-10 flex items-center gap-1 px-8 transition-colors duration-200",
           isMac ? "h-16 pt-2" : "h-16",
+          isMac && alone && "pl-24",
           // Cut from the same sheet as the page, so it doesn't show as a strip.
           scrolled && "paper-sheet border-b border-(--sheet-border) [--sheet-size:100cqw_100vh]",
         )}
@@ -335,10 +342,10 @@ export function RecipeView({
       </header>
 
       {/* The card pulled out of the box: one older card holding the whole recipe. */}
-      <div className="px-8 pt-2 pb-14 print:p-0">
+      <div className="px-6 pt-2 pb-14 @3xl:px-8 print:p-0">
         <article
           style={{ viewTransitionName: "recipe-card" }}
-          className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-14 pt-12 pb-16 shadow-card print:bg-none print:p-0 print:shadow-none"
+          className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-9 pt-12 pb-16 shadow-card @3xl:px-14 print:bg-none print:p-0 print:shadow-none"
         >
           <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:gap-8">
             <div className="min-w-0">
@@ -399,7 +406,7 @@ export function RecipeView({
           {/* On the card when the window's too narrow for the sheet, and always on paper:
               the steps sit beside the list there, then take the full width below it. */}
           <section className="flow-root print:mt-10">
-            <div className={cx("mb-12 print:float-left print:mr-8 print:mb-4 print:w-[38%]", sheetSlot && "hidden print:block")}>
+            <div className={cx("mb-12 print:float-left print:mr-8 print:mb-4 print:w-[38%]", !alone && "hidden print:block")}>
               <IngredientsHeading servings={recipe.servings} />
               <IngredientList sections={ingredients} checked={checked} />
             </div>

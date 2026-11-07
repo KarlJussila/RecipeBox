@@ -12,5 +12,8 @@ export function useMedia(query: string): boolean {
   );
 }
 
-/** Wide enough for a recipe's ingredients to sit on their own sheet beside the card. */
-export const SHEET_QUERY = "(min-width: 1100px)";
+/**
+ * Wide enough for a recipe's ingredients to sit on their own sheet beside the card.
+ * Narrower, the recipe takes the whole window and the ingredients go back on the card.
+ */
+export const SHEET_QUERY = "(min-width: 1000px)";

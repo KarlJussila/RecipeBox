@@ -175,8 +175,13 @@
     --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30' fill='none' stroke='%23e0cdb0' stroke-opacity='0.42'/%3E%3C/svg%3E");
     --tab-hover: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30z' fill='%23e0cdb0' fill-opacity='0.06'/%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30' fill='none' stroke='%23e0cdb0' stroke-opacity='0.42'/%3E%3C/svg%3E");
   }
+  /* Older card, still darkening toward its edges: lighter edges read as a glow at night. */
   .dark .stock-aged {
     --stock: #3a2e25;
+    --stock-edge: rgb(0 0 0 / 0.28);
+    --stock-mottle:
+      radial-gradient(300px 220px at 16% 24%, rgb(0 0 0 / 0.07), transparent 70%),
+      radial-gradient(360px 260px at 82% 68%, rgb(0 0 0 / 0.06), transparent 70%);
     --stock-patch: rgb(0 0 0 / 0.16);
   }
 

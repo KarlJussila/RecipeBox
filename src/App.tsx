@@ -43,6 +43,8 @@ export default function App() {
   /** Where a recipe's ingredients sheet goes, in the sidebar, while one is open. */
   const [sheetSlot, setSheetSlot] = useState<HTMLDivElement | null>(null);
   const sheetMode = wide && view.name === "recipe";
+  /** Too narrow for the sheet, a recipe takes the whole window: the index is no use there. */
+  const alone = !wide && view.name === "recipe";
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -266,16 +268,18 @@ export default function App() {
 
   return (
     <div className="flex h-full print:block print:h-auto">
-      <Sidebar
-        recipes={library}
-        tags={tags}
-        filters={filters}
-        onFiltersChange={changeFilters}
-        filteredTagCounts={tagCounts}
-        onManageTags={() => setTagsOpen(true)}
-        onSettings={() => setSettingsTab("ai")}
-        sheetRef={sheetMode ? setSheetSlot : undefined}
-      />
+      {!alone && (
+        <Sidebar
+          recipes={library}
+          tags={tags}
+          filters={filters}
+          onFiltersChange={changeFilters}
+          filteredTagCounts={tagCounts}
+          onManageTags={() => setTagsOpen(true)}
+          onSettings={() => setSettingsTab("ai")}
+          sheetRef={sheetMode ? setSheetSlot : undefined}
+        />
+      )}
 
       {/* The sheet the cards lie on. The views scroll over it, so it never repaints. */}
       <main className="paper-sheet min-w-0 flex-1">
@@ -305,6 +309,7 @@ export default function App() {
             allTags={tags}
             tagging={tagging.has(view.id)}
             sheetSlot={sheetMode ? sheetSlot : null}
+            alone={alone}
             onBack={backToList}
             onEdit={() => setView({ name: "edit", id: view.id, from: view })}
             onDeleted={async () => {

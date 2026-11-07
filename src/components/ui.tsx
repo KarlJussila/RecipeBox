@@ -169,18 +169,24 @@ export function PrintedHeading({
   children,
   as: Tag = "h2",
   faint,
+  centered,
   className,
 }: {
   children: ReactNode;
   as?: "h2" | "h3" | "p";
   /** A lighter rule, for groups within a section. */
   faint?: boolean;
+  /** Ruled on both sides, for a heading that stands over a whole sheet. */
+  centered?: boolean;
   className?: string;
 }) {
+  const rule = <span aria-hidden className={cx("h-px min-w-6 flex-1", faint ? "bg-print-rule/50" : "bg-print-rule")} />;
   return (
     <Tag className={cx("printed-label flex items-center gap-3.5", className)}>
-      {children}
-      <span aria-hidden className={cx("h-px min-w-6 flex-1", faint ? "bg-print-rule/50" : "bg-print-rule")} />
+      {centered && rule}
+      {/* The letterspacing trails the last letter, so the label is nudged back to center. */}
+      <span className={cx(centered && "-mr-[0.24em]")}>{children}</span>
+      {rule}
     </Tag>
   );
 }
