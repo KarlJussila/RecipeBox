@@ -18,7 +18,7 @@ function minutesText(minutes: number | null): string {
 
 /** Text that looks like the page until it's pointed at or clicked into. */
 const IN_PLACE =
-  "bg-transparent transition-[background-color,box-shadow] duration-150 placeholder:text-ink-faint/70 hover:bg-ink/5 focus:bg-card focus:ring-2 focus:ring-leaf/45 focus:outline-none";
+  "bg-transparent transition-[background-color,box-shadow] duration-150 placeholder:text-ink-faint/70 hover:bg-ink/5 focus:bg-field focus:ring-2 focus:ring-leaf/45 focus:outline-none";
 
 export function RecipeEditor({
   id,
@@ -125,7 +125,7 @@ export function RecipeEditor({
         className={cx(
           "sticky top-0 z-30 flex items-center gap-2 px-8 transition-colors duration-200",
           isMac ? "h-16 pt-2" : "h-16",
-          scrolled && "paper-sheet border-b border-(--sheet-border)",
+          scrolled && "paper-sheet border-b border-(--sheet-border) [--sheet-size:100cqw_100vh]",
         )}
       >
         <Button variant="ghost" icon={<X className="size-[18px]" />} onClick={onCancel} className="-ml-3">
@@ -184,7 +184,7 @@ export function RecipeEditor({
                 ))}
               </div>
 
-              <label className="mt-4 -mx-3 flex h-11 items-center gap-2.5 rounded px-3 text-[15px] text-ink-soft transition-[background-color,box-shadow] duration-150 focus-within:bg-card focus-within:ring-2 focus-within:ring-leaf/45 hover:bg-ink/5">
+              <label className="mt-4 -mx-3 flex h-11 items-center gap-2.5 rounded px-3 text-[15px] text-ink-soft transition-[background-color,box-shadow] duration-150 focus-within:bg-field focus-within:ring-2 focus-within:ring-leaf/45 hover:bg-ink/5">
                 <Link2 className="size-4 shrink-0 text-ink-faint" />
                 <input
                   value={recipe.sourceUrl ?? ""}

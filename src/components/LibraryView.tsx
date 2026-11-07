@@ -96,7 +96,7 @@ export function LibraryView({
             onChange={(e) => onFiltersChange({ ...filters, query: e.target.value })}
             placeholder="Search by name, ingredient, or note"
             aria-label="Search recipes"
-            className="h-14 w-full rounded bg-card pr-14 pl-13 text-[17px] text-ink shadow-soft ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+            className="h-14 w-full rounded bg-field pr-14 pl-13 text-[17px] text-ink shadow-soft ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none [&::-webkit-search-cancel-button]:hidden"
           />
           {filters.query ? (
             <button

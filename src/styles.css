@@ -24,6 +24,8 @@
   --color-paper: #f5ecd6;
   --color-paper-deep: #efe4ca;
   --color-card: #fbf6ea;
+  /* A writing field on the card: a touch lighter than the paper, never white. */
+  --color-field: rgb(255 251 240 / 0.3);
   --color-line: #e2d3b2;
   --color-ink: #2a211c;
   --color-ink-soft: #53463c;
@@ -68,8 +70,6 @@
   --animate-rise: rise 260ms var(--ease-paper);
   --animate-drop-in: drop-in 420ms var(--ease-paper) both;
   --animate-settle: settle 220ms var(--ease-paper);
-  --animate-tab-in: tab-in 260ms var(--ease-paper) both;
-  --animate-tab-out: tab-out 200ms ease-in both;
 
   @keyframes fade-in {
     from { opacity: 0; }
@@ -87,13 +87,6 @@
   /* A paper label pressed down into place. */
   @keyframes settle {
     from { transform: translateY(-2px) scale(1.04); }
-  }
-  /* Divider tabs slide up from behind the divider, and back down. */
-  @keyframes tab-in {
-    from { transform: translateY(100%); }
-  }
-  @keyframes tab-out {
-    to { transform: translateY(100%); }
   }
 }
 
@@ -125,6 +118,9 @@
     --card-cast: rgb(60 40 20 / 0.32);
     --tin-shadow: 1px 0 0 rgb(40 45 15 / 0.18), 3px 0 10px rgb(60 45 15 / 0.14), 8px 0 28px -6px rgb(60 45 15 / 0.12);
     --pen: rgb(59 44 34 / 0.6);
+    /* Divider tabs, drawn on the aged card's stock (see `tab-cut`). */
+    --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='38'%3E%3Cpath d='M0 38 11.4 0h37.2L60 38z' fill='%2378551e' fill-opacity='0.3'/%3E%3Cpath d='M1 38 12.1 1h35.8L59 38z' fill='%23e6d4ae'/%3E%3Cpath d='M3 38 13.5 3h33L57 38z' fill='%23f5e9c9'/%3E%3C/svg%3E");
+    --tab-plain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='38'%3E%3Cpath d='M0 38 11.4 0h37.2L60 38z' fill='%2378551e' fill-opacity='0.22'/%3E%3Cpath d='M1 38 12.1 1h35.8L59 38z' fill='%23f5e9c9'/%3E%3C/svg%3E");
   }
   .stock-aged {
     --stock: #f5e9c9;
@@ -141,6 +137,7 @@
     --color-paper: #2a211c;
     --color-paper-deep: #30261f;
     --color-card: #372c24;
+    --color-field: rgb(0 0 0 / 0.14);
     --color-line: #47392f;
     --color-ink: #ece1d7;
     --color-ink-soft: #c9b6a2;
@@ -175,6 +172,8 @@
     --card-cast: rgb(0 0 0 / 0.6);
     --tin-shadow: 1px 0 0 rgb(0 0 0 / 0.3), 4px 0 16px rgb(0 0 0 / 0.25);
     --pen: rgb(239 226 207 / 0.55);
+    --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='38'%3E%3Cpath d='M0 38 11.4 0h37.2L60 38z' fill='%23000' fill-opacity='0.45'/%3E%3Cpath d='M1 38 12.1 1h35.8L59 38z' fill='%23493724'/%3E%3Cpath d='M3 38 13.5 3h33L57 38z' fill='%233a2e25'/%3E%3C/svg%3E");
+    --tab-plain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='38'%3E%3Cpath d='M0 38 11.4 0h37.2L60 38z' fill='%23000' fill-opacity='0.45'/%3E%3Cpath d='M1 38 12.1 1h35.8L59 38z' fill='%233a2e25'/%3E%3C/svg%3E");
   }
   .dark .stock-aged {
     --stock: #3a2e25;
@@ -229,17 +228,20 @@
   letter-spacing: 0;
 }
 
-/* The sheet the cards lie on. Pinned to the window, so a header cut from the same
-   sheet lines up with the page under it instead of showing as a strip. */
+/* The sheet the cards lie on. A header cut from the same sheet sets `--sheet-size` to the
+   sheet's size, so its stains line up with the page under it instead of showing as a strip.
+   (Pinning it to the window with a fixed attachment would do that too, but WebKit then
+   repaints the whole sheet on every frame of a scroll.) */
 @utility paper-sheet {
   background-color: var(--sheet);
-  background-attachment: fixed;
   background-image:
     radial-gradient(ellipse 80% 75% at 50% 45%, transparent 50%, var(--sheet-edge) 100%),
     radial-gradient(520px 380px at 18% 22%, var(--sheet-stain), transparent 70%),
     radial-gradient(600px 420px at 84% 78%, color-mix(in srgb, var(--sheet-stain) 85%, transparent), transparent 70%),
     radial-gradient(300px 240px at 62% 12%, color-mix(in srgb, var(--sheet-stain) 70%, transparent), transparent 70%),
     var(--noise);
+  background-size: var(--sheet-size, 100% 100%), var(--sheet-size, 100% 100%), var(--sheet-size, 100% 100%), var(--sheet-size, 100% 100%), auto;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
 }
 
 /* An index card: yellowed toward its edges, mottled, and grained. Pair it with
@@ -257,40 +259,15 @@
   border-radius: 3px;
 }
 
-/* A divider tab: three trapezoids, one inside the next, for the fine cut edge, a browned
-   rim, and the plain stock. It's open at the bottom, where it joins the divider, and the
-   slants are 0.3px across for every pixel up. */
+/* A divider tab: a trapezoid with a fine cut edge, a browned rim, and plain stock, open at
+   the bottom where it joins the divider. It's one image, sliced so the slants keep their
+   angle at any width, so the tab moves as one piece when it's lifted. */
 @utility tab-cut {
-  isolation: isolate;
-  background: var(--color-edge);
-  clip-path: polygon(0 100%, 11.4px 0, calc(100% - 11.4px) 0, 100% 100%);
-  &::before,
-  &::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    background-color: var(--stock);
-    background-image: var(--noise);
-  }
-  &::before {
-    inset: 1px 1px 0;
-    background-image: linear-gradient(rgb(150 100 30 / 0.16), rgb(150 100 30 / 0.16)), var(--noise);
-    clip-path: polygon(0 100%, 11.1px 0, calc(100% - 11.1px) 0, 100% 100%);
-  }
-  &::after {
-    inset: 3px 3px 0;
-    clip-path: polygon(0 100%, 10.5px 0, calc(100% - 10.5px) 0, 100% 100%);
-  }
+  border-image: var(--tab) 0 14 fill / 0 14px / 0 stretch;
 }
 /* The "+" tab: a single fine edge on plain stock, so it reads as a blank. */
 @utility tab-plain {
-  background: rgb(120 85 30 / 0.22);
-  &::before {
-    background-image: var(--noise);
-  }
-  &::after {
-    content: none;
-  }
+  border-image-source: var(--tab-plain);
 }
 
 /* A label printed on the card, in letterspaced serif caps. */
@@ -341,18 +318,6 @@
    of the whole page hanging off it. */
 ::view-transition-image-pair(recipe-card) {
   overflow: clip;
-}
-/* The ingredients fold up and open out from their top corner instead of being scaled. */
-::view-transition-image-pair(ingredients) {
-  overflow: clip;
-}
-::view-transition-old(ingredients),
-::view-transition-new(ingredients) {
-  width: auto;
-  height: auto;
-  object-fit: none;
-  object-position: left top;
-  inset: 0 auto auto 0;
 }
 /* Entrance animations would hide the new page while it's captured. Finishing them at
    once, rather than removing them, keeps them from replaying when the turn is over. */

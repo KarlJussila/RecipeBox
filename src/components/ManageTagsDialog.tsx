@@ -12,7 +12,7 @@ function CategorySelect({ value, onChange, label, className }: { value: string; 
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-full w-full appearance-none rounded bg-card pr-8 pl-3.5 text-sm text-ink-soft ring-1 ring-line hover:bg-paper-deep focus:ring-2 focus:ring-leaf focus:outline-none"
+        className="h-full w-full appearance-none rounded bg-field pr-8 pl-3.5 text-sm text-ink-soft ring-1 ring-line hover:bg-umber/5 focus:ring-2 focus:ring-leaf focus:outline-none"
       >
         {CATEGORY_NAMES.map((c) => (
           <option key={c} value={c}>

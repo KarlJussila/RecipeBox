@@ -73,15 +73,18 @@ function Tab({ name, entering, onRemove }: { name: string; entering: boolean; on
         leaving && "pointer-events-none",
       )}
     >
-      {name}
+      {/* Pointing at the tab slides its name aside for the "×" that removes it. */}
+      <span className="transition-transform duration-200 ease-out group-focus-within/tab:-translate-x-[7px] group-hover/tab:-translate-x-[7px]">
+        {name}
+      </span>
       <button
         type="button"
         onClick={remove}
         aria-label={`Remove tag ${name}`}
         title="Remove this tag"
-        className="absolute top-[7px] right-[7px] flex size-4 items-center justify-center rounded-full text-ink-faint opacity-0 transition-opacity group-hover/tab:opacity-100 hover:bg-umber/12 hover:text-ink focus-visible:opacity-100"
+        className="absolute top-[9px] right-[12px] flex size-4 items-center justify-center text-ink-faint opacity-0 transition-opacity duration-200 group-hover/tab:opacity-100 hover:text-ink focus-visible:opacity-100"
       >
-        <X className="size-3" strokeWidth={2.5} />
+        <X className="size-[9px]" strokeWidth={2.25} />
       </button>
     </div>
   );
@@ -225,7 +228,7 @@ export function TagEditor({
         <div
           ref={menuRef}
           style={{ left: menuLeft + 24 }}
-          className="absolute top-full z-20 mt-2 w-72 animate-pop-in rounded bg-card p-1 shadow-lift ring-1 ring-line"
+          className="absolute top-full z-20 mt-2 w-72 animate-pop-in card-stock p-1 shadow-card-lift"
         >
           <input
             ref={inputRef}
@@ -257,7 +260,7 @@ export function TagEditor({
             }}
             placeholder="Find or create a tag"
             aria-label="Add a tag"
-            className="h-9 w-full rounded-[3px] bg-paper px-3 text-sm text-ink ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none"
+            className="h-9 w-full rounded-[3px] bg-field px-3 text-sm text-ink ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none"
           />
           {filing ? (
             <>

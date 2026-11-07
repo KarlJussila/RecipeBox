@@ -224,7 +224,7 @@ export function RecipeBoard({
 
       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" }}>
         {dragging && (
-          <div className={cx(LOOK[dragging.bucket].row, "mx-0 rotate-[0.8deg] cursor-grabbing bg-card shadow-lift ring-1 ring-umber/20")}>
+          <div className={cx(LOOK[dragging.bucket].row, "card-stock mx-0 rotate-[0.8deg] cursor-grabbing shadow-card-lift")}>
             <RowContent item={dragging.item} bucket={dragging.bucket} number={dragging.number} />
           </div>
         )}
@@ -354,7 +354,7 @@ function Row({
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition, ["--bleed" as string]: look.bleed }}>
       {editing ? (
-        <div className={cx(box, "bg-card ring-2 ring-leaf/45")}>
+        <div className={cx(box, "bg-field ring-2 ring-leaf/45")}>
           <RowContent item={item} bucket={bucket} number={number}>
             <EditLine text={item.text} onDone={onEdited} />
           </RowContent>
@@ -447,7 +447,7 @@ function AddLines({ label, first, onAdd }: { label: string; first: boolean; onAd
     );
   }
   return (
-    <div className={cx("animate-fade-in rounded bg-card ring-2 ring-leaf/45", first ? "mt-1" : "mt-4")}>
+    <div className={cx("animate-fade-in rounded bg-field ring-2 ring-leaf/45", first ? "mt-1" : "mt-4")}>
       <GrowingTextarea
         value={text}
         autoFocus

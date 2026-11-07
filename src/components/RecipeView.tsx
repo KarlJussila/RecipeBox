@@ -1,6 +1,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, FileSearch, Heart, Pencil, Printer, Trash2 } from "lucide-react";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { api } from "../lib/api";
 import { bucketSections } from "../lib/buckets";
 import { formatMinutes } from "../lib/extract/duration";
@@ -11,7 +12,7 @@ import { CookingMode } from "./CookingMode";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
 import { Button, cx, Dialog, IconButton, isMac, PrintedHeading } from "./ui";
-import { turnPage } from "../lib/motion";
+import { prefersStill } from "../lib/motion";
 
 export function IngredientText({ line }: { line: string }) {
   const [amount, rest] = splitAmount(line);
@@ -212,7 +213,7 @@ function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[];
                       aria-pressed={active}
                       className={cx(
                         "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded px-5 py-4 text-left transition-colors duration-200",
-                        active ? "bg-butter" : "hover:bg-umber/5",
+                        active ? "bg-umber/9" : "hover:bg-umber/5",
                       )}
                     >
                       <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums">{number}</span>
@@ -304,6 +305,23 @@ export function RecipeView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // The list is lifted off to the left and the steps settle into its room, or it's laid
+  // back down. Only opacity and position move, which the compositor animates on its own;
+  // a view transition here repainted the whole page for every frame.
+  const foldIngredients = async (collapsed: boolean) => {
+    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+    const card = cardRef.current;
+    if (!card || prefersStill()) return setIngredientsCollapsed(collapsed);
+    const steps = card.nextElementSibling;
+    if (collapsed) {
+      await card.animate([{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: "-16px 0" }], { duration: 150, easing: "ease-in" }).finished;
+    }
+    flushSync(() => setIngredientsCollapsed(collapsed));
+    const settle = { duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" };
+    card.animate(collapsed ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, translate: "-16px 0" }, { opacity: 1, translate: "0 0" }], settle);
+    steps?.animate([{ opacity: 0.4 }, { opacity: 1 }], settle);
+  };
+
   useEffect(() => {
     let cancelled = false;
     api.getRecipe(id).then((r) => !cancelled && setRecipe(r));
@@ -362,7 +380,7 @@ export function RecipeView({
           "no-print sticky top-0 z-10 flex items-center gap-1 px-8 transition-colors duration-200",
           isMac ? "h-16 pt-2" : "h-16",
           // Cut from the same sheet as the page, so it doesn't show as a strip.
-          scrolled && "paper-sheet border-b border-(--sheet-border)",
+          scrolled && "paper-sheet border-b border-(--sheet-border) [--sheet-size:100cqw_100vh]",
         )}
       >
         <Button variant="ghost" icon={<ArrowLeft className="size-[18px]" />} onClick={onBack} className="-ml-3">
@@ -447,7 +465,6 @@ export function RecipeView({
           <section className="flow-root">
             <div
               ref={cardRef}
-              style={{ viewTransitionName: "ingredients" }}
               className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}
             >
               <Ingredients
@@ -455,11 +472,7 @@ export function RecipeView({
                 sections={ingredients}
                 servings={recipe.servings}
                 collapsed={ingredientsCollapsed}
-                onCollapsedChange={(collapsed) => {
-                  // The list folds away and the steps slide over into its room.
-                  turnPage(() => setIngredientsCollapsed(collapsed));
-                  localStorage.setItem(COLLAPSED_KEY, String(collapsed));
-                }}
+                onCollapsedChange={foldIngredients}
               />
             </div>
             <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} card={cardRef} />

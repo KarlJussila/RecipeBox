@@ -136,7 +136,7 @@ export function ItemMenu({
       onKeyDown={keyDown}
       style={place ? { left: place.left, top: place.top, bottom: place.bottom } : { left: -9999, top: -9999 }}
       className={cx(
-        "fixed z-50 animate-pop-in rounded bg-card p-[5px] shadow-lift ring-1 ring-line",
+        "fixed z-50 animate-pop-in card-stock p-[5px] shadow-card-lift",
         settled && `transition-[left] duration-[240ms] motion-reduce:transition-none ${EASE}`,
       )}
     >

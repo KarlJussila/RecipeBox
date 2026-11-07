@@ -91,7 +91,7 @@ export function IconButton({ label, active, className, children, type = "button"
 // Form fields
 
 const FIELD =
-  "w-full rounded bg-card px-3.5 text-[15px] text-ink ring-1 ring-line placeholder:text-ink-faint transition-shadow focus:ring-2 focus:ring-leaf focus:outline-none";
+  "w-full rounded bg-field px-3.5 text-[15px] text-ink ring-1 ring-line placeholder:text-ink-faint transition-shadow focus:ring-2 focus:ring-leaf focus:outline-none";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...props },
