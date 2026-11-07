@@ -13,6 +13,19 @@ const TIME_OPTIONS: { label: string; minutes: number | null }[] = [
 
 const COLLAPSED_KEY = "recipebox.collapsedCategories";
 
+/** How many tags a category shows before the rest go behind "N more". */
+const FEW = 8;
+
+/**
+ * A long category shows only its most-used tags, still in alphabetical order, plus any she
+ * has chosen or hidden. One or two extra tags aren't worth a "more", so those just show.
+ */
+function fewOf<T extends { name: string; total: number }>(list: T[], keep: (t: T) => boolean): T[] {
+  if (list.length <= FEW + 2) return list;
+  const top = new Set([...list].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)).slice(0, FEW));
+  return list.filter((t) => top.has(t) || keep(t));
+}
+
 /** What's chosen wears a paper label, pressed into place on the tin. */
 const LABEL = "animate-settle bg-label font-semibold text-label-ink shadow-[0_1px_2px_rgb(0_0_0/0.18)]";
 
@@ -77,6 +90,14 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const [collapsed, toggleCollapsed] = useCollapsed();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = (category: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
   const set = (patch: Partial<Filters>) => onFiltersChange({ ...filters, ...patch });
   const narrowed = filters.tags.length > 0 || filters.excludedTags.length > 0 || filters.favorites || filters.maxMinutes || filters.query.trim();
 
@@ -86,6 +107,7 @@ export function Sidebar({
   const visible = tags
     .map((t) => ({
       ...t,
+      total: totals.get(t.name) ?? 0,
       // A hidden tag shows how many recipes it's hiding.
       count: narrowed && !filters.excludedTags.includes(t.name) ? (filteredTagCounts.get(t.name) ?? 0) : (totals.get(t.name) ?? 0),
     }))
@@ -189,6 +211,10 @@ export function Sidebar({
           )}
           {groups.map(([category, list]) => {
             const open = !collapsed.has(category);
+            // Ranked by how many recipes use each tag overall, so filtering doesn't reshuffle them.
+            const few = fewOf(list, (t) => filters.tags.includes(t.name) || filters.excludedTags.includes(t.name));
+            const more = expanded.has(category);
+            const shown = more ? list : few;
             return (
               <section key={category} className="border-b border-spine-line py-1 last:border-0">
                 <button
@@ -203,7 +229,7 @@ export function Sidebar({
                 </button>
                 {open && (
                   <div className="flex animate-fade-in flex-wrap gap-x-1 gap-y-0.5 px-1 pt-0.5 pb-3">
-                    {list.map((t) => {
+                    {shown.map((t) => {
                       const selected = filters.tags.includes(t.name);
                       const hidden = filters.excludedTags.includes(t.name);
                       return (
@@ -236,6 +262,16 @@ export function Sidebar({
                         </button>
                       );
                     })}
+                    {few.length < list.length && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(category)}
+                        aria-expanded={more}
+                        className="inline-flex h-7 items-center rounded-[3px] px-2 text-sm text-cream-soft transition-colors duration-150 hover:bg-white/8 hover:text-cream"
+                      >
+                        {more ? "Fewer" : `${list.length - few.length} more`}
+                      </button>
+                    )}
                   </div>
                 )}
               </section>
