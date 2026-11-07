@@ -1,7 +1,7 @@
 import { ArrowLeft, ChevronRight, Plus, X } from "lucide-react";
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { headlineCase } from "../lib/extract/text";
-import { CATEGORY_NAMES, OTHER, TAG_CATEGORIES } from "../lib/tags";
+import { CATEGORY_NAMES, OTHER, TAG_CATEGORIES, type Tag } from "../lib/tags";
 import { CATEGORY_ICONS, cx, Spinner } from "./ui";
 
 const CATEGORIES = [...CATEGORY_NAMES, OTHER];
@@ -18,7 +18,7 @@ const EXAMPLES: Record<string, string> = {
  */
 function Tab({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
-    <div className="group/tab tab-cut relative flex h-[30px] shrink-0 items-start pt-[9px] pr-[28px] pl-[20px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft hover:text-ink">
+    <div data-tab className="group/tab tab-cut relative flex h-[30px] shrink-0 items-start pt-[9px] pr-[28px] pl-[20px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft hover:text-ink">
       <span className="relative">{name}</span>
       <button
         type="button"
@@ -33,6 +33,17 @@ function Tab({ name, onRemove }: { name: string; onRemove: () => void }) {
   );
 }
 
+/** The order tabs stand in, most telling first, so a crowded row keeps the ones that say the most. */
+const TAB_ORDER = ["Dish", "Cuisine", "Ingredient", "Dietary", "Method", "Occasion"];
+const tabRank = (category: string | null | undefined) => {
+  const i = category ? TAB_ORDER.indexOf(category) : -1;
+  return i === -1 ? TAB_ORDER.length : i;
+};
+
+/** Holds the tabs that didn't fit, behind a last tab that says how many. */
+const MORE_TAB =
+  "tab-cut relative flex h-[30px] shrink-0 items-start pt-[9px] pr-[16px] pl-[18px] text-[13.5px] leading-none font-semibold whitespace-nowrap hover:text-ink";
+
 /**
  * The recipe's tags as the tabs of a divider card standing in the box, with a "+" tab
  * that opens an autocompleting field to add existing or new tags. Creating a tag takes
@@ -46,12 +57,13 @@ export function TagEditor({
   busy,
 }: {
   tags: string[];
-  allTags: string[];
+  allTags: Tag[];
   /** `categories` holds the category of each newly created tag. */
   onChange: (tags: string[], categories?: Record<string, string>) => void;
   /** Shown while tags are being chosen for the recipe. */
   busy?: boolean;
 }) {
+  const names = useMemo(() => allTags.map((t) => t.name), [allTags]);
   const addRef = useRef<HTMLButtonElement>(null);
   const [menuLeft, setMenuLeft] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -64,14 +76,14 @@ export function TagEditor({
   const has = (name: string) => tags.some((t) => t.toLowerCase() === name.toLowerCase());
   const suggestions = useMemo(() => {
     const q = text.trim().toLowerCase();
-    const available = allTags.filter((t) => !has(t));
+    const available = names.filter((t) => !has(t));
     const matches = q ? available.filter((t) => t.toLowerCase().includes(q)) : available;
     // Prefix matches first.
     // A short list: typing narrows it faster than scrolling would.
     return matches.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q))).slice(0, 6);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, allTags, tags]);
-  const exact = allTags.find((t) => t.toLowerCase() === text.trim().toLowerCase());
+  }, [text, names, tags]);
+  const exact = names.find((t) => t.toLowerCase() === text.trim().toLowerCase());
   // New tags are title-cased: "christmas eve" becomes "Christmas Eve".
   const newName = headlineCase(text.trim().replace(/\s+/g, " "));
   const canCreate = newName !== "" && !exact && !has(newName);
@@ -90,8 +102,71 @@ export function TagEditor({
     if (adding && addRef.current) setMenuLeft(addRef.current.offsetLeft);
   }, [adding, tags]);
 
+  // Tabs in order of what they say about the dish; as many as fit stand in the row, and
+  // the rest wait behind a "3 more" tab. A hidden copy of the row measures each tab.
+  const categoryOf = useMemo(() => new Map(allTags.map((t) => [t.name.toLowerCase(), t.category])), [allTags]);
+  const ordered = useMemo(
+    () => tags.map((t, i) => ({ t, i })).sort((a, b) => tabRank(categoryOf.get(a.t.toLowerCase())) - tabRank(categoryOf.get(b.t.toLowerCase())) || a.i - b.i).map(({ t }) => t),
+    [tags, categoryOf],
+  );
+  const rowRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [fits, setFits] = useState(ordered.length);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const observer = new ResizeObserver(() => setWidth(row.clientWidth));
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    const measure = measureRef.current;
+    if (!measure || width === 0) return;
+    const tabs = [...measure.querySelectorAll<HTMLElement>("[data-tab]")].map((el) => el.offsetWidth);
+    const more = measure.querySelector<HTMLElement>("[data-more]")?.offsetWidth ?? 0;
+    const add = addRef.current?.offsetWidth ?? 0;
+    // Room for the indent before the tabs, the "+" tab, and a little of the edge after it.
+    const room = width - 24 - add - 24;
+    const total = tabs.reduce((sum, w) => sum + w, 0);
+    if (total <= room) return setFits(tabs.length);
+    let used = more;
+    let n = 0;
+    while (n < tabs.length && used + tabs[n] <= room) used += tabs[n++];
+    setFits(Math.max(1, n));
+  }, [ordered, width]);
+  const shown = ordered.slice(0, fits);
+  const hidden = ordered.slice(fits);
+
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const morePanelRef = useRef<HTMLDivElement>(null);
+  const [showingMore, setShowingMore] = useState(false);
+  useEffect(() => {
+    if (hidden.length === 0) setShowingMore(false);
+  }, [hidden.length]);
+  useEffect(() => {
+    if (!showingMore) return;
+    const away = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!morePanelRef.current?.contains(target) && !moreRef.current?.contains(target)) setShowingMore(false);
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setShowingMore(false);
+      moreRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", escape, true);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", escape, true);
+    };
+  }, [showingMore]);
+  const remove = (name: string) => onChange(tags.filter((x) => x !== name));
+
   const add = (name: string, category?: string) => {
-    const existing = allTags.find((t) => t.toLowerCase() === name.toLowerCase());
+    const existing = names.find((t) => t.toLowerCase() === name.toLowerCase());
     const tag = existing ?? name.trim();
     if (tag && !has(tag)) {
       onChange([...tags, tag], existing || !category || category === OTHER ? undefined : { [tag]: category });
@@ -132,11 +207,31 @@ export function TagEditor({
   return (
     // The tags are the tabs of dividers standing behind this one, so its edge runs under
     // them. The "+" is this divider's own tab, so the edge runs up around it instead.
-    <div className="no-print relative mt-[58px] mb-14 flex items-end">
-      <div className="flex items-end border-b border-umber/42 pl-6">
-        {tags.map((t) => (
-          <Tab key={t} name={t} onRemove={() => onChange(tags.filter((x) => x !== t))} />
+    <div ref={rowRef} className="no-print relative mt-[58px] mb-14 flex items-end">
+      <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute bottom-0 left-0 flex">
+        {ordered.map((t) => (
+          <Tab key={t} name={t} onRemove={() => {}} />
         ))}
+        <span data-more className={MORE_TAB}>
+          {ordered.length} more
+        </span>
+      </div>
+      <div className="flex items-end border-b border-umber/42 pl-6">
+        {shown.map((t) => (
+          <Tab key={t} name={t} onRemove={() => remove(t)} />
+        ))}
+        {hidden.length > 0 && (
+          <button
+            ref={moreRef}
+            type="button"
+            onClick={() => setShowingMore((s) => !s)}
+            aria-expanded={showingMore}
+            aria-label={`Show ${hidden.length} more ${hidden.length === 1 ? "tag" : "tags"}`}
+            className={cx(MORE_TAB, showingMore ? "text-ink" : "text-ink-faint")}
+          >
+            <span className="relative">{hidden.length} more</span>
+          </button>
+        )}
       </div>
       <button
         ref={addRef}
@@ -160,6 +255,29 @@ export function TagEditor({
           </span>
         )}
       </div>
+      {showingMore && hidden.length > 0 && (
+        <div
+          ref={morePanelRef}
+          style={{ left: moreRef.current?.offsetLeft ?? 0 }}
+          className="absolute top-full z-20 mt-2 w-56 animate-pop-in card-stock p-1 shadow-card-lift"
+        >
+          <ul aria-label="More tags">
+            {hidden.map((t) => (
+              <li key={t} className="group/more flex items-center rounded-[3px] py-1.5 pr-1.5 pl-3 text-sm font-semibold text-ink-soft hover:bg-umber/6">
+                <span className="flex-1 truncate">{t}</span>
+                <button
+                  type="button"
+                  onClick={() => remove(t)}
+                  aria-label={`Remove tag ${t}`}
+                  className="flex size-6 items-center justify-center rounded-full text-ink-faint hover:bg-umber/10 hover:text-ink"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {adding && (
         <div
           ref={menuRef}

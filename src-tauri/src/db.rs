@@ -82,8 +82,8 @@ const STARTER_TAGS: &[(&str, &[&str])] = &[
     (
         "Ingredient",
         &[
-            "Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Cheese", "Potatoes", "Vegetables",
-            "Fruit", "Nuts", "Chocolate",
+            "Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Cheese", "Potatoes", "Spinach",
+            "Broccoli", "Asparagus", "Green Beans", "Squash", "Tomatoes", "Mushrooms", "Fruit", "Nuts", "Chocolate",
         ],
     ),
     (

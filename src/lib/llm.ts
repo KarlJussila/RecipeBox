@@ -100,11 +100,15 @@ export async function runJob(llm: LlmSettings, instructions: string, message: st
 // ---------------------------------------------------------------------------
 // Tagging
 
-const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection.
+const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection, so she can find each one again by browsing her tags.
 
-Choose all the tags that fit from the list in the message and save them with set_tags. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
+Choose the few tags from the list in the message that she would look under to find this recipe, and save them with set_tags. Most recipes need two to four. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
 
-- Add a Dietary tag only when the recipe says so itself, in its title, description, or website keywords.`;
+- Dish: what she would call it, usually one tag, plus Dessert for a sweet such as Cookies, Cake, or Pie. Don't stretch a tag to fit: a lasagna isn't a Casserole.
+- Ingredient: only what the dish is built around, the thing she'd search for to find it. Leave out what is merely in it, such as the eggs in a cake or the onion in a meatloaf. Potatoes covers sweet potatoes.
+- Cuisine: only when the recipe plainly belongs to one.
+- Method: only when the recipe is made that way, such as in a slow cooker.
+- Dietary: only when the recipe says so itself, in its title, description, or website keywords.`;
 
 const TagInput = z.strictObject({ tags: z.array(z.string()) });
 

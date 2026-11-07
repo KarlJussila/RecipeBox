@@ -414,7 +414,7 @@ export function RecipeView({
             </figure>
           </section>
 
-          <TagEditor tags={recipe.tags} allTags={allTags.map((t) => t.name)} onChange={setTags} busy={tagging} />
+          <TagEditor tags={recipe.tags} allTags={allTags} onChange={setTags} busy={tagging} />
 
           {sheetSlot &&
             createPortal(<IngredientsSheet sections={ingredients} servings={recipe.servings} checked={checked} />, sheetSlot)}

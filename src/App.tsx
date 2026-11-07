@@ -362,7 +362,7 @@ export default function App() {
         {view.name === "edit" && (
           <RecipeEditor
             id={view.id}
-            allTags={tags.map((t) => t.name)}
+            allTags={tags}
             sheetSlot={sheetMode ? sheetSlot : null}
             alone={alone}
             onCancel={() => setView(view.from)}

@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { formatMinutes, parseDuration } from "../lib/extract/duration";
 import { servingsFrom } from "../lib/extract/text";
 import { emptyRecipe, type Recipe } from "../lib/types";
+import type { Tag } from "../lib/tags";
 import { fromBuckets, RecipeBoard, toBuckets, type Buckets } from "./RecipeBoard";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
@@ -29,7 +30,7 @@ export function RecipeEditor({
   onSaved,
 }: {
   id: string | null;
-  allTags: string[];
+  allTags: Tag[];
   /** Where the left-out lines' sheet goes, beside the card; without one they stay on the card. */
   sheetSlot: HTMLElement | null;
   /** No sidebar beside the page, so the header clears the macOS window buttons. */
