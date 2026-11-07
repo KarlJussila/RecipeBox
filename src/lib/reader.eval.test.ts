@@ -10,6 +10,8 @@
 // RB_PAGES    page names to read, separated by spaces (default all labeled pages)
 // RB_RUN      a name for the run; answers are cached per run, so a new name asks again
 // RB_WARM     0 to ask each question in a job of its own instead of one warm session
+// RB_QUEUE    a folder shared by runs on several machines: each run takes the next page
+//             no run has taken yet, so faster machines read more of them
 //
 // opencode runs the way the app runs it (src-tauri/src/opencode.rs): the same
 // command, config, and plugin. Only the Tauri side is stood in for here.
@@ -36,6 +38,19 @@ const OFFLINE = process.env.RB_OFFLINE === "1";
  * RB_SAVE_AS=http://127.0.0.1:1234/v1.
  */
 const SAVE_AS = process.env.RB_SAVE_AS;
+const QUEUE = process.env.RB_QUEUE;
+
+/** Takes a page for this run, unless another run on the same queue has. */
+function claim(name: string): boolean {
+  if (!QUEUE) return true;
+  mkdirSync(QUEUE, { recursive: true });
+  try {
+    mkdirSync(join(QUEUE, name));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface Job { id: string; model: string; service: { baseUrl: string; apiKey: string } | null; instructions: string; message: string }
 interface ToolDef { name: string; description: string; inputSchema: unknown }
@@ -267,6 +282,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
     const say = (line: string) => { report.push(line); console.log(line); };
 
     for (const name of names) {
+      if (!claim(name)) continue;
       const page = pages.get(name);
       if (!page) throw new Error(`No labels for ${name}`);
       const url = readFileSync(join(page.dir, "url.txt"), "utf8").trim();
