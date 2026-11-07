@@ -69,7 +69,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 vi.mock("./api", () => ({
   api: {
-    opencodeRun: (job: Job, tools: ToolDef[]) => opencodeRun(job, tools),
+    opencodeRun: (job: Job, tools: ToolDef[]) => track(opencodeRun(job, tools)),
     resolveToolCall: (call: string, reply: { text: string; endJob: boolean }) => {
       bridge.waiting.get(call)?.(reply);
       bridge.waiting.delete(call);
@@ -116,6 +116,16 @@ function config(job: Job, tools: ToolDef[]) {
 const cachePath = join(OUT, "cache.json");
 const cache: Record<string, { calls: Call[]; secs: number }> = existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, "utf8")) : {};
 let modelSeconds = 0;
+/**
+ * Jobs still running. The reader moves on once a job's answer arrives, before opencode
+ * exits and the answers are saved, so the run waits for them before it ends.
+ */
+const running = new Set<Promise<string>>();
+function track(job: Promise<string>): Promise<string> {
+  running.add(job);
+  void job.finally(() => running.delete(job)).catch(() => {});
+  return job;
+}
 /** Every reply that didn't end its job, so how often each check pushes back can be counted. */
 const pushback: { page: string; tool: string; text: string }[] = [];
 let currentPage = "";
@@ -138,7 +148,7 @@ async function opencodeRun(job: Job, tools: ToolDef[]): Promise<string> {
     // If the checks have changed since and the saved answers stop short, the reader asks again.
     return "";
   }
-  if (OFFLINE) throw new Error("not saved");
+  if (OFFLINE) throw new Error(`not saved: ${job.message.split("\n").at(-1)?.slice(0, 120)}`);
 
   const calls: Call[] = [];
   let child: ChildProcess | null = null;
@@ -295,7 +305,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
         reading = await readPage(llm, readable.text, draft.title || null, draft.sourceUrl, { warm: WARM, links: readable.links });
       } catch (err) {
         if (!OFFLINE || String(err).indexOf("not saved") < 0) throw err;
-        say(`${name.padEnd(22)} not saved`);
+        say(`${name.padEnd(22)} ${String(err).replace(/^Error: /, "")}`);
         continue;
       }
       const lines = reading?.lines ?? readableText(doc).split("\n").filter((l) => l.trim());
@@ -325,7 +335,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
         `${name.padEnd(22)} ${(modelSeconds - before).toFixed(1).padStart(5)}s  ` +
           `ingredients −${ingredients.missing.length} +${ingredients.extra.length}  steps −${steps.missing.length} +${steps.extra.length}  ` +
           `description ${introRight ? "ok" : "wrong"}` + (unlabeled ? `  (${unlabeled} unlabeled lines)` : "") +
-          (reading ? `  “${reading.recipe.title}”${titleRight ? "" : " WRONG TITLE"}` : "  NO RECIPE"),
+          (reading ? `  “${reading.recipe.title}”${titleRight ? "" : " WRONG TITLE"}  serves ${reading.recipe.servings ?? "-"}` : "  NO RECIPE"),
       );
       const show = (what: string, list: number[]) => list.slice(0, 4).forEach((i) => say(`${"".padEnd(26)}${what} ${i + 1}: ${lines[i].slice(0, 80)}`));
       show("missing ingredient", ingredients.missing);
@@ -334,6 +344,7 @@ describe.runIf(process.env.RB_EVAL)("reading labeled pages", () => {
       show("extra step        ", steps.extra);
       if (!introRight) say(`${"".padEnd(26)}description: ${intro === null ? "none" : `${intro + 1}: ${lines[intro].slice(0, 80)}`}`);
     }
+    await Promise.allSettled([...running]);
     say(
       `\n${totals.pages - totals.wrong}/${totals.pages} pages right. Wrong title on ${totals.title}, wrong ingredients on ${totals.ingredients}, ` +
         `wrong steps on ${totals.steps}, wrong description on ${totals.description}. Model time ${modelSeconds.toFixed(0)} s.`,

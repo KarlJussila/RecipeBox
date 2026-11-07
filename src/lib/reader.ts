@@ -373,9 +373,9 @@ export async function readPage(
       descriptionAnswers,
     );
 
-    // What it makes and how long it takes, as the page states them.
+    // How many it serves and how long it takes, as the page states them.
     const details = await questions.ask(
-      `How much does ${name} make, and how long does it take? Call \`return_details\` with what the page states, and leave out anything it doesn't say.`,
+      `How many people does ${name} serve, and how long does it take? Call \`return_details\` with what the page states, and leave out anything it doesn't say.`,
       detailAnswers,
     );
 
