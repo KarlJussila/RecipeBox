@@ -38,7 +38,7 @@ function Description({ text }: { text: string }) {
   );
 }
 
-type Checked = { has: (key: string) => boolean; toggle: (key: string) => void };
+export type Checked = { has: (key: string) => boolean; toggle: (key: string) => void };
 
 /** The list she checks off as she gathers things, crossed off the same way wherever it shows. */
 function IngredientList({ sections, checked, small }: { sections: Section[]; checked: Checked; small?: boolean }) {
@@ -125,9 +125,12 @@ function StepHeading({ children }: { children: string }) {
   return <h3 className="mb-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink">{children}</h3>;
 }
 
-function Steps({ sections }: { sections: Section[] }) {
-  const [current, setCurrent] = useState<string | null>(null);
-  let number = 0;
+/**
+ * The steps, numbered afresh under each heading the way a cookbook numbers a crust and its
+ * filling. `current` counts steps across the whole recipe, the same count cooking mode keeps.
+ */
+function Steps({ sections, current, onSelect }: { sections: Section[]; current: number | null; onSelect: (step: number | null) => void }) {
+  let flat = -1;
   return (
     <div>
       <PrintedHeading className="mb-7 print:mb-3">
@@ -140,25 +143,26 @@ function Steps({ sections }: { sections: Section[] }) {
             {section.heading && <StepHeading>{section.heading}</StepHeading>}
             <ol className="space-y-1.5">
               {section.items.map((step, i) => {
-                number += 1;
+                flat += 1;
+                const at = flat;
                 const key = `${si}-${i}`;
-                const active = current === key;
+                const active = current === at;
                 return (
                   // In print, each step is its own formatting context: it sits beside the
                   // floated ingredients at the width left over, or takes the full width
                   // below them. WebKit only does that for a block with auto width and no
                   // negative margins, so the highlight's bleed lives on the button inside.
-                  <li key={key} className="print-break-avoid flow-root">
+                  <li key={key} data-step={at} className="print-break-avoid flow-root">
                     <button
                       type="button"
-                      onClick={() => setCurrent(active ? null : key)}
+                      onClick={() => onSelect(active ? null : at)}
                       aria-pressed={active}
                       className={cx(
                         "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded px-5 py-4 text-left transition-colors duration-200 print:mx-0 print:w-full print:grid-cols-[2rem_minmax(0,1fr)] print:gap-2 print:p-0 print:py-1",
                         active ? "bg-umber/9" : "hover:bg-umber/5",
                       )}
                     >
-                      <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums print:text-[22pt]">{number}</span>
+                      <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums print:text-[22pt]">{i + 1}</span>
                       <span className="selectable pt-1 text-[18px] leading-[1.65] text-ink print:pt-0.5 print:text-[11pt] print:leading-normal">{step}</span>
                     </button>
                   </li>
@@ -275,7 +279,23 @@ export function RecipeView({
         return next;
       }),
   };
-  useEffect(() => setCheckedKeys(new Set()), [id]);
+  // The step she's on, across the whole recipe, kept with the page and cooking mode alike.
+  const [currentStep, setCurrentStep] = useState<number | null>(null);
+  useEffect(() => {
+    setCheckedKeys(new Set());
+    setCurrentStep(null);
+  }, [id]);
+  const startCooking = () => {
+    setCurrentStep((step) => step ?? 0);
+    setCooking(true);
+  };
+  const stopCooking = () => {
+    setCooking(false);
+    // Back on the page, the step she reached is in view and marked.
+    requestAnimationFrame(() =>
+      scrollRef.current?.querySelector(`[data-step="${currentStep}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }),
+    );
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -399,7 +419,7 @@ export function RecipeView({
               )}
               <div className="no-print mt-8 flex flex-wrap items-center gap-4">
                 {hasSteps && (
-                  <Button variant="primary" size="lg" icon={<ChefHat className="size-5" />} onClick={() => setCooking(true)}>
+                  <Button variant="primary" size="lg" icon={<ChefHat className="size-5" />} onClick={startCooking}>
                     Start cooking
                   </Button>
                 )}
@@ -426,7 +446,7 @@ export function RecipeView({
               <IngredientsHeading servings={recipe.servings} />
               <IngredientList sections={ingredients} checked={checked} />
             </div>
-            <Steps key={recipe.id} sections={steps} />
+            <Steps sections={steps} current={currentStep} onSelect={setCurrentStep} />
             <Tips sections={bucketSections(recipe.tips)} />
           </section>
 
@@ -461,7 +481,9 @@ export function RecipeView({
         </article>
       </div>
 
-      {cooking && <CookingMode recipe={recipe} onClose={() => setCooking(false)} />}
+      {cooking && (
+        <CookingMode recipe={recipe} checked={checked} step={currentStep ?? 0} onStep={setCurrentStep} onClose={stopCooking} />
+      )}
 
       <Dialog
         open={confirmDelete}

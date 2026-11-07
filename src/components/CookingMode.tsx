@@ -1,18 +1,34 @@
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { Recipe } from "../lib/types";
 import { bucketSections } from "../lib/buckets";
-import { IngredientText } from "./RecipeView";
+import { IngredientText, type Checked } from "./RecipeView";
 import { Button, cx, Eyebrow, IconButton, PrintedHeading } from "./ui";
 
 /**
  * A distraction-free, one-step-at-a-time view for when the cooking starts:
- * big type, arrow keys or buttons to move, and the screen kept awake.
+ * big type, arrow keys or buttons to move, and the screen kept awake. The step she's on and
+ * what she's crossed off belong to the recipe page, so she can go back and forth freely.
  */
-export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () => void }) {
-  const steps = bucketSections(recipe.instructions).flatMap((s) => s.items.map((text) => ({ heading: s.heading, text })));
-  const [index, setIndex] = useState(0);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+export function CookingMode({
+  recipe,
+  checked,
+  step: wanted,
+  onStep,
+  onClose,
+}: {
+  recipe: Recipe;
+  checked: Checked;
+  /** The step she's on, counted across the whole recipe. */
+  step: number;
+  onStep: (step: number) => void;
+  onClose: () => void;
+}) {
+  // Each heading's steps are a part, numbered on their own, like on the page.
+  const parts = bucketSections(recipe.instructions).filter((s) => s.items.length > 0);
+  const steps = parts.flatMap((s) => s.items.map((text, i) => ({ heading: s.heading, text, number: i + 1, of: s.items.length })));
+  const sectioned = parts.length > 1;
+  const index = Math.max(0, Math.min(wanted, steps.length - 1));
   const step = steps[index];
   const last = index === steps.length - 1;
 
@@ -21,12 +37,12 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault();
-        setIndex((i) => Math.min(i + 1, steps.length - 1));
-      } else if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
+        onStep(Math.min(index + 1, steps.length - 1));
+      } else if (e.key === "ArrowLeft") onStep(Math.max(index - 1, 0));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, steps.length]);
+  }, [onClose, onStep, index, steps.length]);
 
   // Keep the screen on while cooking, where the webview supports it.
   useEffect(() => {
@@ -59,12 +75,7 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
                     <li key={key}>
                       <button
                         type="button"
-                        onClick={() => setChecked((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(key)) next.delete(key);
-                          else next.add(key);
-                          return next;
-                        })}
+                        onClick={() => checked.toggle(key)}
                         className={cx("-mx-2 w-full rounded-[3px] px-2 py-1.5 text-left text-[16px] leading-snug transition-colors duration-200 hover:bg-umber/5", done ? "text-ink-faint" : "text-ink-soft")}
                       >
                         <span data-struck={done || undefined} className="pen-strike">
@@ -85,30 +96,51 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
           <X className="size-6" />
         </IconButton>
 
-        <div className="flex items-center gap-1.5" aria-hidden>
-          {steps.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              tabIndex={-1}
-              onClick={() => setIndex(i)}
-              className={cx("h-1.5 flex-1 rounded-full transition-colors duration-300", i <= index ? "bg-leaf" : "bg-line")}
-            />
-          ))}
+        {/* The way through, a segment for each part; pointed at, each part's name fades in
+            above it. Each step's mark is thin, but the whole height around it takes a click. */}
+        <div className="group/track flex gap-5" aria-hidden>
+          {parts.map((part, pi) => {
+            const first = parts.slice(0, pi).reduce((n, p) => n + p.items.length, 0);
+            return (
+              <div key={pi} className="min-w-0" style={{ flex: `${part.items.length} 1 0` }}>
+                {sectioned && (
+                  // Two lines' room, so a long name over a short part wraps rather than trails off.
+                  <div className="flex h-[30px] items-end pb-0.5 opacity-0 transition-opacity duration-200 group-hover/track:opacity-100">
+                    <p className="line-clamp-2 printed-label text-[10.5px] tracking-[0.18em]">{part.heading}</p>
+                  </div>
+                )}
+                <div className="flex">
+                  {part.items.map((_, i) => {
+                    const n = first + i;
+                    return (
+                      <button key={i} type="button" tabIndex={-1} onClick={() => onStep(n)} className="group/tick flex h-7 flex-1 items-center px-[3px]">
+                        <span
+                          className={cx(
+                            "h-1.5 w-full rounded-full transition-colors duration-300",
+                            n <= index ? "bg-leaf group-hover/tick:bg-leaf-strong" : "bg-line group-hover/tick:bg-ink-faint/45",
+                          )}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex flex-1 flex-col justify-center">
           <div key={index} className="mx-auto w-full max-w-4xl animate-rise">
             <p className="font-serif text-2xl text-leaf italic">
-              Step {index + 1} <span className="text-ink-faint">of {steps.length}</span>
-              {step.heading && <span className="text-ink-faint"> · {step.heading}</span>}
+              {sectioned && step.heading && <span className="text-ink-soft">{step.heading} · </span>}
+              Step {step.number} <span className="text-ink-faint">of {step.of}</span>
             </p>
             <p className="selectable mt-6 font-serif text-[clamp(1.75rem,3vw,2.75rem)] leading-[1.35] text-ink">{step.text}</p>
           </div>
         </div>
 
         <div className="flex items-center justify-between">
-          <Button size="lg" icon={<ArrowLeft className="size-5" />} onClick={() => setIndex(index - 1)} disabled={index === 0}>
+          <Button size="lg" icon={<ArrowLeft className="size-5" />} onClick={() => onStep(index - 1)} disabled={index === 0}>
             Back
           </Button>
           {last ? (
@@ -116,7 +148,7 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
               All done. Enjoy!
             </Button>
           ) : (
-            <Button size="lg" variant="primary" onClick={() => setIndex(index + 1)}>
+            <Button size="lg" variant="primary" onClick={() => onStep(index + 1)}>
               Next step <ArrowRight className="size-5" />
             </Button>
           )}
