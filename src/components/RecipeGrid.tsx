@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Clock, Heart } from "lucide-react";
 import { formatMinutes } from "../lib/extract/duration";
 import type { RecipeSummary } from "../lib/types";
@@ -134,6 +134,15 @@ export function FeaturedRecipe({
   );
 }
 
+/** The narrowest a card gets, and the space around each card, across and down alike. */
+const CARD_MIN = 248;
+const GAP = 28;
+
+/**
+ * The cards laid out like a spread of index cards: in columns, each card dropped into
+ * whichever column is shortest so far, so the space between cards is the same every way
+ * while their tops don't line up in rows. Each card's height is measured as it renders.
+ */
 export function RecipeGrid({
   recipes,
   active,
@@ -145,10 +154,69 @@ export function RecipeGrid({
   onOpen: (id: string) => void;
   onToggleFavorite: (recipe: RecipeSummary) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const count = Math.max(1, Math.floor((width + GAP) / (CARD_MIN + GAP)));
+
+  const heights = useRef(new Map<string, number>());
+  const [measured, setMeasured] = useState(0);
+  const observer = useMemo(
+    () =>
+      new ResizeObserver((entries) => {
+        let changed = false;
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.id!;
+          const height = (entry.target as HTMLElement).offsetHeight;
+          if (heights.current.get(id) !== height) {
+            heights.current.set(id, height);
+            changed = true;
+          }
+        }
+        if (changed) setMeasured((m) => m + 1);
+      }),
+    [],
+  );
+  useEffect(() => () => observer.disconnect(), [observer]);
+
+  const columns = useMemo(() => {
+    const cols: RecipeSummary[][] = Array.from({ length: count }, () => []);
+    const tops = new Array<number>(count).fill(0);
+    for (const r of recipes) {
+      const i = tops.indexOf(Math.min(...tops));
+      cols[i].push(r);
+      // Before a card is measured, it's taken to be about as tall as a card usually is.
+      tops[i] += (heights.current.get(r.id) ?? 330) + GAP;
+    }
+    return cols;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipes, count, measured]);
+
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(15.5rem,1fr))] gap-x-7 gap-y-10">
-      {recipes.map((r) => (
-        <RecipeCard key={r.id} recipe={r} active={active} onOpen={() => onOpen(r.id)} onToggleFavorite={() => onToggleFavorite(r)} />
+    <div ref={ref} data-masonry className="flex items-start" style={{ gap: GAP }}>
+      {columns.map((col, i) => (
+        <div key={i} className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
+          {col.map((r) => (
+            <div
+              key={r.id}
+              data-id={r.id}
+              ref={(el) => {
+                if (!el) return;
+                observer.observe(el);
+                return () => observer.unobserve(el);
+              }}
+            >
+              <RecipeCard recipe={r} active={active} onOpen={() => onOpen(r.id)} onToggleFavorite={() => onToggleFavorite(r)} />
+            </div>
+          ))}
+        </div>
       ))}
     </div>
   );
