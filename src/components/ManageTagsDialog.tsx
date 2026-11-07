@@ -12,7 +12,7 @@ function CategorySelect({ value, onChange, label, className }: { value: string; 
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-full w-full appearance-none rounded-full bg-card pr-8 pl-3.5 text-sm text-ink-soft ring-1 ring-line hover:bg-paper-deep focus:ring-2 focus:ring-leaf focus:outline-none"
+        className="h-full w-full appearance-none rounded bg-card pr-8 pl-3.5 text-sm text-ink-soft ring-1 ring-line hover:bg-paper-deep focus:ring-2 focus:ring-leaf focus:outline-none"
       >
         {CATEGORY_NAMES.map((c) => (
           <option key={c} value={c}>
@@ -44,7 +44,7 @@ function NewTagForm({ tags, onChanged }: { tags: Tag[]; onChanged: () => void })
         onChanged();
       }}
     >
-      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New tag, like Thanksgiving" aria-label="New tag name" className="flex-1 rounded-full! px-4!" />
+      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New tag, like Thanksgiving" aria-label="New tag name" className="flex-1" />
       <CategorySelect value={category} onChange={setCategory} label="Category for the new tag" className="h-11 w-36 shrink-0" />
       <Button type="submit" variant="primary" icon={<Plus className="size-4" />} className="h-11" disabled={!name.trim() || exists} title={exists ? "There's already a tag with this name" : undefined}>
         Add

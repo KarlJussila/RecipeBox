@@ -136,7 +136,7 @@ export function ItemMenu({
       onKeyDown={keyDown}
       style={place ? { left: place.left, top: place.top, bottom: place.bottom } : { left: -9999, top: -9999 }}
       className={cx(
-        "fixed z-50 animate-pop-in rounded-2xl bg-card p-[5px] shadow-lift ring-1 ring-line",
+        "fixed z-50 animate-pop-in rounded bg-card p-[5px] shadow-lift ring-1 ring-line",
         settled && `transition-[left] duration-[240ms] motion-reduce:transition-none ${EASE}`,
       )}
     >
@@ -152,7 +152,7 @@ export function ItemMenu({
               role="menuitem"
               aria-haspopup="menu"
               onClick={() => setView("move")}
-              className="flex h-9 items-center gap-2 rounded-xl pr-2 pl-3 text-sm font-semibold text-ink transition-colors hover:bg-ink/5"
+              className="flex h-9 items-center gap-2 rounded-[3px] pr-2 pl-3 text-sm font-semibold text-ink transition-colors hover:bg-ink/5"
             >
               <ArrowRightLeft className="size-4 text-ink-faint" />
               Move to
@@ -178,7 +178,7 @@ export function ItemMenu({
             <button
               type="button"
               onClick={() => setView("actions")}
-              className="flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-xs font-semibold tracking-wide text-ink-faint transition-colors hover:text-ink"
+              className="flex h-8 w-full items-center gap-1.5 rounded-[3px] px-2 text-xs font-semibold tracking-wide text-ink-faint transition-colors hover:text-ink"
             >
               <ArrowLeft className="size-3.5" />
               Move to
@@ -190,7 +190,7 @@ export function ItemMenu({
                     type="button"
                     role="menuitem"
                     onClick={() => onMove(d.to)}
-                    className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-medium text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink focus-visible:bg-ink/5"
+                    className="flex h-9 w-full items-center gap-2.5 rounded-[3px] px-2.5 text-left text-sm font-medium text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink focus-visible:bg-ink/5"
                   >
                     <span className="text-ink-faint">{d.icon}</span>
                     {d.label}
@@ -216,8 +216,8 @@ function Tool({ label, pressed, danger, onClick, children }: { label: string; pr
       title={label}
       onClick={onClick}
       className={cx(
-        "flex size-9 items-center justify-center rounded-xl transition-colors",
-        pressed ? "bg-leaf-tint text-leaf-strong" : danger ? "text-ink-soft hover:bg-tomato/10 hover:text-tomato" : "text-ink-soft hover:bg-ink/5 hover:text-ink",
+        "flex size-9 items-center justify-center rounded-[3px] transition-colors",
+        pressed ? "bg-leaf/12 text-leaf-strong" : danger ? "text-ink-soft hover:bg-tomato/10 hover:text-tomato" : "text-ink-soft hover:bg-ink/5 hover:text-ink",
       )}
     >
       {children}

@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { AddRecipeDialog, looksLikeUrl } from "./components/AddRecipeDialog";
 import { ManageTagsDialog } from "./components/ManageTagsDialog";
 import { RecipeEditor } from "./components/RecipeEditor";
@@ -11,7 +12,8 @@ import { isMac, useToast } from "./components/ui";
 import { api, type Settings } from "./lib/api";
 import { importHtml, importUrl, tagRecipe, type ImportResult } from "./lib/importer";
 import { effectiveLlm } from "./lib/llm";
-import type { RecipeSummary } from "./lib/types";
+import { turnPage } from "./lib/motion";
+import type { Recipe, RecipeSummary } from "./lib/types";
 import { allTagCounts, NO_FILTERS, useFilteredRecipes, useLibrary, type Filters } from "./state";
 
 type View = { name: "list" } | { name: "recipe"; id: string } | { name: "edit"; id: string | null; from: View };
@@ -30,6 +32,9 @@ export default function App() {
   const [tagsOpen, setTagsOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tagging, setTagging] = useState<Set<string>>(new Set());
+  /** The recipe last opened: its card is the one the page turns from and back to. */
+  const [lastOpened, setLastOpened] = useState<string | null>(null);
+  const [preloaded, setPreloaded] = useState<Recipe | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listScroll = useRef<HTMLDivElement>(null);
   const listScrollTop = useRef(0);
@@ -197,13 +202,24 @@ export default function App() {
   }, [importFromUrl, toast]);
 
   // ---- Navigation ----------------------------------------------------------
-  const openRecipe = (id: string) => {
+  const openRecipe = async (id: string) => {
     listScrollTop.current = listScroll.current?.scrollTop ?? 0;
-    setView({ name: "recipe", id });
+    // Name the card first, then read the recipe, so the page can be drawn whole the
+    // moment the card starts turning into it.
+    flushSync(() => setLastOpened(id));
+    const recipe = await api.getRecipe(id);
+    turnPage(() => {
+      setPreloaded(recipe);
+      setView({ name: "recipe", id });
+    });
   };
-  const backToList = () => setView({ name: "list" });
+  const backToList = () => turnPage(() => setView({ name: "list" }));
 
   useEffect(() => {
+    if (view.name === "recipe") setLastOpened(view.id);
+  }, [view]);
+  // Before the page-turn captures the list, so it lands where she left it.
+  useLayoutEffect(() => {
     if (view.name === "list" && listScroll.current) listScroll.current.scrollTop = listScrollTop.current;
   }, [view]);
 
@@ -255,7 +271,8 @@ export default function App() {
         onSettings={() => setSettingsTab("ai")}
       />
 
-      <main className="min-w-0 flex-1">
+      {/* The sheet the cards lie on. The views scroll over it, so it never repaints. */}
+      <main className="paper-sheet min-w-0 flex-1">
         {view.name === "list" && (
           <LibraryView
             library={library}
@@ -264,6 +281,7 @@ export default function App() {
             searching={searching}
             searchRef={searchRef}
             scrollRef={listScroll}
+            active={lastOpened}
             onFiltersChange={changeFilters}
             onSortChange={(sort) => setFilters({ ...filters, sort })}
             onOpen={openRecipe}
@@ -276,6 +294,7 @@ export default function App() {
         {view.name === "recipe" && (
           <RecipeView
             id={view.id}
+            initial={preloaded}
             refreshKey={refreshKey}
             allTags={tags}
             tagging={tagging.has(view.id)}

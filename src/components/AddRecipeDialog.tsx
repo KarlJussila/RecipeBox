@@ -70,7 +70,7 @@ export function AddRecipeDialog({
             placeholder="https://cooking.nytimes.com/recipes/…"
             autoFocus
             disabled={busy}
-            className="h-12 rounded-2xl text-base"
+            className="h-12 text-base"
           />
           <Button type="submit" variant="primary" size="lg" className="w-24 shrink-0" disabled={busy || !url.trim()} aria-label={busy ? "Adding recipe" : undefined}>
             {busy ? <LoaderCircle className="size-5 animate-spin" aria-hidden="true" /> : "Add"}
@@ -79,7 +79,7 @@ export function AddRecipeDialog({
         {error && <p className="mt-2 text-[15px] leading-snug text-tomato">{error}</p>}
       </form>
 
-      <div className="mt-6 rounded-2xl bg-leaf-wash p-4 ring-1 ring-leaf-tint">
+      <div className="mt-6 rounded bg-umber/5 p-4 ring-1 ring-umber/15 ring-inset">
         <p className="flex items-start gap-3 text-[15px] leading-relaxed text-ink">
           <Puzzle className="mt-0.5 size-5 shrink-0 text-leaf" />
           <span>

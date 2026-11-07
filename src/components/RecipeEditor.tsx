@@ -7,7 +7,7 @@ import { emptyRecipe, type Recipe } from "../lib/types";
 import { fromBuckets, RecipeBoard, toBuckets, type Buckets } from "./RecipeBoard";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
-import { Button, cx, GrowingTextarea, isMac, Ornament, useToast } from "./ui";
+import { Button, cx, GrowingTextarea, isMac, useToast } from "./ui";
 
 // The editor is the recipe's own page, made editable where it sits: the title, the
 // description, the details band, and the photo up top, then the recipe's lists.
@@ -118,14 +118,14 @@ export function RecipeEditor({
           if (!saving) void submit();
         }
       }}
-      className="paper-grain scrollbar-quiet @container relative h-full overflow-y-auto"
+      className="scrollbar-quiet @container relative h-full overflow-y-auto"
     >
       <header
         data-tauri-drag-region
         className={cx(
           "sticky top-0 z-30 flex items-center gap-2 px-8 transition-colors duration-200",
           isMac ? "h-16 pt-2" : "h-16",
-          scrolled && "border-b border-line bg-paper/90 backdrop-blur-md",
+          scrolled && "paper-sheet border-b border-(--sheet-border)",
         )}
       >
         <Button variant="ghost" icon={<X className="size-[18px]" />} onClick={onCancel} className="-ml-3">
@@ -139,151 +139,151 @@ export function RecipeEditor({
         </Button>
       </header>
 
-      <article className="mx-auto max-w-6xl animate-fade-in px-12 pt-4 pb-24">
-        <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
-          <div className="min-w-0">
-            <GrowingTextarea
-              value={recipe.title}
-              onChange={(e) => set({ title: e.target.value.replace(/\n/g, " ") })}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-              }}
-              autoFocus={!id}
-              placeholder="Name this recipe"
-              aria-label="Title"
-              className={cx(
-                IN_PLACE,
-                "-mx-3 w-[calc(100%+1.5rem)] rounded-2xl px-3 py-1 font-serif text-[44px] leading-[1.08] font-semibold tracking-tight text-ink @4xl:text-[52px]",
-              )}
-            />
-            <GrowingTextarea
-              value={recipe.description}
-              onChange={(e) => set({ description: e.target.value })}
-              placeholder="A few words about it"
-              aria-label="Description"
-              className={cx(IN_PLACE, "mt-4 -mx-3 w-[calc(100%+1.5rem)] rounded-xl px-3 py-2 text-[17px] leading-relaxed text-ink-soft")}
-            />
-
-            {/* The details band from the recipe page, two by two as it is there. */}
-            <div className="mt-8 grid grid-cols-2 gap-y-3 rounded-2xl bg-leaf-wash py-3 ring-1 ring-leaf-tint">
-              {details.map((d) => (
-                <label key={d.label} className="min-w-0 border-l border-leaf-tint px-4 odd:border-l-0">
-                  <span className="block px-1.5 text-[11px] font-bold tracking-[0.14em] text-leaf uppercase">{d.label}</span>
-                  <input
-                    value={d.value}
-                    onChange={(e) => d.onChange(e.target.value)}
-                    placeholder={d.placeholder}
-                    className={cx(IN_PLACE, "mt-0.5 w-full rounded-lg px-1.5 py-0.5 font-serif text-xl leading-tight font-semibold text-ink tabular-nums placeholder:font-normal")}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <label className="mt-4 -mx-3 flex h-11 items-center gap-2.5 rounded-xl px-3 text-[15px] text-ink-soft transition-[background-color,box-shadow] duration-150 focus-within:bg-card focus-within:ring-2 focus-within:ring-leaf/45 hover:bg-ink/5">
-              <Link2 className="size-4 shrink-0 text-ink-faint" />
-              <input
-                value={recipe.sourceUrl ?? ""}
-                onChange={(e) => set({ sourceUrl: e.target.value })}
-                placeholder="Link to the original recipe"
-                aria-label="Link to the original recipe"
-                className="min-w-0 flex-1 bg-transparent placeholder:text-ink-faint/80 focus:outline-none"
-              />
-            </label>
-
-            <div className="mt-5">
-              <TagEditor
-                tags={recipe.tags}
-                allTags={allTags}
-                onChange={(tags, categories) => {
-                  set({ tags, needsTags: false });
-                  if (categories) setNewCategories({ ...newCategories, ...categories });
+      {/* The recipe's own card, written on where it sits. */}
+      <div className="px-8 pt-2 pb-14">
+        <article className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-14 pt-12 pb-16 shadow-card">
+          <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+            <div className="min-w-0">
+              <GrowingTextarea
+                value={recipe.title}
+                onChange={(e) => set({ title: e.target.value.replace(/\n/g, " ") })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  }
                 }}
-              />
-            </div>
-          </div>
-
-          {/* The snapshot from the recipe page: click it for a new photo, or drop or paste one on it. */}
-          <figure
-            onDragOver={(e) => {
-              e.preventDefault();
-              setPhotoOver(true);
-            }}
-            onDragLeave={() => setPhotoOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setPhotoOver(false);
-              imageFrom(e.dataTransfer.files);
-            }}
-            className={cx(
-              "group relative mx-auto w-full max-w-md rounded-[4px] bg-[#fffdf8] p-3 pb-12 @4xl:max-w-none shadow-photo transition duration-300 dark:bg-[#e9e4d6]",
-              photoOver ? "scale-[1.02] rotate-0 ring-4 ring-leaf/60" : "rotate-[1.4deg]",
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              aria-label={recipe.image ? "Choose a different photo" : "Add a photo"}
-              className="relative block w-full overflow-hidden rounded-[2px]"
-            >
-              <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
-              <span
+                autoFocus={!id}
+                placeholder="Name this recipe"
+                aria-label="Title"
                 className={cx(
-                  "absolute inset-0 flex items-center justify-center transition duration-200",
-                  recipe.image ? "bg-black/0 opacity-0 group-hover:bg-black/25 group-hover:opacity-100" : "opacity-100",
+                  IN_PLACE,
+                  "-mx-3 w-[calc(100%+1.5rem)] rounded px-3 py-0 font-hand text-[42px] leading-[1.5] text-hand-ink",
                 )}
-              >
-                <span className="inline-flex h-10 items-center gap-2 rounded-full bg-card/95 px-4 text-[15px] font-semibold text-ink shadow-soft">
-                  <ImagePlus className="size-[18px] text-leaf" />
-                  {recipe.image ? "Choose a different photo" : "Add a photo"}
-                </span>
-              </span>
-            </button>
-            <figcaption className="absolute inset-x-3 bottom-0 flex h-12 items-center justify-center font-serif text-[16px] text-[#6b5a4c] italic">
-              {photoOver ? "Let go to use this photo" : "or drop one here"}
-            </figcaption>
-            {recipe.image && (
+              />
+              <GrowingTextarea
+                value={recipe.description}
+                onChange={(e) => set({ description: e.target.value })}
+                placeholder="A few words about it"
+                aria-label="Description"
+                className={cx(IN_PLACE, "mt-4 -mx-3 w-[calc(100%+1.5rem)] rounded px-3 py-2 text-[17px] leading-relaxed text-ink-soft")}
+              />
+
+              {/* The details band from the recipe page, two by two as it is there. */}
+              <div className="mt-8 grid grid-cols-2 gap-y-3 border-y border-umber/18 py-3">
+                {details.map((d) => (
+                  <label key={d.label} className="min-w-0 border-l border-umber/14 px-4 odd:border-l-0 odd:pl-0 odd:-ml-1.5">
+                    <span className="printed-label block px-1.5 after:content-[':']">{d.label}</span>
+                    <input
+                      value={d.value}
+                      onChange={(e) => d.onChange(e.target.value)}
+                      placeholder={d.placeholder}
+                      className={cx(IN_PLACE, "mt-0.5 w-full rounded-[3px] px-1.5 py-0.5 font-serif text-xl leading-tight font-semibold text-ink tabular-nums placeholder:font-normal")}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <label className="mt-4 -mx-3 flex h-11 items-center gap-2.5 rounded px-3 text-[15px] text-ink-soft transition-[background-color,box-shadow] duration-150 focus-within:bg-card focus-within:ring-2 focus-within:ring-leaf/45 hover:bg-ink/5">
+                <Link2 className="size-4 shrink-0 text-ink-faint" />
+                <input
+                  value={recipe.sourceUrl ?? ""}
+                  onChange={(e) => set({ sourceUrl: e.target.value })}
+                  placeholder="Link to the original recipe"
+                  aria-label="Link to the original recipe"
+                  className="min-w-0 flex-1 bg-transparent placeholder:text-ink-faint/80 focus:outline-none"
+                />
+              </label>
+
+            </div>
+
+            {/* The snapshot from the recipe page: click it for a new photo, or drop or paste one on it. */}
+            <figure
+              onDragOver={(e) => {
+                e.preventDefault();
+                setPhotoOver(true);
+              }}
+              onDragLeave={() => setPhotoOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setPhotoOver(false);
+                imageFrom(e.dataTransfer.files);
+              }}
+              className={cx(
+                "group relative mx-auto w-full max-w-md rounded-[3px] bg-photo p-3 pb-12 shadow-photo transition-[rotate,scale,box-shadow] duration-300 ease-paper @4xl:max-w-none",
+                photoOver ? "scale-[1.02] rotate-0 ring-4 ring-leaf/60" : "rotate-[1.4deg]",
+              )}
+            >
               <button
                 type="button"
-                onClick={() => set({ image: null })}
-                aria-label="Remove the photo"
-                title="Remove the photo"
-                className="absolute right-2 bottom-2 flex size-8 items-center justify-center rounded-full text-[#6b5a4c] opacity-0 transition group-hover:opacity-100 hover:bg-black/5 hover:text-tomato focus-visible:opacity-100"
+                onClick={() => fileRef.current?.click()}
+                aria-label={recipe.image ? "Choose a different photo" : "Add a photo"}
+                className="relative block w-full overflow-hidden rounded-[2px]"
               >
-                <Trash2 className="size-4" />
+                <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
+                <span
+                  className={cx(
+                    "absolute inset-0 flex items-center justify-center transition duration-200",
+                    recipe.image ? "bg-black/0 opacity-0 group-hover:bg-black/25 group-hover:opacity-100" : "opacity-100",
+                  )}
+                >
+                  <span className="inline-flex h-10 items-center gap-2 rounded bg-card/95 px-4 text-[15px] font-semibold text-ink shadow-soft">
+                    <ImagePlus className="size-[18px] text-leaf" />
+                    {recipe.image ? "Choose a different photo" : "Add a photo"}
+                  </span>
+                </span>
               </button>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => {
-                if (e.target.files) imageFrom(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </figure>
-        </section>
+              <figcaption className="absolute inset-x-3 bottom-0 flex h-12 items-center justify-center font-serif text-[16px] text-[#6b5a4c] italic">
+                {photoOver ? "Let go to use this photo" : "or drop one here"}
+              </figcaption>
+              {recipe.image && (
+                <button
+                  type="button"
+                  onClick={() => set({ image: null })}
+                  aria-label="Remove the photo"
+                  title="Remove the photo"
+                  className="absolute right-2 bottom-2 flex size-8 items-center justify-center rounded-full text-[#6b5a4c] opacity-0 transition group-hover:opacity-100 hover:bg-black/5 hover:text-tomato focus-visible:opacity-100"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  if (e.target.files) imageFrom(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </figure>
+          </section>
 
-        <Ornament />
-
-        <RecipeBoard buckets={buckets} onChange={setBuckets} onToDescription={toDescription} />
-
-        {/* The cook's own notes, on the same butter card as the recipe page. */}
-        <section className="mx-auto mt-20 max-w-2xl -rotate-[0.6deg] rounded-sm bg-butter px-8 pt-6 pb-7 shadow-photo">
-          <h2 className="font-serif text-xl font-semibold italic">Kitchen notes</h2>
-          <GrowingTextarea
-            value={recipe.notes}
-            onChange={(e) => set({ notes: e.target.value })}
-            placeholder="What you changed, what you’d do next time, who loved it…"
-            aria-label="Kitchen notes"
-            className="mt-2 min-h-[5.5rem] w-full bg-transparent font-serif text-[19px] leading-relaxed text-ink italic placeholder:text-ink/40 focus:outline-none"
+          <TagEditor
+            tags={recipe.tags}
+            allTags={allTags}
+            onChange={(tags, categories) => {
+              set({ tags, needsTags: false });
+              if (categories) setNewCategories({ ...newCategories, ...categories });
+            }}
           />
-        </section>
-      </article>
+
+          <RecipeBoard buckets={buckets} onChange={setBuckets} onToDescription={toDescription} />
+
+          {/* The cook's own notes, on the same slip as the recipe page. */}
+          <section className="mx-auto mt-20 max-w-2xl -rotate-[0.6deg] rounded-[1px] bg-slip px-8 pt-6 pb-7 shadow-photo transition-[rotate,translate] duration-300 ease-paper focus-within:-translate-y-0.5 focus-within:rotate-0">
+            <h2 className="font-hand text-[17px] text-hand-ink">Kitchen notes</h2>
+            <GrowingTextarea
+              value={recipe.notes}
+              onChange={(e) => set({ notes: e.target.value })}
+              placeholder="What you changed, what you’d do next time, who loved it…"
+              aria-label="Kitchen notes"
+              className="mt-2 min-h-[5.5rem] w-full bg-transparent font-hand text-[18px] leading-[1.9] text-hand-ink placeholder:text-hand-ink/40 focus:outline-none"
+            />
+          </section>
+        </article>
+      </div>
     </div>
   );
 }

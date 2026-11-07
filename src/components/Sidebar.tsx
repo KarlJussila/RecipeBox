@@ -13,6 +13,9 @@ const TIME_OPTIONS: { label: string; minutes: number | null }[] = [
 
 const COLLAPSED_KEY = "recipebox.collapsedCategories";
 
+/** What's chosen wears a paper label, pressed into place on the tin. */
+const LABEL = "animate-settle bg-label font-semibold text-label-ink shadow-[0_1px_2px_rgb(0_0_0/0.18)]";
+
 function useCollapsed(): [Set<string>, (category: string) => void] {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
@@ -39,13 +42,13 @@ function SpineLink({ icon, label, count, active, onClick }: { icon: ReactNode; l
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cx(
-        "flex h-10 w-full items-center gap-3 rounded-xl px-3 text-[15px] transition-colors duration-150",
-        active ? "bg-cream font-semibold text-spine" : "text-cream/85 hover:bg-white/8 hover:text-cream",
+        "flex h-10 w-full items-center gap-3 rounded px-3 text-[15px] transition-colors duration-150",
+        active ? LABEL : "text-cream/85 hover:bg-white/8 hover:text-cream",
       )}
     >
       {icon}
       <span className="flex-1 text-left">{label}</span>
-      <span className={cx("text-sm tabular-nums", active ? "text-spine/60" : "text-cream-soft/70")}>{count}</span>
+      <span className={cx("text-sm tabular-nums", active ? "text-label-ink/55" : "text-cream-soft/70")}>{count}</span>
     </button>
   );
 }
@@ -93,12 +96,13 @@ export function Sidebar({
   };
 
   return (
-    <aside className="linen no-print relative flex h-full w-72 shrink-0 flex-col bg-spine text-cream">
+    // The tin casts a soft shadow onto the paper beside it, so they sit on the same table.
+    <aside className="no-print relative z-[2] flex h-full w-72 shrink-0 flex-col bg-spine text-cream shadow-tin">
       {/* Leaves room for the macOS window buttons and lets the window be dragged from here. */}
       <div data-tauri-drag-region className={isMac ? "h-11 shrink-0" : "h-4 shrink-0"} />
 
       <div className="flex items-center gap-2.5 px-6 pt-2 pb-6" data-tauri-drag-region>
-        <Sprig className="size-8 text-[#9aab55]" />
+        <Sprig className="size-8 text-cream-soft" />
         <span className="font-serif text-[27px] leading-none font-medium tracking-tight italic" data-tauri-drag-region>
           Recipe Box
         </span>
@@ -123,7 +127,7 @@ export function Sidebar({
         </div>
 
         <h3 className="mt-8 mb-2.5 px-3 text-[11px] font-bold tracking-[0.16em] text-cream-soft uppercase">Ready in</h3>
-        <div className="flex rounded-xl bg-black/20 p-1" role="radiogroup" aria-label="Ready in">
+        <div className="flex rounded bg-black/16 p-1" role="radiogroup" aria-label="Ready in">
           {TIME_OPTIONS.map((o) => {
             const active = filters.maxMinutes === o.minutes;
             return (
@@ -134,8 +138,8 @@ export function Sidebar({
                 aria-checked={active}
                 onClick={() => set({ maxMinutes: o.minutes })}
                 className={cx(
-                  "h-8 flex-1 rounded-lg text-[13px] font-medium transition-colors duration-150",
-                  active ? "bg-cream text-spine shadow-sm" : "text-cream/75 hover:text-cream",
+                  "h-8 flex-1 rounded-[3px] text-[13px] font-medium transition-colors duration-150",
+                  active ? LABEL : "text-cream/75 hover:text-cream",
                 )}
               >
                 {o.label}
@@ -165,14 +169,14 @@ export function Sidebar({
                 type="button"
                 onClick={() => toggleCollapsed(category)}
                 aria-expanded={open}
-                className="flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-[15px] font-semibold text-cream/90 hover:text-cream"
+                className="flex h-10 w-full items-center gap-2.5 rounded px-3 text-[15px] font-semibold text-cream/90 hover:text-cream"
               >
                 <span className="text-cream-soft">{CATEGORY_ICONS[category]}</span>
                 <span className="flex-1 text-left">{category}</span>
                 <ChevronDown className={cx("size-4 text-cream-soft transition-transform duration-200", !open && "-rotate-90")} />
               </button>
               {open && (
-                <div className="flex animate-fade-in flex-wrap gap-1.5 px-2 pt-0.5 pb-3">
+                <div className="flex animate-fade-in flex-wrap gap-x-1 gap-y-0.5 px-1 pt-0.5 pb-3">
                   {list.map((t) => {
                     const selected = filters.tags.includes(t.name);
                     const hidden = filters.excludedTags.includes(t.name);
@@ -183,16 +187,26 @@ export function Sidebar({
                         onClick={() => cycleTag(t.name)}
                         aria-label={hidden ? `${t.name}, hidden` : selected ? `${t.name}, showing only these` : t.name}
                         title={hidden ? "Hidden. Click to stop hiding." : selected ? "Click again to hide these recipes" : undefined}
+                        // An index of plain words: a chosen tag gets a label, and a hidden one is struck through.
                         className={cx(
-                          "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm transition-colors duration-150",
-                          selected && "bg-cream font-semibold text-spine",
-                          hidden && "bg-tomato/30 text-cream/80 line-through decoration-cream/50 ring-1 ring-tomato/70 ring-inset",
-                          !selected && !hidden && "bg-white/7 text-cream/90 ring-1 ring-white/8 ring-inset hover:bg-white/14",
+                          "inline-flex h-7 items-center gap-1.5 rounded-[3px] px-2 text-sm transition-colors duration-150",
+                          selected && LABEL,
+                          hidden && "text-[#ffd2c0] hover:bg-white/8",
+                          !selected && !hidden && "text-cream/90 hover:bg-white/8",
                         )}
                       >
                         {hidden && <EyeOff className="size-3.5 shrink-0" />}
-                        {t.name}
-                        <span className={cx("text-xs tabular-nums", selected ? "text-spine/55" : "text-cream-soft/70")}>{t.count}</span>
+                        <span className="relative">
+                          {t.name}
+                          <span
+                            aria-hidden
+                            className={cx(
+                              "absolute inset-x-[-1px] top-[55%] h-px origin-left bg-current opacity-70 transition-transform duration-300 ease-paper",
+                              hidden ? "scale-x-100" : "scale-x-0",
+                            )}
+                          />
+                        </span>
+                        <span className={cx("text-xs tabular-nums", selected ? "text-label-ink/55" : "text-cream-soft/70")}>{t.count}</span>
                       </button>
                     );
                   })}
@@ -207,7 +221,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSettings}
-          className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-[15px] text-cream/80 hover:bg-white/8 hover:text-cream"
+          className="flex h-10 w-full items-center gap-3 rounded px-3 text-[15px] text-cream/80 hover:bg-white/8 hover:text-cream"
         >
           <Settings className="size-[18px]" />
           Settings

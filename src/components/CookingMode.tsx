@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { Recipe } from "../lib/types";
 import { bucketSections } from "../lib/buckets";
 import { IngredientText } from "./RecipeView";
-import { Button, cx, Eyebrow, IconButton } from "./ui";
+import { Button, cx, Eyebrow, IconButton, PrintedHeading } from "./ui";
 
 /**
  * A distraction-free, one-step-at-a-time view for when the cooking starts:
@@ -38,14 +38,19 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
   if (!step) return null;
 
   return (
-    <div className="paper-grain fixed inset-0 z-40 flex animate-fade-in bg-paper" role="dialog" aria-modal="true" aria-label={`Cooking ${recipe.title}`}>
-      <aside className="scrollbar-quiet flex w-[22rem] shrink-0 flex-col overflow-y-auto border-r border-line bg-card px-7 pt-14 pb-8">
+    // The card propped up on the counter: the list on a plain card beside the step in hand.
+    <div className="paper-sheet fixed inset-0 z-40 flex animate-fade-in" role="dialog" aria-modal="true" aria-label={`Cooking ${recipe.title}`}>
+      <aside className="card-stock scrollbar-quiet z-[1] flex w-[22rem] shrink-0 flex-col overflow-y-auto rounded-none px-7 pt-14 pb-8 shadow-card">
         <Eyebrow>You’ll need</Eyebrow>
-        <h2 className="mt-2 font-serif text-2xl leading-tight font-semibold">{recipe.title}</h2>
+        <h2 className="mt-2 font-hand text-[26px] leading-[1.5] text-hand-ink">{recipe.title}</h2>
         <div className="mt-6 space-y-5">
           {bucketSections(recipe.ingredients).map((section, si) => (
             <div key={si}>
-              {section.heading && <p className="mb-1 text-sm font-semibold text-ink-faint">{section.heading}</p>}
+              {section.heading && (
+                <PrintedHeading as="p" faint className="mb-1 pt-2">
+                  {section.heading}
+                </PrintedHeading>
+              )}
               <ul className="space-y-1">
                 {section.items.map((item, i) => {
                   const key = `${si}-${i}`;
@@ -60,9 +65,11 @@ export function CookingMode({ recipe, onClose }: { recipe: Recipe; onClose: () =
                           else next.add(key);
                           return next;
                         })}
-                        className={cx("w-full rounded-lg px-2 py-1.5 -mx-2 text-left text-[16px] leading-snug hover:bg-ink/4", done ? "text-ink-faint line-through" : "text-ink-soft")}
+                        className={cx("-mx-2 w-full rounded-[3px] px-2 py-1.5 text-left text-[16px] leading-snug transition-colors duration-200 hover:bg-umber/5", done ? "text-ink-faint" : "text-ink-soft")}
                       >
-                        <IngredientText line={item} />
+                        <span data-struck={done || undefined} className="pen-strike">
+                          <IngredientText line={item} />
+                        </span>
                       </button>
                     </li>
                   );

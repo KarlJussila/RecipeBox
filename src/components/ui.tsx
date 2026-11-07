@@ -25,11 +25,13 @@ export const isMac = navigator.userAgent.includes("Mac");
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
+// Drawn on the paper rather than laid on it: outlines, with a faint wash when pointed at
+// and a little more when pressed.
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-leaf text-white shadow-soft hover:bg-leaf-strong dark:text-spine-deep",
-  secondary: "bg-card text-ink ring-1 ring-line shadow-soft hover:bg-paper-deep",
-  ghost: "text-ink-soft hover:bg-ink/6 hover:text-ink",
-  danger: "bg-tomato text-white shadow-soft hover:brightness-95 dark:text-spine-deep",
+  primary: "text-leaf-strong ring-[1.5px] ring-leaf/75 ring-inset hover:bg-leaf/8 active:bg-leaf/14",
+  secondary: "text-ink-soft ring-1 ring-umber/42 ring-inset hover:bg-umber/6 hover:text-ink active:bg-umber/10",
+  ghost: "text-ink-soft hover:bg-ink/6 hover:text-ink active:bg-ink/10",
+  danger: "text-tomato ring-[1.5px] ring-tomato/70 ring-inset hover:bg-tomato/8 active:bg-tomato/14",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -47,7 +49,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-full font-semibold whitespace-nowrap transition duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 rounded font-semibold whitespace-nowrap transition-[background-color,color,translate] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-50",
         size === "sm" && "h-8 px-3.5 text-sm",
         size === "md" && "h-10 px-5 text-[15px]",
         size === "lg" && "h-12 px-6 text-base",
@@ -75,7 +77,7 @@ export function IconButton({ label, active, className, children, type = "button"
       title={label}
       className={cx(
         "inline-flex size-10 items-center justify-center rounded-full transition-colors duration-150",
-        active ? "bg-leaf-tint text-leaf" : "text-ink-soft hover:bg-ink/6 hover:text-ink",
+        active ? "bg-leaf/12 text-leaf-strong" : "text-ink-soft hover:bg-ink/6 hover:text-ink active:bg-ink/10",
         className,
       )}
       {...props}
@@ -89,7 +91,7 @@ export function IconButton({ label, active, className, children, type = "button"
 // Form fields
 
 const FIELD =
-  "w-full rounded-xl bg-card px-3.5 text-[15px] text-ink ring-1 ring-line placeholder:text-ink-faint transition-shadow focus:ring-2 focus:ring-leaf focus:outline-none";
+  "w-full rounded bg-card px-3.5 text-[15px] text-ink ring-1 ring-line placeholder:text-ink-faint transition-shadow focus:ring-2 focus:ring-leaf focus:outline-none";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...props },
@@ -157,9 +159,30 @@ export const GrowingTextarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttri
   },
 );
 
-/** Small-caps label used above groups of content. */
+/** A label printed on the card, above groups of content. */
 export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cx("text-xs font-bold tracking-[0.14em] text-leaf uppercase", className)}>{children}</p>;
+  return <p className={cx("printed-label", className)}>{children}</p>;
+}
+
+/** A printed section label with a rule running from it to the edge of the card. */
+export function PrintedHeading({
+  children,
+  as: Tag = "h2",
+  faint,
+  className,
+}: {
+  children: ReactNode;
+  as?: "h2" | "h3" | "p";
+  /** A lighter rule, for groups within a section. */
+  faint?: boolean;
+  className?: string;
+}) {
+  return (
+    <Tag className={cx("printed-label flex items-center gap-3.5", className)}>
+      {children}
+      <span aria-hidden className={cx("h-px min-w-6 flex-1", faint ? "bg-print-rule/50" : "bg-print-rule")} />
+    </Tag>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -190,12 +213,12 @@ export function TagPill({
   onRemove?: () => void;
 }) {
   const base = cx(
-    "inline-flex h-8 items-center gap-1 rounded-full px-3.5 text-sm font-medium transition-colors duration-150",
+    "inline-flex h-8 animate-settle items-center gap-1 rounded px-3.5 text-sm font-medium transition-colors duration-150",
     excluded
       ? "bg-tomato/12 text-tomato ring-1 ring-tomato/35 ring-inset"
       : selected
-        ? "bg-leaf text-white dark:text-spine-deep"
-        : "bg-leaf-wash text-leaf-strong ring-1 ring-leaf-tint ring-inset",
+        ? "text-leaf-strong ring-[1.5px] ring-leaf/75 ring-inset"
+        : "text-ink-soft ring-1 ring-umber/30 ring-inset",
   );
   if (onRemove) {
     return (
@@ -205,7 +228,7 @@ export function TagPill({
           type="button"
           onClick={onRemove}
           aria-label={`Remove tag ${name}`}
-          className="inline-flex size-5 items-center justify-center rounded-full opacity-40 transition-opacity group-hover/pill:opacity-100 hover:bg-black/10 focus-visible:opacity-100"
+          className="inline-flex size-5 items-center justify-center rounded-full opacity-50 transition-opacity group-hover/pill:opacity-100 hover:bg-umber/10 focus-visible:opacity-100"
         >
           <X className="size-3" strokeWidth={2.75} />
         </button>
@@ -214,7 +237,7 @@ export function TagPill({
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={cx(base, !selected && "hover:bg-leaf-tint")}>
+      <button type="button" onClick={onClick} className={cx(base, "hover:bg-umber/6")}>
         {name}
       </button>
     );
@@ -259,7 +282,7 @@ export function Dialog({
         if (e.target === ref.current) onClose();
       }}
       className={cx(
-        "paper-grain m-auto w-[calc(100%-3rem)] rounded-3xl bg-paper p-0 text-ink shadow-lift ring-1 ring-black/5 backdrop:bg-spine-deep/45 backdrop:backdrop-blur-[3px] open:animate-pop-in dark:ring-white/10",
+        "card-stock m-auto w-[calc(100%-3rem)] p-0 text-ink shadow-card-lift backdrop:bg-spine-deep/40 backdrop:backdrop-blur-[2px] open:animate-pop-in",
         width,
       )}
     >
@@ -328,7 +351,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cx(
-              "pointer-events-auto flex w-full animate-rise items-center gap-3 rounded-2xl px-5 py-3.5 text-[15px] shadow-lift",
+              "pointer-events-auto flex w-full animate-rise items-center gap-3 rounded px-5 py-3.5 text-[15px] shadow-lift",
               t.tone === "error" ? "bg-tomato text-white dark:text-spine-deep" : "bg-spine text-cream",
             )}
           >
@@ -364,17 +387,6 @@ export function Spinner({ className }: { className?: string }) {
 }
 
 /** A small hand-drawn sprig, used as the brand mark and as an ornament. */
-/** A rule with a sprig in the middle, between a recipe's top and its ingredients and steps. */
-export function Ornament() {
-  return (
-    <div className="my-14 flex items-center gap-5 text-leaf/50" aria-hidden>
-      <span className="h-px flex-1 bg-line" />
-      <Sprig className="size-7" />
-      <span className="h-px flex-1 bg-line" />
-    </div>
-  );
-}
-
 export function Sprig({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>

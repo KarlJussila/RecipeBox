@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { imageSrc } from "../lib/api";
 import { cx, Sprig } from "./ui";
 
-/** A recipe photo, or a soft placeholder with the recipe's initial when there isn't one. */
+/** A recipe photo, or a placeholder with the recipe's initial when there isn't one. */
 export function RecipeImage({ file, title, className }: { file: string | null; title: string; className?: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [file]);
@@ -25,10 +25,14 @@ export function RecipeImage({ file, title, className }: { file: string | null; t
     <div
       aria-hidden
       title={title}
-      className={cx("relative flex items-center justify-center overflow-hidden bg-leaf-wash text-leaf/40", className)}
+      className={cx(
+        "relative flex items-center justify-center overflow-hidden bg-(--stock-patch) text-[rgb(110_80_40/0.45)] ring-1 ring-[rgb(120_85_30/0.12)] ring-inset dark:text-ink-faint",
+        className,
+      )}
     >
-      <span className="font-serif text-[min(9rem,40%)] leading-none font-semibold italic opacity-60">{title.trim().charAt(0) || "·"}</span>
-      <Sprig className="absolute right-[8%] bottom-[8%] size-[18%] opacity-60" />
+      {/* A darker patch of the card, with the initial in her hand and a faint sprig. */}
+      <span className="font-hand text-[clamp(48px,30cqw,110px)] leading-none">{title.trim().charAt(0) || "·"}</span>
+      <Sprig className="absolute right-[8%] bottom-[8%] size-[18%] text-leaf/50" />
     </div>
   );
 }

@@ -16,8 +16,8 @@ function TabButton({ active, icon, children, onClick }: { active: boolean; icon:
       aria-selected={active}
       onClick={onClick}
       className={cx(
-        "inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-full px-3 text-[15px] whitespace-nowrap transition-colors",
-        active ? "bg-card font-semibold text-leaf-strong shadow-soft" : "text-ink-soft hover:text-ink",
+        "inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[3px] px-3 text-[15px] whitespace-nowrap transition-colors",
+        active ? "animate-settle bg-card font-semibold text-ink shadow-[0_1px_2px_rgb(60_40_20/0.18)]" : "text-ink-soft hover:text-ink",
       )}
     >
       {icon}
@@ -34,8 +34,8 @@ function Choice({ active, title, description, onClick }: { active: boolean; titl
       aria-checked={active}
       onClick={onClick}
       className={cx(
-        "flex flex-1 flex-col gap-1 rounded-2xl px-4 py-3.5 text-left transition-colors",
-        active ? "bg-leaf-wash ring-2 ring-leaf" : "bg-card ring-1 ring-line hover:bg-paper-deep",
+        "flex flex-1 flex-col gap-1 rounded px-4 py-3.5 text-left transition-colors",
+        active ? "bg-leaf/8 ring-2 ring-leaf/75" : "ring-1 ring-umber/25 hover:bg-umber/5",
       )}
     >
       <span className="text-[15px] font-semibold text-ink">{title}</span>
@@ -59,7 +59,7 @@ function OpencodeStatus() {
     );
   }
   return (
-    <div className="rounded-2xl bg-butter/40 px-4 py-3 text-[15px] leading-relaxed text-ink">
+    <div className="rounded bg-butter/50 px-4 py-3 text-[15px] leading-relaxed text-ink">
       opencode isn’t installed on this computer. Install it from{" "}
       <code className="text-sm">opencode.ai</code> (in Terminal: <code className="text-sm">curl -fsSL https://opencode.ai/install | bash</code>),
       then reopen Settings.
@@ -155,7 +155,7 @@ function AiTab({ settings, onSave }: { settings: Settings; onSave: (llm: LlmSett
 function ExtensionTab({ info }: { info: AppInfo }) {
   const steps: ReactNode[] = [
     <>
-      In Chrome, open <code className="rounded-md bg-paper-deep px-1.5 py-0.5 text-sm">chrome://extensions</code>{" "}
+      In Chrome, open <code className="rounded-[3px] bg-umber/8 px-1.5 py-0.5 text-sm">chrome://extensions</code>{" "}
       (type it into the address bar).
     </>,
     <>Turn on <strong>Developer mode</strong> in the top-right corner.</>,
@@ -173,7 +173,7 @@ function ExtensionTab({ info }: { info: AppInfo }) {
       <ol className="space-y-3">
         {steps.map((step, i) => (
           <li key={i} className="flex gap-3 text-[15px] leading-relaxed">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-leaf-tint font-serif text-sm font-semibold text-leaf-strong italic">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-leaf/12 font-serif text-sm font-semibold text-leaf-strong italic">
               {i + 1}
             </span>
             <span>{step}</span>
@@ -216,8 +216,8 @@ function AppearanceTab({ value, onChange }: { value: Appearance; onChange: (a: A
             aria-checked={active}
             onClick={() => onChange(a.value)}
             className={cx(
-              "flex flex-col items-center gap-3 rounded-2xl px-4 py-5 text-[15px] font-semibold transition-colors",
-              active ? "bg-leaf-wash text-leaf-strong ring-2 ring-leaf" : "bg-card text-ink-soft ring-1 ring-line hover:bg-paper-deep",
+              "flex flex-col items-center gap-3 rounded px-4 py-5 text-[15px] font-semibold transition-colors",
+              active ? "bg-leaf/8 text-leaf-strong ring-2 ring-leaf/75" : "text-ink-soft ring-1 ring-umber/25 hover:bg-umber/5",
             )}
           >
             {a.icon}
@@ -329,7 +329,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onClose={onClose} title="Settings" width="max-w-2xl">
-      <div role="tablist" className="mb-6 flex gap-1 rounded-full bg-paper-deep p-1 ring-1 ring-line">
+      <div role="tablist" className="mb-6 flex gap-1 rounded bg-umber/8 p-1">
         <TabButton active={tab === "ai"} icon={<Sparkles className="size-4" />} onClick={() => setTab("ai")}>
           AI service
         </TabButton>

@@ -10,13 +10,14 @@ import type { Recipe, Section } from "../lib/types";
 import { CookingMode } from "./CookingMode";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
-import { Button, cx, Dialog, Eyebrow, IconButton, isMac, Ornament, Spinner } from "./ui";
+import { Button, cx, Dialog, IconButton, isMac, PrintedHeading } from "./ui";
+import { turnPage } from "../lib/motion";
 
 export function IngredientText({ line }: { line: string }) {
   const [amount, rest] = splitAmount(line);
   return (
     <>
-      {amount && <strong className="font-semibold text-ink">{amount}</strong>}
+      {amount && <strong className="font-semibold text-ink transition-colors duration-200">{amount}</strong>}
       {rest}
     </>
   );
@@ -68,40 +69,44 @@ function Ingredients({
           type="button"
           onClick={() => onCollapsedChange(false)}
           aria-expanded={false}
-          className="no-print group flex w-full items-center gap-4 rounded-3xl bg-card py-4 pr-4 pl-7 text-left shadow-soft ring-1 ring-black/5"
+          className="no-print group flex w-full items-center gap-4 text-left"
         >
-          <h2 className="font-serif text-2xl font-semibold tracking-tight">Ingredients</h2>
-          <span className="flex-1 text-[15px] text-ink-faint">
+          <PrintedHeading className="min-w-0 flex-1 text-[13px]">Ingredients</PrintedHeading>
+          <span className="text-[15px] text-ink-faint">
             {count} {count === 1 ? "item" : "items"}
             {servings && ` · Serves ${servings}`}
           </span>
-          <span className="inline-flex h-10 items-center gap-2 rounded-full bg-leaf px-5 text-[15px] font-semibold text-white shadow-soft group-hover:bg-leaf-strong dark:text-spine-deep">
+          <span className="inline-flex h-10 items-center gap-2 rounded px-5 text-[15px] font-semibold text-leaf-strong ring-[1.5px] ring-leaf/75 ring-inset transition-[background-color,translate] duration-150 group-hover:bg-leaf/8 group-active:translate-y-px">
             Show ingredients <ChevronDown className="size-4" />
           </span>
         </button>
       )}
       {/* Printing always includes the list, even while it's collapsed on screen. */}
-      <div className={cx("rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5", collapsed && "hidden print:block")}>
-        <div className="mb-4 flex items-center justify-between gap-3 border-b-2 border-tomato/50 pb-3">
-          <div>
-            <h2 className="font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
-            {servings && <p className="text-sm text-ink-faint">Serves {servings}</p>}
+      <div className={cx("pt-1", collapsed && "hidden print:block")}>
+        <div className="mb-4 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <PrintedHeading className="text-[13px]">Ingredients</PrintedHeading>
+            {servings && <p className="mt-1 text-sm text-ink-faint">Serves {servings}</p>}
           </div>
-          <button
-            type="button"
+          <Button
+            size="sm"
             onClick={() => onCollapsedChange(true)}
             aria-expanded
             title="Hide the ingredients so the steps can use the full width"
-            className="no-print inline-flex h-8 items-center gap-1 rounded-full px-3 text-sm font-semibold text-ink-soft ring-1 ring-line hover:bg-paper-deep hover:text-ink"
+            className="no-print gap-1 px-3"
           >
             Hide <ChevronUp className="size-4" />
-          </button>
+          </Button>
         </div>
         {sections.length === 0 && <p className="text-ink-faint">No ingredients listed.</p>}
         <div className="space-y-5">
           {sections.map((section, si) => (
             <div key={si} className="print-break-avoid">
-              {section.heading && <Eyebrow className="mb-1 pt-2">{section.heading}</Eyebrow>}
+              {section.heading && (
+                <PrintedHeading as="p" faint className="mb-1.5 pt-[22px]">
+                  {section.heading}
+                </PrintedHeading>
+              )}
               <ul className="divide-y divide-leaf/12">
                 {section.items.map((item, i) => {
                   const key = `${si}-${i}`;
@@ -119,8 +124,11 @@ function Ingredients({
                         >
                           {done && <span className="size-1.5 rounded-full bg-card" />}
                         </span>
-                        <span className={cx("selectable text-[17px] leading-snug transition-colors", done ? "text-ink-faint line-through decoration-ink-faint/50" : "text-ink-soft")}>
-                          <IngredientText line={item} />
+                        <span className={cx("selectable text-[17px] leading-snug transition-colors duration-200", done ? "text-ink-faint [&_strong]:text-ink-faint" : "text-ink-soft")}>
+                          {/* Crossed off with a pen, the line drawn along the text as it wraps. */}
+                          <span data-struck={done || undefined} className="pen-strike print:bg-none">
+                            <IngredientText line={item} />
+                          </span>
                         </span>
                       </label>
                     </li>
@@ -182,7 +190,7 @@ function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[];
   let number = 0;
   return (
     <div ref={root}>
-      <h2 className="mb-6 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
+      <PrintedHeading className="mb-7 h-9 text-[13px]">Directions</PrintedHeading>
       {sections.length === 0 && <p className="text-ink-faint">No steps listed.</p>}
       <div className="space-y-8">
         {sections.map((section, si) => (
@@ -203,8 +211,8 @@ function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[];
                       onClick={() => setCurrent(active ? null : key)}
                       aria-pressed={active}
                       className={cx(
-                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded-2xl px-5 py-4 text-left transition-colors duration-200",
-                        active ? "bg-butter" : "hover:bg-ink/4",
+                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded px-5 py-4 text-left transition-colors duration-200",
+                        active ? "bg-butter" : "hover:bg-umber/5",
                       )}
                     >
                       <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums">{number}</span>
@@ -248,8 +256,9 @@ function Notes({ recipe, onSave }: { recipe: Recipe; onSave: (notes: string) => 
   }, [text]);
 
   return (
-    <section className="print-break-avoid mx-auto mt-16 max-w-2xl -rotate-[0.6deg] rounded-sm bg-butter px-8 pt-6 pb-7 shadow-photo">
-      <h2 className="font-serif text-xl font-semibold italic">Kitchen notes</h2>
+    // Her own notes: a slip tucked in with the card, in her hand. It straightens while she writes.
+    <section className="print-break-avoid mx-auto mt-16 max-w-2xl -rotate-[0.6deg] rounded-[1px] bg-slip px-8 pt-6 pb-7 shadow-photo transition-[rotate,translate] duration-300 ease-paper focus-within:-translate-y-0.5 focus-within:rotate-0">
+      <h2 className="font-hand text-[17px] text-hand-ink">Kitchen notes</h2>
       <textarea
         ref={ref}
         value={text}
@@ -257,7 +266,7 @@ function Notes({ recipe, onSave }: { recipe: Recipe; onSave: (notes: string) => 
         onBlur={() => text !== recipe.notes && onSave(text)}
         placeholder="What you changed, what you’d do next time, who loved it…"
         rows={3}
-        className="mt-2 w-full resize-none bg-transparent font-serif text-[19px] leading-relaxed text-ink italic placeholder:text-ink/40 focus:outline-none"
+        className="mt-2 w-full resize-none bg-transparent font-hand text-[18px] leading-[1.9] text-hand-ink placeholder:text-hand-ink/40 focus:outline-none"
       />
     </section>
   );
@@ -265,6 +274,7 @@ function Notes({ recipe, onSave }: { recipe: Recipe; onSave: (notes: string) => 
 
 export function RecipeView({
   id,
+  initial,
   refreshKey,
   allTags,
   tagging,
@@ -274,6 +284,8 @@ export function RecipeView({
   onChanged,
 }: {
   id: string;
+  /** The recipe, when it's already been read, so the page can draw at once. */
+  initial?: Recipe | null;
   refreshKey: number;
   allTags: Tag[];
   /** True while the AI is choosing tags for this recipe. */
@@ -284,7 +296,7 @@ export function RecipeView({
   onDeleted: () => void;
   onChanged: () => void;
 }) {
-  const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined);
+  const [recipe, setRecipe] = useState<Recipe | null | undefined>(initial?.id === id ? initial : undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cooking, setCooking] = useState(false);
   const [ingredientsCollapsed, setIngredientsCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
@@ -300,7 +312,9 @@ export function RecipeView({
     };
   }, [id, refreshKey]);
 
-  useEffect(() => scrollRef.current?.scrollTo(0, 0), [id]);
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0);
+  }, [id]);
 
   if (recipe === undefined) return null;
   if (recipe === null) {
@@ -341,13 +355,14 @@ export function RecipeView({
   // `relative` keeps the ingredients' visually hidden checkboxes positioned inside this
   // scroller; otherwise they hang off the page body and the whole window scrolls.
   return (
-    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="paper-grain scrollbar-quiet @container relative h-full overflow-y-auto">
+    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="scrollbar-quiet @container relative h-full overflow-y-auto">
       <header
         data-tauri-drag-region
         className={cx(
           "no-print sticky top-0 z-10 flex items-center gap-1 px-8 transition-colors duration-200",
           isMac ? "h-16 pt-2" : "h-16",
-          scrolled && "border-b border-line bg-paper/90 backdrop-blur-md",
+          // Cut from the same sheet as the page, so it doesn't show as a strip.
+          scrolled && "paper-sheet border-b border-(--sheet-border)",
         )}
       >
         <Button variant="ghost" icon={<ArrowLeft className="size-[18px]" />} onClick={onBack} className="-ml-3">
@@ -368,112 +383,116 @@ export function RecipeView({
         </Button>
       </header>
 
-      <article className="mx-auto max-w-6xl animate-fade-in px-12 pt-4 pb-24">
-        <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
-          <div className="min-w-0">
-            {(recipe.sourceName || recipe.author) && (
-              <Eyebrow>
-                {recipe.sourceName}
-                {recipe.sourceName && recipe.author && <span className="text-ink-faint"> · </span>}
-                {recipe.author && <span className="tracking-normal text-ink-faint normal-case">by {recipe.author}</span>}
-              </Eyebrow>
-            )}
-            <h1 className="selectable mt-4 font-serif text-[44px] leading-[1.04] font-semibold tracking-tight text-balance text-ink @4xl:text-[56px]">
-              {recipe.title}
-            </h1>
-            {recipe.description && (
-              <div className="mt-6">
-                <Description text={recipe.description} />
-              </div>
-            )}
-            {stats.length > 0 && (
-              <dl
-                className={cx(
-                  "mt-8 grid gap-y-4 rounded-2xl bg-leaf-wash py-4 ring-1 ring-leaf-tint",
-                  stats.length > 3 ? "grid-cols-2 [&>*:nth-child(odd)]:border-l-0" : "auto-cols-fr grid-flow-col [&>*:first-child]:border-l-0",
+      {/* The card pulled out of the box: one older card holding the whole recipe. */}
+      <div className="px-8 pt-2 pb-14 print:p-0">
+        <article
+          style={{ viewTransitionName: "recipe-card" }}
+          className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-14 pt-12 pb-16 shadow-card print:bg-none print:p-0 print:shadow-none"
+        >
+          <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+            <div className="min-w-0">
+              {(recipe.sourceName || recipe.author) && (
+                // Filled in by hand on the card's printed line.
+                <p className="mb-[22px] flex w-[min(100%,26rem)] items-baseline gap-3 border-b border-print-rule pb-0.5">
+                  <span className="printed-label shrink-0 text-[11px]">From the kitchen of</span>
+                  <span className="selectable truncate font-hand text-[21px] text-hand-ink">
+                    {recipe.sourceName}
+                    {recipe.author && (recipe.sourceName ? `, by ${recipe.author}` : recipe.author)}
+                  </span>
+                </p>
+              )}
+              <h1 className="selectable font-hand text-[42px] leading-[1.5] text-balance text-hand-ink">{recipe.title}</h1>
+              {recipe.description && (
+                <div className="mt-6">
+                  <Description text={recipe.description} />
+                </div>
+              )}
+              {stats.length > 0 && (
+                <dl
+                  className={cx(
+                    // A ruled line across the card.
+                    "mt-8 grid gap-y-4 border-y border-umber/18 py-4",
+                    stats.length > 3 ? "grid-cols-2 [&>*:nth-child(odd)]:border-l-0 [&>*:nth-child(odd)]:pl-0" : "auto-cols-fr grid-flow-col [&>*:first-child]:border-l-0 [&>*:first-child]:pl-0",
+                  )}
+                >
+                  {stats.map((s) => (
+                    <div key={s.label} className="min-w-0 border-l border-umber/14 px-5">
+                      <dt className="printed-label after:content-[':']">{s.label}</dt>
+                      <dd className="mt-1 font-serif text-xl leading-tight font-semibold text-ink tabular-nums">{s.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <div className="no-print mt-8 flex flex-wrap items-center gap-4">
+                {hasSteps && (
+                  <Button variant="primary" size="lg" icon={<ChefHat className="size-5" />} onClick={() => setCooking(true)}>
+                    Start cooking
+                  </Button>
                 )}
-              >
-                {stats.map((s) => (
-                  <div key={s.label} className="min-w-0 border-l border-leaf-tint px-5">
-                    <dt className="text-[11px] font-bold tracking-[0.14em] text-leaf uppercase">{s.label}</dt>
-                    <dd className="mt-1 font-serif text-xl leading-tight font-semibold text-ink tabular-nums">{s.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            <div className="no-print mt-8 flex flex-wrap items-center gap-4">
-              {hasSteps && (
-                <Button variant="primary" size="lg" icon={<ChefHat className="size-5" />} onClick={() => setCooking(true)}>
-                  Start cooking
-                </Button>
-              )}
+              </div>
             </div>
-            <div className="no-print mt-6 flex items-start gap-3">
-              <TagEditor tags={recipe.tags} allTags={allTags.map((t) => t.name)} onChange={setTags} />
-              {tagging && (
-                <span className="inline-flex h-8 items-center gap-2 text-sm text-ink-faint">
-                  <Spinner /> Choosing tags…
-                </span>
-              )}
-            </div>
-          </div>
 
-          {/* The photo, pinned like a snapshot tucked into a recipe box. */}
-          <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[4px] @4xl:max-w-none bg-[#fffdf8] p-3 pb-12 shadow-photo transition-transform duration-500 hover:rotate-0 dark:bg-[#e9e4d6]">
-            <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full rounded-[2px]" />
-            {recipe.sourceName && (
-              <figcaption className="mt-3 text-center font-serif text-[17px] text-[#6b5a4c] italic">from {recipe.sourceName}</figcaption>
-            )}
-          </figure>
-        </section>
+            {/* The photo, a print tucked in with the card: crisp white, just not a light source. */}
+            <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[3px] bg-photo p-3 shadow-photo transition-[rotate] duration-500 ease-paper hover:rotate-0 @4xl:max-w-none">
+              <div style={{ viewTransitionName: "recipe-photo" }} className="overflow-hidden rounded-[2px]">
+                <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
+              </div>
+            </figure>
+          </section>
 
-        <Ornament />
+          <TagEditor tags={recipe.tags} allTags={allTags.map((t) => t.name)} onChange={setTags} busy={tagging} />
 
-        {/* Steps sit beside the ingredients, then take the full width below them. Each step
-            is its own formatting context, so it never wraps partway around the card. */}
-        <section className="flow-root">
-          <div ref={cardRef} className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}>
-            <Ingredients
-              key={recipe.id}
-              sections={ingredients}
-              servings={recipe.servings}
-              collapsed={ingredientsCollapsed}
-              onCollapsedChange={(collapsed) => {
-                setIngredientsCollapsed(collapsed);
-                localStorage.setItem(COLLAPSED_KEY, String(collapsed));
-              }}
-            />
-          </div>
-          <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} card={cardRef} />
-        </section>
-
-        <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
-
-        {recipe.unused && (
-          <div className="no-print mx-auto mt-16 flex max-w-xl flex-col items-center gap-3 rounded-2xl bg-leaf-wash px-6 py-5 text-center ring-1 ring-leaf-tint">
-            <p className="text-[16px] leading-relaxed text-ink-soft">
-              Recipe Box read this recipe from its web page and left a few of its lines out. If a step or ingredient is
-              missing or in the wrong place, you can fix it.
-            </p>
-            <Button icon={<FileSearch className="size-4" />} onClick={onEdit}>
-              Fix the recipe
-            </Button>
-          </div>
-        )}
-
-        {recipe.sourceUrl && (
-          <p className={cx("no-print text-center text-[15px]", recipe.unused ? "mt-8" : "mt-16")}>
-            <button
-              type="button"
-              onClick={() => openUrl(recipe.sourceUrl!)}
-              className="inline-flex items-center gap-1.5 font-semibold text-leaf hover:underline"
+          {/* Steps sit beside the ingredients, then take the full width below them. Each step
+              is its own formatting context, so it never wraps partway around the card. */}
+          <section className="flow-root">
+            <div
+              ref={cardRef}
+              style={{ viewTransitionName: "ingredients" }}
+              className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}
             >
-              See the original{recipe.sourceName ? ` on ${recipe.sourceName}` : ""}
-              <ExternalLink className="size-3.5" />
-            </button>
-          </p>
-        )}
-      </article>
+              <Ingredients
+                key={recipe.id}
+                sections={ingredients}
+                servings={recipe.servings}
+                collapsed={ingredientsCollapsed}
+                onCollapsedChange={(collapsed) => {
+                  // The list folds away and the steps slide over into its room.
+                  turnPage(() => setIngredientsCollapsed(collapsed));
+                  localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+                }}
+              />
+            </div>
+            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} card={cardRef} />
+          </section>
+
+          <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
+
+          {recipe.unused && (
+            <div className="no-print mx-auto mt-16 flex max-w-xl flex-col items-center gap-3 border-y border-print-rule px-6 py-[22px] text-center">
+              <p className="text-[16px] leading-relaxed text-ink-soft">
+                Recipe Box read this recipe from its web page and left a few of its lines out. If a step or ingredient is
+                missing or in the wrong place, you can fix it.
+              </p>
+              <Button icon={<FileSearch className="size-4" />} onClick={onEdit}>
+                Fix the recipe
+              </Button>
+            </div>
+          )}
+
+          {recipe.sourceUrl && (
+            <p className={cx("no-print text-center text-[15px]", recipe.unused ? "mt-8" : "mt-16")}>
+              <button
+                type="button"
+                onClick={() => openUrl(recipe.sourceUrl!)}
+                className="inline-flex items-center gap-1.5 font-semibold text-leaf hover:underline"
+              >
+                See the original{recipe.sourceName ? ` on ${recipe.sourceName}` : ""}
+                <ExternalLink className="size-3.5" />
+              </button>
+            </p>
+          )}
+        </article>
+      </div>
 
       {cooking && <CookingMode recipe={recipe} onClose={() => setCooking(false)} />}
 

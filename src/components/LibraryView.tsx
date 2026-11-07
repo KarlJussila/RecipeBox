@@ -41,6 +41,7 @@ export function LibraryView({
   searching,
   searchRef,
   scrollRef,
+  active,
   onFiltersChange,
   onSortChange,
   onOpen,
@@ -54,6 +55,8 @@ export function LibraryView({
   searching: boolean;
   searchRef: RefObject<HTMLInputElement | null>;
   scrollRef: RefObject<HTMLDivElement | null>;
+  /** The recipe last opened, which the page-turn returns to. */
+  active: string | null;
   onFiltersChange: (f: Filters) => void;
   onSortChange: (s: Sort) => void;
   onOpen: (id: string) => void;
@@ -68,7 +71,7 @@ export function LibraryView({
   const clearAll = () => onFiltersChange({ ...NO_FILTERS, sort: filters.sort });
 
   return (
-    <div ref={scrollRef} className="paper-grain scrollbar-quiet @container h-full overflow-y-auto">
+    <div ref={scrollRef} className="scrollbar-quiet @container h-full overflow-y-auto">
       <header data-tauri-drag-region className={`px-12 pb-6 ${isMac ? "pt-12" : "pt-10"}`}>
         <div className="flex items-start justify-between gap-6" data-tauri-drag-region>
           <div data-tauri-drag-region>
@@ -93,7 +96,7 @@ export function LibraryView({
             onChange={(e) => onFiltersChange({ ...filters, query: e.target.value })}
             placeholder="Search by name, ingredient, or note"
             aria-label="Search recipes"
-            className="h-14 w-full rounded-2xl bg-card pr-14 pl-13 text-[17px] text-ink shadow-soft ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+            className="h-14 w-full rounded bg-card pr-14 pl-13 text-[17px] text-ink shadow-soft ring-1 ring-line placeholder:text-ink-faint focus:ring-2 focus:ring-leaf focus:outline-none [&::-webkit-search-cancel-button]:hidden"
           />
           {filters.query ? (
             <button
@@ -132,7 +135,7 @@ export function LibraryView({
           <>
             {featured && (
               <div className="mb-14">
-                <FeaturedRecipe recipe={featured} onOpen={() => onOpen(featured.id)} onToggleFavorite={() => onToggleFavorite(featured)} />
+                <FeaturedRecipe recipe={featured} active={active} onOpen={() => onOpen(featured.id)} onToggleFavorite={() => onToggleFavorite(featured)} />
               </div>
             )}
 
@@ -164,7 +167,7 @@ export function LibraryView({
                   <select
                     value={filters.sort}
                     onChange={(e) => onSortChange(e.target.value as Sort)}
-                    className="h-9 appearance-none rounded-full bg-transparent pr-9 pl-4 text-[15px] font-semibold text-ink-soft hover:bg-ink/6 focus:outline-none"
+                    className="h-9 appearance-none rounded bg-transparent pr-9 pl-4 text-[15px] font-semibold text-ink-soft hover:bg-ink/6 focus:outline-none"
                   >
                     <option value="newest">Newest first</option>
                     <option value="oldest">Oldest first</option>
@@ -185,7 +188,7 @@ export function LibraryView({
                 </Button>
               </div>
             ) : (
-              <RecipeGrid recipes={rest} onOpen={onOpen} onToggleFavorite={onToggleFavorite} />
+              <RecipeGrid recipes={rest} active={active} onOpen={onOpen} onToggleFavorite={onToggleFavorite} />
             )}
 
             {results.length > 6 && (

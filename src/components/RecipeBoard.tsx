@@ -20,7 +20,7 @@ import { bucketItems, itemsToBucket, type Item } from "../lib/buckets";
 import type { Recipe } from "../lib/types";
 import { ItemMenu, type BucketName, type Destination } from "./ItemMenu";
 import { IngredientText } from "./RecipeView";
-import { Button, cx, GrowingTextarea } from "./ui";
+import { Button, cx, GrowingTextarea, PrintedHeading } from "./ui";
 
 // The recipe's ingredients, steps, and notes, drawn as they are on the recipe's page,
 // with the lines the reader left out beside them. Any line can be dragged to a new
@@ -59,26 +59,27 @@ const ADD_LABEL: Partial<Record<BucketName, string>> = { ingredients: "Add ingre
 // `bleed` on each side, so the text lines up with the headings above it.
 const LOOK: Record<BucketName, { row: string; bleed: string; text: string; heading?: string }> = {
   ingredients: {
-    row: "-mx-3 rounded-lg px-3 py-2.5",
+    row: "-mx-3 rounded px-3 py-2.5",
     bleed: "1.5rem",
     text: "text-[17px] leading-snug text-ink-soft",
-    heading: "pt-3 text-xs font-bold tracking-[0.14em] text-leaf uppercase",
+    // A printed group label with a light rule off it, as on the recipe page.
+    heading: "printed-label flex items-center gap-3.5 pt-[22px] after:h-px after:min-w-6 after:flex-1 after:bg-print-rule/50",
   },
   instructions: {
-    row: "-mx-5 rounded-2xl px-5 py-4",
+    row: "-mx-5 rounded px-5 py-4",
     bleed: "2.5rem",
     text: "pt-1 text-[18px] leading-[1.65] text-ink",
     heading: "pt-4 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink",
   },
   tips: {
-    row: "-mx-3 rounded-xl px-3 py-2",
+    row: "-mx-3 rounded px-3 py-2",
     bleed: "1.5rem",
     text: "text-[17px] leading-[1.65] text-ink-soft",
     // Under the card's title and rule, a note's heading is a step down from it.
     heading: "pt-4 font-serif text-[19px] leading-snug font-semibold text-ink",
   },
   unused: {
-    row: "-mx-2.5 rounded-lg px-2.5 py-1.5",
+    row: "-mx-2.5 rounded-[3px] px-2.5 py-1.5",
     bleed: "1.25rem",
     text: "text-[15px] leading-snug text-ink-soft",
   },
@@ -194,17 +195,16 @@ export function RecipeBoard({
     >
       <div className={cx("grid items-start gap-x-14 gap-y-16", tray && "@5xl:grid-cols-[minmax(0,1fr)_17rem]")}>
         <div className="min-w-0 space-y-16">
-          <section className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
-            <h2 className="mb-3 border-b-2 border-tomato/50 pb-3 font-serif text-[28px] leading-tight font-semibold tracking-tight">Ingredients</h2>
+          <section className="pt-1">
+            <PrintedHeading className="mb-3 text-[13px]">Ingredients</PrintedHeading>
             {list("ingredients")}
           </section>
           <section>
-            <h2 className="mb-4 font-serif text-[28px] font-semibold tracking-tight">Method</h2>
+            <PrintedHeading className="mb-4 h-9 text-[13px]">Directions</PrintedHeading>
             {list("instructions")}
           </section>
-          {/* A card like the ingredients', so the notes' own headings sit inside a frame. */}
-          <section className="rounded-3xl bg-card p-7 shadow-soft ring-1 ring-black/5">
-            <h2 className="mb-2 border-b-2 border-leaf/40 pb-3 font-serif text-[28px] leading-tight font-semibold tracking-tight">Notes</h2>
+          <section>
+            <PrintedHeading className="mb-2 h-9 text-[13px]">Notes</PrintedHeading>
             {list("tips")}
           </section>
         </div>
@@ -212,7 +212,8 @@ export function RecipeBoard({
         {tray && (
           // Beside the recipe on wide windows, where it stays in view while the steps scroll past.
           <aside className="@5xl:sticky @5xl:top-20">
-            <div className="scrollbar-quiet overflow-x-hidden rounded-2xl bg-paper-deep/80 px-5 pt-5 pb-4 ring-1 ring-line @5xl:max-h-[calc(100vh-7rem)] @5xl:overflow-y-auto">
+            {/* A scrap set beside the card: the lines that didn't make it onto it. */}
+            <div className="scrollbar-quiet overflow-x-hidden rounded-[2px] bg-umber/5 px-5 pt-5 pb-4 ring-1 ring-umber/15 ring-inset @5xl:max-h-[calc(100vh-7rem)] @5xl:overflow-y-auto">
               <h2 className="font-serif text-xl font-semibold tracking-tight">Left out</h2>
               <p className="mt-1 mb-3 text-sm leading-snug text-ink-faint">Lines from the recipe’s web page that aren’t in the recipe.</p>
               {list("unused")}
@@ -223,7 +224,7 @@ export function RecipeBoard({
 
       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" }}>
         {dragging && (
-          <div className={cx(LOOK[dragging.bucket].row, "mx-0 rotate-[0.8deg] cursor-grabbing bg-card shadow-lift ring-1 ring-leaf/30")}>
+          <div className={cx(LOOK[dragging.bucket].row, "mx-0 rotate-[0.8deg] cursor-grabbing bg-card shadow-lift ring-1 ring-umber/20")}>
             <RowContent item={dragging.item} bucket={dragging.bucket} number={dragging.number} />
           </div>
         )}
@@ -304,8 +305,8 @@ function BucketList({
         {items.length === 0 && dragging && (
           <p
             className={cx(
-              "mt-1 rounded-xl border border-dashed px-4 py-3 text-[15px] transition-colors",
-              isOver ? "border-leaf bg-leaf-wash text-leaf-strong" : "border-ink-faint/35 text-ink-faint",
+              "mt-1 rounded border border-dashed px-4 py-3 text-[15px] transition-colors",
+              isOver ? "border-leaf bg-leaf/8 text-leaf-strong" : "border-ink-faint/35 text-ink-faint",
             )}
           >
             Drop it here
@@ -370,7 +371,7 @@ function Row({
           className={cx(
             box,
             "group cursor-grab pr-8 text-left transition-colors duration-150 active:cursor-grabbing",
-            isDragging ? "opacity-35" : open ? "bg-leaf-wash ring-1 ring-leaf/30" : "hover:bg-ink/5",
+            isDragging ? "opacity-35" : open ? "bg-leaf/8 ring-1 ring-leaf/30" : "hover:bg-umber/5",
           )}
         >
           <RowContent item={item} bucket={bucket} number={number} />
@@ -436,7 +437,7 @@ function AddLines({ label, first, onAdd }: { label: string; first: boolean; onAd
         type="button"
         onClick={() => setOpen(true)}
         className={cx(
-          "flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-faint/35 px-4 py-2.5 text-[15px] font-medium text-ink-faint transition-colors hover:border-ink-faint/60 hover:bg-ink/5 hover:text-ink-soft",
+          "flex w-full items-center gap-2 rounded border border-dashed border-ink-faint/35 px-4 py-2.5 text-[15px] font-medium text-ink-faint transition-colors hover:border-ink-faint/60 hover:bg-umber/5 hover:text-ink-soft",
           first ? "mt-1" : "mt-4",
         )}
       >
@@ -446,7 +447,7 @@ function AddLines({ label, first, onAdd }: { label: string; first: boolean; onAd
     );
   }
   return (
-    <div className={cx("animate-fade-in rounded-xl bg-card ring-2 ring-leaf/45", first ? "mt-1" : "mt-4")}>
+    <div className={cx("animate-fade-in rounded bg-card ring-2 ring-leaf/45", first ? "mt-1" : "mt-4")}>
       <GrowingTextarea
         value={text}
         autoFocus
