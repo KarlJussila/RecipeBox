@@ -11,7 +11,7 @@ const TIME_OPTIONS: { label: string; minutes: number | null }[] = [
   { label: "1 hour", minutes: 60 },
 ];
 
-const COLLAPSED_KEY = "recipebox.collapsedCategories";
+const OPEN_KEY = "recipebox.openCategories";
 
 /** How many tags a category shows before the rest go behind "N more". */
 const FEW = 8;
@@ -29,23 +29,28 @@ function fewOf<T extends { name: string; total: number }>(list: T[], keep: (t: T
 /** What's chosen wears a paper label, pressed into place on the tin. */
 const LABEL = "animate-settle bg-label font-semibold text-label-ink shadow-[0_1px_2px_rgb(0_0_0/0.18)]";
 
-function useCollapsed(): [Set<string>, (category: string) => void] {
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+/** The tag categories start closed, and stay however she leaves them. */
+function useOpenCategories(): [Set<string>, (category: string) => void] {
+  const [open, setOpen] = useState<Set<string>>(() => {
     try {
-      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]"));
+      return new Set(JSON.parse(localStorage.getItem(OPEN_KEY) ?? "[]"));
     } catch {
       return new Set();
     }
   });
   const toggle = (category: string) =>
-    setCollapsed((prev) => {
+    setOpen((prev) => {
       const next = new Set(prev);
       if (next.has(category)) next.delete(category);
       else next.add(category);
-      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      try {
+        localStorage.setItem(OPEN_KEY, JSON.stringify([...next]));
+      } catch {
+        // Not remembered this time; the sidebar still works.
+      }
       return next;
     });
-  return [collapsed, toggle];
+  return [open, toggle];
 }
 
 function SpineLink({ icon, label, count, active, onClick }: { icon: ReactNode; label: string; count: number; active: boolean; onClick: () => void }) {
@@ -89,7 +94,7 @@ export function Sidebar({
   /** Drawn out over a narrow window, the index puts itself away from its own corner. */
   onClose?: () => void;
 }) {
-  const [collapsed, toggleCollapsed] = useCollapsed();
+  const [openCategories, toggleCategory] = useOpenCategories();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpanded = (category: string) =>
     setExpanded((prev) => {
@@ -210,7 +215,7 @@ export function Sidebar({
             </p>
           )}
           {groups.map(([category, list]) => {
-            const open = !collapsed.has(category);
+            const open = openCategories.has(category);
             // Ranked by how many recipes use each tag overall, so filtering doesn't reshuffle them.
             const few = fewOf(list, (t) => filters.tags.includes(t.name) || filters.excludedTags.includes(t.name));
             const more = expanded.has(category);
@@ -219,7 +224,7 @@ export function Sidebar({
               <section key={category} className="border-b border-spine-line py-1 last:border-0">
                 <button
                   type="button"
-                  onClick={() => toggleCollapsed(category)}
+                  onClick={() => toggleCategory(category)}
                   aria-expanded={open}
                   className="flex h-10 w-full items-center gap-2.5 rounded px-3 text-[15px] font-semibold text-cream/90 hover:text-cream"
                 >
@@ -267,9 +272,10 @@ export function Sidebar({
                         type="button"
                         onClick={() => toggleExpanded(category)}
                         aria-expanded={more}
-                        className="inline-flex h-7 items-center rounded-[3px] px-2 text-sm text-cream-soft transition-colors duration-150 hover:bg-white/8 hover:text-cream"
+                        className="inline-flex h-7 items-center gap-1 rounded-[3px] px-2 text-sm text-cream-soft transition-colors duration-150 hover:bg-white/8 hover:text-cream"
                       >
                         {more ? "Fewer" : `${list.length - few.length} more`}
+                        <ChevronDown className={cx("size-3.5 transition-transform duration-200", more && "rotate-180")} />
                       </button>
                     )}
                   </div>
