@@ -1,7 +1,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ArrowLeft, ChefHat, ChevronDown, ChevronUp, ExternalLink, FileSearch, Heart, Pencil, Printer, Trash2 } from "lucide-react";
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { ArrowLeft, ChefHat, ExternalLink, FileSearch, Heart, Pencil, Printer, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../lib/api";
 import { bucketSections } from "../lib/buckets";
 import { formatMinutes } from "../lib/extract/duration";
@@ -12,7 +12,6 @@ import { CookingMode } from "./CookingMode";
 import { RecipeImage } from "./RecipeImage";
 import { TagEditor } from "./TagEditor";
 import { Button, cx, Dialog, IconButton, isMac, PrintedHeading } from "./ui";
-import { prefersStill } from "../lib/motion";
 
 export function IngredientText({ line }: { line: string }) {
   const [amount, rest] = splitAmount(line);
@@ -39,163 +38,99 @@ function Description({ text }: { text: string }) {
   );
 }
 
-const COLLAPSED_KEY = "recipebox.ingredientsCollapsed";
+type Checked = { has: (key: string) => boolean; toggle: (key: string) => void };
 
-function Ingredients({
-  sections,
-  servings,
-  collapsed,
-  onCollapsedChange,
-}: {
-  sections: Section[];
-  servings: string | null;
-  collapsed: boolean;
-  onCollapsedChange: (collapsed: boolean) => void;
-}) {
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const toggle = (key: string) =>
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const count = sections.reduce((n, s) => n + s.items.length, 0);
-
+/** The list she checks off as she gathers things, crossed off the same way wherever it shows. */
+function IngredientList({ sections, checked, small }: { sections: Section[]; checked: Checked; small?: boolean }) {
+  if (sections.length === 0) return <p className="text-ink-faint">No ingredients listed.</p>;
   return (
-    <>
-      {collapsed && (
-        <button
-          type="button"
-          onClick={() => onCollapsedChange(false)}
-          aria-expanded={false}
-          className="no-print group flex w-full items-center gap-4 text-left"
-        >
-          <PrintedHeading className="min-w-0 flex-1 text-[13px]">Ingredients</PrintedHeading>
-          <span className="text-[15px] text-ink-faint">
-            {count} {count === 1 ? "item" : "items"}
-            {servings && ` · Serves ${servings}`}
-          </span>
-          <span className="inline-flex h-10 items-center gap-2 rounded px-5 text-[15px] font-semibold text-leaf-strong ring-[1.5px] ring-leaf/75 ring-inset transition-[background-color,translate] duration-150 group-hover:bg-leaf/8 group-active:translate-y-px">
-            Show ingredients <ChevronDown className="size-4" />
-          </span>
-        </button>
-      )}
-      {/* Printing always includes the list, even while it's collapsed on screen. */}
-      <div className={cx("pt-1", collapsed && "hidden print:block")}>
-        <div className="mb-4 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <PrintedHeading className="text-[13px]">Ingredients</PrintedHeading>
-            {servings && <p className="mt-1 text-sm text-ink-faint">Serves {servings}</p>}
-          </div>
-          <Button
-            size="sm"
-            onClick={() => onCollapsedChange(true)}
-            aria-expanded
-            title="Hide the ingredients so the steps can use the full width"
-            className="no-print gap-1 px-3"
-          >
-            Hide <ChevronUp className="size-4" />
-          </Button>
+    <div className="space-y-5">
+      {sections.map((section, si) => (
+        <div key={si} className="print-break-avoid">
+          {section.heading && (
+            <PrintedHeading as="p" faint className={cx("mb-1.5", small ? "pt-4" : "pt-[22px]")}>
+              {section.heading}
+            </PrintedHeading>
+          )}
+          <ul className="divide-y divide-leaf/12 print:divide-black/15">
+            {section.items.map((item, i) => {
+              const key = `${si}-${i}`;
+              const done = checked.has(key);
+              return (
+                <li key={key}>
+                  <label className={cx("group flex cursor-pointer items-start gap-3 print:py-1.5", small ? "py-2" : "py-2.5")}>
+                    <input type="checkbox" checked={done} onChange={() => checked.toggle(key)} className="peer sr-only" />
+                    <span
+                      aria-hidden
+                      className={cx(
+                        "no-print flex size-[18px] shrink-0 items-center justify-center rounded-full ring-[1.5px] transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-leaf",
+                        small ? "mt-[2px]" : "mt-[3px]",
+                        done ? "bg-leaf ring-leaf" : "ring-ink-faint/60 group-hover:ring-leaf",
+                      )}
+                    >
+                      {done && <span className="size-1.5 rounded-full bg-card" />}
+                    </span>
+                    <span
+                      className={cx(
+                        "selectable leading-snug transition-colors duration-200 print:text-[11pt] print:text-ink",
+                        small ? "text-[16px]" : "text-[17px]",
+                        done ? "text-ink-faint [&_strong]:text-ink-faint" : "text-ink-soft",
+                      )}
+                    >
+                      {/* Crossed off with a pen, the line drawn along the text as it wraps. */}
+                      <span data-struck={done || undefined} className="pen-strike">
+                        <IngredientText line={item} />
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
         </div>
-        {sections.length === 0 && <p className="text-ink-faint">No ingredients listed.</p>}
-        <div className="space-y-5">
-          {sections.map((section, si) => (
-            <div key={si} className="print-break-avoid">
-              {section.heading && (
-                <PrintedHeading as="p" faint className="mb-1.5 pt-[22px]">
-                  {section.heading}
-                </PrintedHeading>
-              )}
-              <ul className="divide-y divide-leaf/12">
-                {section.items.map((item, i) => {
-                  const key = `${si}-${i}`;
-                  const done = checked.has(key);
-                  return (
-                    <li key={key}>
-                      <label className="group flex cursor-pointer items-start gap-3 py-2.5">
-                        <input type="checkbox" checked={done} onChange={() => toggle(key)} className="peer sr-only" />
-                        <span
-                          aria-hidden
-                          className={cx(
-                            "no-print mt-[3px] flex size-[18px] shrink-0 items-center justify-center rounded-full ring-[1.5px] transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-leaf",
-                            done ? "bg-leaf ring-leaf" : "ring-ink-faint/60 group-hover:ring-leaf",
-                          )}
-                        >
-                          {done && <span className="size-1.5 rounded-full bg-card" />}
-                        </span>
-                        <span className={cx("selectable text-[17px] leading-snug transition-colors duration-200", done ? "text-ink-faint [&_strong]:text-ink-faint" : "text-ink-soft")}>
-                          {/* Crossed off with a pen, the line drawn along the text as it wraps. */}
-                          <span data-struck={done || undefined} className="pen-strike print:bg-none">
-                            <IngredientText line={item} />
-                          </span>
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
+      ))}
+    </div>
+  );
+}
+
+function IngredientsHeading({ servings }: { servings: string | null }) {
+  return (
+    <div className="mb-4">
+      <PrintedHeading className="text-[13px]">Ingredients</PrintedHeading>
+      {servings && <p className="mt-1 text-sm text-ink-faint">Serves {servings}</p>}
+    </div>
   );
 }
 
 /**
- * Beside the floated ingredients card, a step that would hang mostly below the card
- * clears it and takes the full width instead. Headings move with a section's first step.
+ * The ingredients on their own sheet, laid on the tin beside the card so they stay in
+ * view while she works down the steps. It scrolls on its own when the list is long.
  */
-function useClearCard(root: RefObject<HTMLDivElement | null>, card: RefObject<HTMLDivElement | null>) {
-  useLayoutEffect(() => {
-    const steps = root.current;
-    const float = card.current;
-    if (!steps || !float) return;
-    const place = () => {
-      const blocks = [...steps.querySelectorAll<HTMLElement>("[data-block]")];
-      for (const el of steps.querySelectorAll<HTMLElement>("[data-block], [data-section]")) el.style.clear = "";
-      const style = getComputedStyle(float);
-      if (style.float === "none") return;
-      const edge = float.getBoundingClientRect().bottom;
-      const reach = edge + parseFloat(style.marginBottom);
-      for (const block of blocks) {
-        const r = block.getBoundingClientRect();
-        // A section's first step is measured from the section's heading, so a heading
-        // beside the card never ends up apart from a step that starts below it.
-        const section = block.closest<HTMLElement>("[data-section]");
-        const first = section !== null && section.querySelector("[data-block]") === block;
-        if ((first ? section.getBoundingClientRect().top : r.top) >= reach) break;
-        if (r.bottom - edge > r.height / 2) {
-          (first ? section : block).style.clear = "left";
-          break;
-        }
-      }
-    };
-    const observer = new ResizeObserver(place);
-    observer.observe(steps);
-    observer.observe(float);
-    return () => observer.disconnect();
-  }, [root, card]);
+function IngredientsSheet({ sections, servings, checked }: { sections: Section[]; servings: string | null; checked: Checked }) {
+  return (
+    <div className="card-stock flex max-h-full min-h-0 animate-fade-in flex-col text-ink shadow-card">
+      <div className="scrollbar-quiet min-h-0 overflow-y-auto px-7 pt-7 pb-8">
+        <IngredientsHeading servings={servings} />
+        <IngredientList sections={sections} checked={checked} small />
+      </div>
+    </div>
+  );
 }
 
 function StepHeading({ children }: { children: string }) {
   return <h3 className="mb-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink">{children}</h3>;
 }
 
-function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[]; card: RefObject<HTMLDivElement | null> }) {
+function Steps({ sections, tips }: { sections: Section[]; tips: Section[] }) {
   const [current, setCurrent] = useState<string | null>(null);
-  const root = useRef<HTMLDivElement>(null);
-  useClearCard(root, card);
   let number = 0;
   return (
-    <div ref={root}>
-      <PrintedHeading className="mb-7 h-9 text-[13px]">Directions</PrintedHeading>
+    <div>
+      <PrintedHeading className="mb-7 text-[13px] print:mb-3">Directions</PrintedHeading>
       {sections.length === 0 && <p className="text-ink-faint">No steps listed.</p>}
-      <div className="space-y-8">
+      <div className="space-y-8 print:space-y-5">
         {sections.map((section, si) => (
-          <div key={si} data-section>
+          <div key={si}>
             {section.heading && <StepHeading>{section.heading}</StepHeading>}
             <ol className="space-y-1.5">
               {section.items.map((step, i) => {
@@ -203,21 +138,22 @@ function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[];
                 const key = `${si}-${i}`;
                 const active = current === key;
                 return (
-                  // The list item sits beside the ingredients and shrinks to the width left
-                  // over. WebKit only does that for a block with auto width and no negative
-                  // margins, so the highlight's bleed lives on the button inside.
-                  <li key={key} data-block className="print-break-avoid flow-root">
+                  // In print, each step is its own formatting context: it sits beside the
+                  // floated ingredients at the width left over, or takes the full width
+                  // below them. WebKit only does that for a block with auto width and no
+                  // negative margins, so the highlight's bleed lives on the button inside.
+                  <li key={key} className="print-break-avoid flow-root">
                     <button
                       type="button"
                       onClick={() => setCurrent(active ? null : key)}
                       aria-pressed={active}
                       className={cx(
-                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded px-5 py-4 text-left transition-colors duration-200",
+                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded px-5 py-4 text-left transition-colors duration-200 print:mx-0 print:w-full print:grid-cols-[2rem_minmax(0,1fr)] print:gap-2 print:p-0 print:py-1",
                         active ? "bg-umber/9" : "hover:bg-umber/5",
                       )}
                     >
-                      <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums">{number}</span>
-                      <span className="selectable pt-1 text-[18px] leading-[1.65] text-ink">{step}</span>
+                      <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums print:text-[22pt]">{number}</span>
+                      <span className="selectable pt-1 text-[18px] leading-[1.65] text-ink print:pt-0.5 print:text-[11pt] print:leading-normal">{step}</span>
                     </button>
                   </li>
                 );
@@ -227,11 +163,11 @@ function Steps({ sections, tips, card }: { sections: Section[]; tips: Section[];
         ))}
         {/* The recipe's own tips and make-ahead advice: worth reading, but not steps. */}
         {tips.map((section, si) => (
-          <div key={`tip-${si}`} data-section>
+          <div key={`tip-${si}`}>
             <StepHeading>{section.heading || "Notes"}</StepHeading>
             <ul className="space-y-3">
               {section.items.map((tip, i) => (
-                <li key={i} data-block className="selectable print-break-avoid flow-root max-w-[50rem] text-[17px] leading-[1.65] text-ink-soft">
+                <li key={i} className="selectable print-break-avoid flow-root max-w-[50rem] text-[17px] leading-[1.65] text-ink-soft print:text-[11pt] print:leading-normal">
                   {tip}
                 </li>
               ))}
@@ -258,7 +194,7 @@ function Notes({ recipe, onSave }: { recipe: Recipe; onSave: (notes: string) => 
 
   return (
     // Her own notes: a slip tucked in with the card, in her hand. It straightens while she writes.
-    <section className="print-break-avoid mx-auto mt-16 max-w-2xl -rotate-[0.6deg] rounded-[1px] bg-slip px-8 pt-6 pb-7 shadow-photo transition-[rotate,translate] duration-300 ease-paper focus-within:-translate-y-0.5 focus-within:rotate-0">
+    <section className="print-break-avoid mx-auto mt-16 max-w-2xl -rotate-[0.6deg] rounded-[1px] bg-slip px-8 pt-6 pb-7 shadow-photo transition-[rotate,translate] duration-300 ease-paper focus-within:-translate-y-0.5 focus-within:rotate-0 print:mt-8 print:max-w-none print:rotate-0 print:p-0">
       <h2 className="font-hand text-[17px] text-hand-ink">Kitchen notes</h2>
       <textarea
         ref={ref}
@@ -279,6 +215,7 @@ export function RecipeView({
   refreshKey,
   allTags,
   tagging,
+  sheetSlot,
   onBack,
   onEdit,
   onDeleted,
@@ -291,6 +228,8 @@ export function RecipeView({
   allTags: Tag[];
   /** True while the AI is choosing tags for this recipe. */
   tagging: boolean;
+  /** Where the ingredients sheet goes, beside the card; without one they stay on the card. */
+  sheetSlot: HTMLElement | null;
   onBack: () => void;
   /** Opens the editor, on the page the recipe came from when `page` is set. */
   onEdit: () => void;
@@ -300,27 +239,21 @@ export function RecipeView({
   const [recipe, setRecipe] = useState<Recipe | null | undefined>(initial?.id === id ? initial : undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cooking, setCooking] = useState(false);
-  const [ingredientsCollapsed, setIngredientsCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  // The list is lifted off to the left and the steps settle into its room, or it's laid
-  // back down. Only opacity and position move, which the compositor animates on its own;
-  // a view transition here repainted the whole page for every frame.
-  const foldIngredients = async (collapsed: boolean) => {
-    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
-    const card = cardRef.current;
-    if (!card || prefersStill()) return setIngredientsCollapsed(collapsed);
-    const steps = card.nextElementSibling;
-    if (collapsed) {
-      await card.animate([{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: "-16px 0" }], { duration: 150, easing: "ease-in" }).finished;
-    }
-    flushSync(() => setIngredientsCollapsed(collapsed));
-    const settle = { duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" };
-    card.animate(collapsed ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, translate: "-16px 0" }, { opacity: 1, translate: "0 0" }], settle);
-    steps?.animate([{ opacity: 0.4 }, { opacity: 1 }], settle);
+  // Lifted here so the sheet, the card's copy, and the printout agree.
+  const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
+  const checked: Checked = {
+    has: (key) => checkedKeys.has(key),
+    toggle: (key) =>
+      setCheckedKeys((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      }),
   };
+  useEffect(() => setCheckedKeys(new Set()), [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -373,7 +306,7 @@ export function RecipeView({
   // `relative` keeps the ingredients' visually hidden checkboxes positioned inside this
   // scroller; otherwise they hang off the page body and the whole window scrolls.
   return (
-    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="scrollbar-quiet @container relative h-full overflow-y-auto">
+    <div ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)} className="scrollbar-quiet @container relative h-full overflow-y-auto print:h-auto print:overflow-visible">
       <header
         data-tauri-drag-region
         className={cx(
@@ -407,7 +340,7 @@ export function RecipeView({
           style={{ viewTransitionName: "recipe-card" }}
           className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-14 pt-12 pb-16 shadow-card print:bg-none print:p-0 print:shadow-none"
         >
-          <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+          <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:gap-8">
             <div className="min-w-0">
               {(recipe.sourceName || recipe.author) && (
                 // Filled in by hand on the card's printed line.
@@ -419,7 +352,7 @@ export function RecipeView({
                   </span>
                 </p>
               )}
-              <h1 className="selectable font-hand text-[42px] leading-[1.5] text-balance text-hand-ink">{recipe.title}</h1>
+              <h1 className="selectable font-hand text-[42px] leading-[1.5] text-balance text-hand-ink print:text-[26pt]">{recipe.title}</h1>
               {recipe.description && (
                 <div className="mt-6">
                   <Description text={recipe.description} />
@@ -451,7 +384,7 @@ export function RecipeView({
             </div>
 
             {/* The photo, a print tucked in with the card: crisp white, just not a light source. */}
-            <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[3px] bg-photo p-3 shadow-photo transition-[rotate] duration-500 ease-paper hover:rotate-0 @4xl:max-w-none">
+            <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[3px] bg-photo p-3 shadow-photo transition-[rotate] duration-500 ease-paper hover:rotate-0 @4xl:max-w-none print:max-w-none print:rotate-0 print:p-0">
               <div style={{ viewTransitionName: "recipe-photo" }} className="overflow-hidden rounded-[2px]">
                 <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
               </div>
@@ -460,25 +393,22 @@ export function RecipeView({
 
           <TagEditor tags={recipe.tags} allTags={allTags.map((t) => t.name)} onChange={setTags} busy={tagging} />
 
-          {/* Steps sit beside the ingredients, then take the full width below them. Each step
-              is its own formatting context, so it never wraps partway around the card. */}
-          <section className="flow-root">
-            <div
-              ref={cardRef}
-              className={cx("mb-12", !ingredientsCollapsed && "@4xl:float-left @4xl:mr-14 @4xl:mb-8 @4xl:w-[40%]")}
-            >
-              <Ingredients
-                key={recipe.id}
-                sections={ingredients}
-                servings={recipe.servings}
-                collapsed={ingredientsCollapsed}
-                onCollapsedChange={foldIngredients}
-              />
+          {sheetSlot &&
+            createPortal(<IngredientsSheet sections={ingredients} servings={recipe.servings} checked={checked} />, sheetSlot)}
+
+          {/* On the card when the window's too narrow for the sheet, and always on paper:
+              the steps sit beside the list there, then take the full width below it. */}
+          <section className="flow-root print:mt-10">
+            <div className={cx("mb-12 print:float-left print:mr-8 print:mb-4 print:w-[38%]", sheetSlot && "hidden print:block")}>
+              <IngredientsHeading servings={recipe.servings} />
+              <IngredientList sections={ingredients} checked={checked} />
             </div>
-            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} card={cardRef} />
+            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} />
           </section>
 
-          <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
+          <div className={cx(!recipe.notes.trim() && "print:hidden")}>
+            <Notes recipe={recipe} onSave={(notes) => save({ notes })} />
+          </div>
 
           {recipe.unused && (
             <div className="no-print mx-auto mt-16 flex max-w-xl flex-col items-center gap-3 border-y border-print-rule px-6 py-[22px] text-center">

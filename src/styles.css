@@ -337,9 +337,35 @@ html.turning :is(.animate-fade-in, .animate-rise, .animate-drop-in) {
   }
 }
 
+/* On paper it's black ink on white, in either appearance: no paper color, stains, or
+   shadows, and the photo in grays. The scrolling page lets go so every page prints. */
 @media print {
   @page { margin: 1.6cm; }
-  body { background: white !important; color: black !important; }
+  :root, .dark {
+    color-scheme: light;
+    --color-ink: #000;
+    --color-ink-soft: #1a1a1a;
+    --color-ink-faint: #555;
+    --color-hand-ink: #000;
+    --color-print-ink: #333;
+    --color-print-rule: rgb(0 0 0 / 0.4);
+    --color-leaf: #000;
+    --color-leaf-strong: #000;
+    --color-tomato: #000;
+    --color-umber: #000;
+    --color-line: #bbb;
+  }
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body { color: #000 !important; }
+  *, ::before, ::after {
+    background: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  img { filter: grayscale(1); }
   .no-print { display: none !important; }
   .print-break-avoid { break-inside: avoid; }
 }

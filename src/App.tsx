@@ -13,6 +13,7 @@ import { api, type Settings } from "./lib/api";
 import { importHtml, importUrl, tagRecipe, type ImportResult } from "./lib/importer";
 import { effectiveLlm } from "./lib/llm";
 import { turnPage } from "./lib/motion";
+import { SHEET_QUERY, useMedia } from "./lib/useMedia";
 import type { Recipe, RecipeSummary } from "./lib/types";
 import { allTagCounts, NO_FILTERS, useFilteredRecipes, useLibrary, type Filters } from "./state";
 
@@ -38,6 +39,10 @@ export default function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const listScroll = useRef<HTMLDivElement>(null);
   const listScrollTop = useRef(0);
+  const wide = useMedia(SHEET_QUERY);
+  /** Where a recipe's ingredients sheet goes, in the sidebar, while one is open. */
+  const [sheetSlot, setSheetSlot] = useState<HTMLDivElement | null>(null);
+  const sheetMode = wide && view.name === "recipe";
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -260,7 +265,7 @@ export default function App() {
   if (recipes === null) return null;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full print:block print:h-auto">
       <Sidebar
         recipes={library}
         tags={tags}
@@ -269,6 +274,7 @@ export default function App() {
         filteredTagCounts={tagCounts}
         onManageTags={() => setTagsOpen(true)}
         onSettings={() => setSettingsTab("ai")}
+        sheetRef={sheetMode ? setSheetSlot : undefined}
       />
 
       {/* The sheet the cards lie on. The views scroll over it, so it never repaints. */}
@@ -298,6 +304,7 @@ export default function App() {
             refreshKey={refreshKey}
             allTags={tags}
             tagging={tagging.has(view.id)}
+            sheetSlot={sheetMode ? sheetSlot : null}
             onBack={backToList}
             onEdit={() => setView({ name: "edit", id: view.id, from: view })}
             onDeleted={async () => {
