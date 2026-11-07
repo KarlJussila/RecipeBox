@@ -153,10 +153,13 @@ function useClearCard(root: RefObject<HTMLDivElement | null>, card: RefObject<HT
       const reach = edge + parseFloat(style.marginBottom);
       for (const block of blocks) {
         const r = block.getBoundingClientRect();
-        if (r.top >= reach) break;
+        // A section's first step is measured from the section's heading, so a heading
+        // beside the card never ends up apart from a step that starts below it.
+        const section = block.closest<HTMLElement>("[data-section]");
+        const first = section !== null && section.querySelector("[data-block]") === block;
+        if ((first ? section.getBoundingClientRect().top : r.top) >= reach) break;
         if (r.bottom - edge > r.height / 2) {
-          const section = block.closest<HTMLElement>("[data-section]");
-          (section?.querySelector("[data-block]") === block ? section : block).style.clear = "left";
+          (first ? section : block).style.clear = "left";
           break;
         }
       }
