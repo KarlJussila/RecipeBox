@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { formatMinutes, parseDuration } from "../lib/extract/duration";
 import { servingsFrom, tidyTitle } from "../lib/extract/text";
 import { clean } from "../lib/page-lines";
-import { partsToRecipe } from "../lib/source-page";
+import { choosePart, partsToRecipe, type HeadedPart } from "../lib/source-page";
 import { emptyRecipe, type Recipe, type Section } from "../lib/types";
 import { RecipeImage } from "./RecipeImage";
 import { RecipePreview, SourcePageView, type LineChoice } from "./SourcePageView";
@@ -46,16 +46,6 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
       <h2 className="font-serif text-xl font-semibold tracking-tight">{title}</h2>
       <div className="space-y-5">{children}</div>
     </section>
-  );
-}
-
-function PageHelp({ className }: { className?: string }) {
-  return (
-    <p className={cx("text-[15px] leading-relaxed text-ink-soft", className)}>
-      These are the lines Recipe Box read the recipe from, each marked with the part it became. If something’s missing or
-      in the wrong place, click the line and choose what it should be. Changes here redo the ingredients, steps, and
-      notes from the page, so make them before typing changes of your own.
-    </p>
   );
 }
 
@@ -102,21 +92,18 @@ export function RecipeEditor({
   const set = (patch: Partial<Recipe>) => setRecipe({ ...recipe, ...patch });
 
   // A line of the page changed part: the recipe's parts are made again from the page's lines.
-  const choose = (line: number, choice: LineChoice) => {
+  const choose = (line: number, choice: LineChoice, heading?: HeadedPart) => {
     const source = recipe.sourcePage!;
     if (choice === "title") {
       set({ title: tidyTitle(clean(source.lines[line])), sourcePage: { ...source, titleLine: line } });
       return;
     }
-    const before = source.parts[line];
-    if (before === choice) return;
-    setChanged(choice ? clean(source.lines[line]) : null);
-    const parts = [...source.parts];
-    parts[line] = choice;
-    const sourcePage = { ...source, parts };
+    const sourcePage = choosePart(source, line, choice, heading);
+    if (sourcePage === source) return;
+    setChanged(choice && choice !== "heading" ? clean(source.lines[line]) : null);
     const rebuilt = partsToRecipe(sourcePage);
-    const changed = [before, choice];
-    if (changed.some((p) => p === "ingredient" || p === "step" || p === "tip")) {
+    const changed = [heading ? "heading" : source.parts[line], choice];
+    if (changed.some((p) => p === "heading" || p === "ingredient" || p === "step" || p === "tip")) {
       setIngredients(sectionsToText(rebuilt.ingredients));
       setInstructions(sectionsToText(rebuilt.instructions));
       setTips(sectionsToText(rebuilt.tips));
@@ -161,7 +148,8 @@ export function RecipeEditor({
 
   return (
     <div
-      className="paper-grain scrollbar-quiet @container h-full overflow-y-auto"
+      // The page and the recipe beside it scroll on their own, so the editor itself doesn't.
+      className={cx("paper-grain scrollbar-quiet @container h-full", tab === "page" ? "flex flex-col overflow-hidden" : "overflow-y-auto")}
       onPaste={(e) => {
         const file = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
         if (file) {
@@ -172,7 +160,7 @@ export function RecipeEditor({
     >
       <header
         data-tauri-drag-region
-        className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-line bg-paper/90 px-6 backdrop-blur-md"
+        className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-paper/90 px-6 backdrop-blur-md"
       >
         <h1 className="font-serif text-xl font-semibold tracking-tight" data-tauri-drag-region>
           {id ? "Edit recipe" : "New recipe"}
@@ -187,14 +175,14 @@ export function RecipeEditor({
       </header>
 
       <form
-        className={cx("mx-auto animate-fade-in px-10 pt-8 pb-24", tab === "page" ? "max-w-6xl" : "max-w-4xl")}
+        className={cx("mx-auto w-full animate-fade-in px-10 pt-8", tab === "page" ? "flex min-h-0 max-w-6xl flex-1 flex-col" : "max-w-4xl pb-24")}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
         {recipe.sourcePage && (
-          <div role="tablist" aria-label="Show" className="mb-8 inline-flex rounded-full bg-paper-deep p-1 ring-1 ring-line">
+          <div role="tablist" aria-label="Show" className="mb-8 inline-flex self-start rounded-full bg-paper-deep p-1 ring-1 ring-line">
             {(
               [
                 ["recipe", "Recipe"],
@@ -219,29 +207,20 @@ export function RecipeEditor({
         )}
 
         {tab === "page" && recipe.sourcePage ? (
-          <>
-            <div className="grid gap-10 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-              <div>
-                <PageHelp className="mb-6 @4xl:hidden" />
-                <SourcePageView source={recipe.sourcePage} onChoose={choose} />
-              </div>
-              {/* The page opens at the recipe, well down it, so the help stays in view beside it. */}
-              <aside className="hidden @4xl:block">
-                <div className="sticky top-24 flex max-h-[calc(100vh-8rem)] flex-col gap-5">
-                  <PageHelp />
-                  <div className="scrollbar-quiet min-h-0 overflow-y-auto rounded-2xl">
-                    <RecipePreview
-                      title={recipe.title}
-                      ingredients={textToSections(ingredients)}
-                      steps={textToSections(instructions)}
-                      tips={textToSections(tips)}
-                      changed={changed}
-                    />
-                  </div>
-                </div>
-              </aside>
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-10 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="scrollbar-quiet overflow-y-auto pb-16">
+              <SourcePageView source={recipe.sourcePage} onChoose={choose} />
             </div>
-          </>
+            <aside className="scrollbar-quiet hidden overflow-y-auto pb-16 @4xl:block">
+              <RecipePreview
+                title={recipe.title}
+                ingredients={textToSections(ingredients)}
+                steps={textToSections(instructions)}
+                tips={textToSections(tips)}
+                changed={changed}
+              />
+            </aside>
+          </div>
         ) : (
           <>
             <FormSection title="Basics">

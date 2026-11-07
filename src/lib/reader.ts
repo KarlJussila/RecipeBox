@@ -12,7 +12,7 @@ import { runJob, tool, type ToolReply } from "./llm";
 import { PageLines, flat } from "./page-lines";
 import type { ReadablePage } from "./extract/page";
 import { servingsFrom } from "./extract/text";
-import { partsToRecipe, type LinePart, type SourcePage } from "./source-page";
+import { markHeadings, partsToRecipe, type LinePart, type SourcePage } from "./source-page";
 import type { RecipeDraft } from "./types";
 
 const INSTRUCTIONS = "You read recipes from web pages for a home cook's recipe collection.";
@@ -384,7 +384,7 @@ export async function readPage(
     for (const i of stepLines) parts[i] = "step";
     for (const i of tipLines) parts[i] = "tip";
     if (descriptionLine !== null) parts[descriptionLine] = "description";
-    const source: SourcePage = { lines, parts, titleLine, quotes };
+    const source: SourcePage = markHeadings({ lines, parts, titleLine, quotes });
 
     const recipe: PageRecipe = {
       ...partsToRecipe(source),

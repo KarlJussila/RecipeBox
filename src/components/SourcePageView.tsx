@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { clean, headingText } from "../lib/page-lines";
-import { headingLines, type LinePart, type SourcePage } from "../lib/source-page";
+import type { HeadedPart, LinePart, SourcePage } from "../lib/source-page";
 import type { Section } from "../lib/types";
 import { cx } from "./ui";
 
-/** What a line can be made into: a part of the recipe, the title, or nothing. */
-export type LineChoice = LinePart | "title" | null;
+/** What a line can be made into: a part of the recipe, a heading, the title, or nothing. */
+export type LineChoice = LinePart | "heading" | "title" | null;
 
-const PARTS: { part: LinePart | null; label: string }[] = [
+const PARTS: { part: LinePart | "heading" | null; label: string }[] = [
+  { part: "heading", label: "Heading" },
   { part: "ingredient", label: "Ingredient" },
   { part: "step", label: "Step" },
   { part: "tip", label: "Note" },
@@ -28,12 +29,19 @@ function Chip({ className, children }: { className: string; children: string }) 
 
 /**
  * The page a recipe was read from, a line at a time, each marked with the part of the
- * recipe it became. Choosing a line opens the parts it can be made into instead.
+ * recipe it became. A heading over two parts, like a part's ingredients and its steps,
+ * shows once for each, so either can be unmarked. Choosing a row opens what it can be
+ * made into instead.
  */
-export function SourcePageView({ source, onChoose }: { source: SourcePage; onChoose: (line: number, choice: LineChoice) => void }) {
-  const [open, setOpen] = useState<number | null>(null);
+export function SourcePageView({
+  source,
+  onChoose,
+}: {
+  source: SourcePage;
+  onChoose: (line: number, choice: LineChoice, heading?: HeadedPart) => void;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
   const firstRef = useRef<HTMLLIElement>(null);
-  const headings = headingLines(source);
   // The recipe usually starts well down the page, below the site's menus.
   const first = source.titleLine ?? source.parts.findIndex((p) => p !== null);
 
@@ -41,61 +49,65 @@ export function SourcePageView({ source, onChoose }: { source: SourcePage; onCho
 
   return (
     <ol className="space-y-0.5">
-      {source.lines.map((line, i) => {
+      {source.lines.flatMap((line, i) => {
         const part = source.parts[i];
         const isTitle = source.titleLine === i;
-        // A heading the recipe uses, like "For the cake", over the part it heads.
-        const heads = part ? undefined : headings.get(i);
-        const look = part ?? heads;
-        const choose = (choice: LineChoice) => {
-          onChoose(i, choice);
-          setOpen(null);
-        };
-        return (
-          <li key={i} ref={i === first ? firstRef : undefined}>
-            <button
-              type="button"
-              aria-expanded={open === i}
-              onClick={() => setOpen(open === i ? null : i)}
-              className={cx("flex w-full items-stretch gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-ink/5", open === i && "bg-ink/5")}
-            >
-              <span aria-hidden="true" className={cx("w-1 shrink-0 rounded-full", look ? LOOKS[look].bar : isTitle ? "bg-ink" : "bg-transparent")} />
-              <span
-                className={cx(
-                  "min-w-0 flex-1 text-[16px] leading-relaxed [overflow-wrap:anywhere]",
-                  headingText(line) !== null && "font-semibold",
-                  !look && !isTitle && "text-ink-faint",
-                )}
+        const heads = part ? [] : source.headings.filter((h) => h.line === i).map((h) => h.of);
+        const rows: (HeadedPart | undefined)[] = heads.length > 0 ? heads : [undefined];
+        return rows.map((heading, row) => {
+          const key = `${i}:${heading ?? ""}`;
+          const look = heading ?? part;
+          const choose = (choice: LineChoice) => {
+            onChoose(i, choice, heading);
+            setOpen(null);
+          };
+          return (
+            <li key={key} ref={i === first && row === 0 ? firstRef : undefined}>
+              <button
+                type="button"
+                aria-expanded={open === key}
+                onClick={() => setOpen(open === key ? null : key)}
+                className={cx("flex w-full items-stretch gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-ink/5", open === key && "bg-ink/5")}
               >
-                {clean(line)}
-              </span>
-              <span className="flex shrink-0 items-start gap-1.5 pt-0.5">
-                {isTitle && <Chip className="bg-ink text-paper">Title</Chip>}
-                {part && <Chip className={LOOKS[part].chip}>{LOOKS[part].label}</Chip>}
-                {heads && <Chip className={LOOKS[heads].chip}>{`${LOOKS[heads].label} heading`}</Chip>}
-              </span>
-            </button>
-            {source.quotes
-              .filter((q) => q.line === i && part !== "ingredient")
-              .map((q, k) => (
-                <p key={k} className="ml-7 pb-1 text-sm text-leaf-strong">
-                  Ingredient from this line: {q.text}
-                </p>
-              ))}
-            {open === i && (
-              <div role="group" aria-label="What this line is" className="mt-1 mb-3 ml-7 flex flex-wrap gap-2">
-                <ChoiceButton pressed={isTitle} onClick={() => choose("title")}>
-                  Title
-                </ChoiceButton>
-                {PARTS.map(({ part: p, label }) => (
-                  <ChoiceButton key={label} pressed={part === p} onClick={() => choose(p)}>
-                    {label}
+                <span aria-hidden="true" className={cx("w-1 shrink-0 rounded-full", look ? LOOKS[look].bar : isTitle ? "bg-ink" : "bg-transparent")} />
+                <span
+                  className={cx(
+                    "min-w-0 flex-1 text-[16px] leading-relaxed [overflow-wrap:anywhere]",
+                    (heading || headingText(line) !== null) && "font-semibold",
+                    !look && !isTitle && "text-ink-faint",
+                  )}
+                >
+                  {clean(line)}
+                </span>
+                <span className="flex shrink-0 items-start gap-1.5 pt-0.5">
+                  {isTitle && <Chip className="bg-ink text-paper">Title</Chip>}
+                  {part && <Chip className={LOOKS[part].chip}>{LOOKS[part].label}</Chip>}
+                  {heading && <Chip className={LOOKS[heading].chip}>{`${LOOKS[heading].label} heading`}</Chip>}
+                </span>
+              </button>
+              {row === 0 &&
+                source.quotes
+                  .filter((q) => q.line === i && part !== "ingredient")
+                  .map((q, k) => (
+                    <p key={k} className="ml-7 pb-1 text-sm text-leaf-strong">
+                      Ingredient from this line: {q.text}
+                    </p>
+                  ))}
+              {open === key && (
+                <div role="group" aria-label="What this line is" className="mt-1 mb-3 ml-7 flex flex-wrap gap-2">
+                  <ChoiceButton pressed={isTitle} onClick={() => choose("title")}>
+                    Title
                   </ChoiceButton>
-                ))}
-              </div>
-            )}
-          </li>
-        );
+                  {PARTS.map(({ part: p, label }) => (
+                    <ChoiceButton key={label} pressed={heading ? p === "heading" : part === p} onClick={() => choose(p)}>
+                      {label}
+                    </ChoiceButton>
+                  ))}
+                </div>
+              )}
+            </li>
+          );
+        });
       })}
     </ol>
   );

@@ -43,33 +43,30 @@ export function headingText(line: string): string | null {
 
 /**
  * Groups lines into sections, starting one at each heading between or just before
- * them. Looking back for the first heading passes over `skip`ped lines, so steps
- * that follow a part's ingredients come under that part's heading.
+ * them, along with the line each section's heading came from. Looking back for the
+ * first heading passes over `skip`ped lines, so steps that follow a part's ingredients
+ * can come under that part's heading.
  */
-export function group(lines: string[], items: { index: number; text: string }[], skip: (index: number) => boolean = () => false): Section[] {
-  return groupAt(lines, items, skip).map((g) => g.section);
-}
-
-/** Like `group`, along with the line each section's heading came from, if any. */
-export function groupAt(
+export function group(
   lines: string[],
   items: { index: number; text: string }[],
   skip: (index: number) => boolean = () => false,
+  heading: (index: number) => string | null = (i) => headingText(lines[i] ?? ""),
 ): { section: Section; line: number | null }[] {
   items = [...items].sort((a, b) => a.index - b.index);
   if (items.length === 0) return [];
   const sections: { section: Section; line: number | null }[] = [];
   let back = items[0].index - 1;
   while (back >= 0 && skip(back)) back--;
-  const before = headingText(lines[back] ?? "");
+  const before = heading(back);
   let current = { section: { heading: before ?? "", items: [] as string[] }, line: before === null ? null : back };
   let last = items[0].index - 1;
   for (const item of items) {
     for (let i = last + 1; i < item.index; i++) {
-      const heading = headingText(lines[i]);
-      if (heading === null) continue;
+      const text = heading(i);
+      if (text === null) continue;
       if (current.section.items.length > 0) sections.push(current);
-      current = { section: { heading, items: [] }, line: i };
+      current = { section: { heading: text, items: [] }, line: i };
     }
     current.section.items.push(item.text);
     last = item.index;

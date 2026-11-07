@@ -27,7 +27,7 @@ vi.mock("./api", () => ({
 
 import { findQuote, headingText } from "./page-lines";
 import { readPage } from "./reader";
-import { headingLines, partsToRecipe, type SourcePage } from "./source-page";
+import { choosePart, markHeadings, partsToRecipe } from "./source-page";
 
 const llm = { provider: "opencode" as const, model: "test/model", baseUrl: "", apiKey: "" };
 beforeEach(() => {
@@ -263,17 +263,42 @@ test("keeps what each line of the page became, and rebuilds the recipe from it",
   expect(fixed.description).toBe("These are soft.");
 });
 
-test("puts steps under a part's heading only when each part has its own steps", () => {
+test("marks the headings the recipe uses once, and puts steps under one only when each part has its own steps", () => {
   // Like Mom's Apple Cake: two ingredient parts, then all the steps.
-  const source: SourcePage = {
-    lines: ["Apple Cake", "**For the apples**", "- 6 apples", "**For the cake**", "- 2 cups flour", "1. Toss the apples.", "1. Bake."],
+  const cake = markHeadings({
+    lines: ["**Apple Cake**", "**For the apples**", "- 6 apples", "**For the cake**", "- 2 cups flour", "1. Toss the apples.", "1. Bake."],
     parts: [null, null, "ingredient", null, "ingredient", "step", "step"],
     titleLine: 0,
     quotes: [],
-  };
-  expect(partsToRecipe(source).instructions).toEqual([{ heading: "", items: ["Toss the apples.", "Bake."] }]);
-  expect([...headingLines(source)]).toEqual([
-    [1, "ingredient"],
-    [3, "ingredient"],
+  });
+  expect(cake.headings).toEqual([
+    { line: 1, of: "ingredient" },
+    { line: 3, of: "ingredient" },
   ]);
+  expect(partsToRecipe(cake).ingredients.map((s) => s.heading)).toEqual(["For the apples", "For the cake"]);
+  expect(partsToRecipe(cake).instructions).toEqual([{ heading: "", items: ["Toss the apples.", "Bake."] }]);
+
+  // A heading marked as not used no longer splits the ingredients.
+  const one = choosePart(cake, 3, null, "ingredient");
+  expect(partsToRecipe(one).ingredients).toEqual([{ heading: "For the apples", items: ["6 apples", "2 cups flour"] }]);
+  // And marked again, it heads what follows it.
+  expect(choosePart(one, 3, "heading").headings).toEqual(cake.headings.slice(0, 1).concat({ line: 3, of: "ingredient" }));
+});
+
+test("keeps a heading over a part's ingredients and its steps twice, so either can be unmarked", () => {
+  const pie = markHeadings({
+    lines: ["### Crust", "- 1 cup flour", "1. Roll it out.", "### Filling", "- 2 eggs", "1. Whisk the eggs."],
+    parts: [null, "ingredient", "step", null, "ingredient", "step"],
+    titleLine: null,
+    quotes: [],
+  });
+  expect(pie.headings).toEqual([
+    { line: 0, of: "ingredient" },
+    { line: 3, of: "ingredient" },
+    { line: 0, of: "step" },
+    { line: 3, of: "step" },
+  ]);
+  const steps = partsToRecipe(choosePart(pie, 3, null, "step")).instructions;
+  expect(steps).toEqual([{ heading: "Crust", items: ["Roll it out.", "Whisk the eggs."] }]);
+  expect(partsToRecipe(choosePart(pie, 3, null, "step")).ingredients.map((s) => s.heading)).toEqual(["Crust", "Filling"]);
 });
