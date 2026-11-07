@@ -197,9 +197,9 @@ function hostName(url: string | null): string | null {
   }
 }
 
+/** "Meatloaf Recipe" is just Meatloaf on her card. */
 function cleanTitle(title: string): string {
-  const stripped = title.replace(/\s+recipe$/i, "");
-  return stripped.includes(" ") ? stripped : title;
+  return title.replace(/\s+recipe$/i, "") || title;
 }
 
 export interface PageMeta {

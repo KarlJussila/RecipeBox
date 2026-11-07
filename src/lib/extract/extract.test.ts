@@ -97,6 +97,10 @@ describe("pickImage", () => {
 });
 
 describe("extractFromHtml", () => {
+  test("drops a trailing \"recipe\" from a one-word title", () => {
+    const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Meatloaf recipe","recipeIngredient":["1 lb beef"],"recipeInstructions":"Bake."}</script>`;
+    expect(extractFromHtml(html, "https://site.com/meatloaf").draft.title).toBe("Meatloaf");
+  });
   const recipe = {
     "@context": "https://schema.org",
     "@type": ["Recipe", "NewsArticle"],
