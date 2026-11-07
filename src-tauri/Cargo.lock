@@ -1868,6 +1868,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "imagesize"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65b27460c2c92b037f3f94c538ed9a3342f3fdf923606781629ccb35f82d042a"
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3022,6 +3028,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "encoding_rs",
+ "imagesize",
  "reqwest 0.12.28",
  "rusqlite",
  "serde",

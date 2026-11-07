@@ -44,6 +44,8 @@ export interface RecipeSummary {
   sourceUrl: string | null;
   sourceName: string | null;
   image: string | null;
+  /** The photo's height over its width, when there's a photo. */
+  imageAspect: number | null;
   totalMinutes: number | null;
   rating: number | null;
   favorite: boolean;

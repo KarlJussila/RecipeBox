@@ -47,6 +47,16 @@ function Meta({ recipe }: { recipe: RecipeSummary }) {
 }
 
 /**
+ * A card's photo keeps its own shape, so the cards fall at different heights, but one much
+ * taller than 5:7 is trimmed so it doesn't run the length of the column. A missing photo
+ * gets the usual 4:3 patch.
+ */
+function photoShape(recipe: RecipeSummary): string {
+  const aspect = recipe.image && recipe.imageAspect ? Math.min(Math.max(recipe.imageAspect, 9 / 16), 7 / 5) : 3 / 4;
+  return `1 / ${aspect}`;
+}
+
+/**
  * Each recipe is an index card in the box. Pointed at, it lifts and tips a little as if
  * drawn out by a corner; pressed, it settles back down.
  */
@@ -75,8 +85,11 @@ export function RecipeCard({
         className={cx("card-stock block w-full px-3 pt-3 pb-4 text-left shadow-card", HANDLED)}
         aria-label={recipe.title}
       >
-        <div style={turning(recipe, active, "photo")} className="overflow-hidden rounded-[2px] ring-1 ring-[rgb(60_40_20/0.12)]">
-          <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
+        <div
+          style={{ aspectRatio: photoShape(recipe), ...turning(recipe, active, "photo") }}
+          className="overflow-hidden rounded-[2px] ring-1 ring-[rgb(60_40_20/0.12)]"
+        >
+          <RecipeImage file={recipe.image} title={recipe.title} className="size-full" />
         </div>
         <div className="px-1.5 pt-3.5">
           {recipe.sourceName && <Eyebrow className="truncate">{recipe.sourceName}</Eyebrow>}

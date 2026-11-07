@@ -59,6 +59,8 @@ pub struct RecipeSummary {
     pub source_url: Option<String>,
     pub source_name: Option<String>,
     pub image: Option<String>,
+    /// The photo's height over its width, filled in from the file when the list is served.
+    pub image_aspect: Option<f64>,
     pub total_minutes: Option<i64>,
     pub rating: Option<i64>,
     pub favorite: bool,
@@ -217,6 +219,7 @@ impl Db {
                     source_url: r.get(3)?,
                     source_name: r.get(4)?,
                     image: r.get(5)?,
+                    image_aspect: None,
                     total_minutes: r.get(6)?,
                     rating: r.get(7)?,
                     favorite: r.get(8)?,

@@ -63,7 +63,17 @@ fn app_info(app: tauri::AppHandle, state: State<AppState>) -> AppInfo {
 
 #[tauri::command]
 fn list_recipes(state: State<AppState>) -> Result<Vec<RecipeSummary>> {
-    state.db.lock().unwrap().list()
+    let mut recipes = state.db.lock().unwrap().list()?;
+    // The library lays photos out at their own shape, so it needs each one's shape before
+    // it loads. Only the file's header is read.
+    for r in &mut recipes {
+        if let Some(size) = r.image.as_ref().and_then(|f| imagesize::size(state.images_dir.join(f)).ok()) {
+            if size.width > 0 {
+                r.image_aspect = Some(size.height as f64 / size.width as f64);
+            }
+        }
+    }
+    Ok(recipes)
 }
 
 #[tauri::command]
