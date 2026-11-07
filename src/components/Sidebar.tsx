@@ -122,8 +122,7 @@ export function Sidebar({
             type="button"
             autoFocus
             onClick={onClose}
-            aria-label="Put the index away"
-            title="Put the index away"
+            aria-label="Close"
             className="-mr-2 ml-auto flex size-9 items-center justify-center rounded-full text-cream-soft transition-colors duration-150 hover:bg-white/8 hover:text-cream"
           >
             <X className="size-5" />

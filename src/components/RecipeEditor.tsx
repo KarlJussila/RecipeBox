@@ -231,7 +231,9 @@ export function RecipeEditor({
                 <span
                   className={cx(
                     "absolute inset-0 flex items-center justify-center transition duration-200",
-                    recipe.image ? "bg-black/0 opacity-0 group-hover:bg-black/25 group-hover:opacity-100" : "opacity-100",
+                    recipe.image
+                      ? "bg-black/0 opacity-0 group-focus-within:bg-black/25 group-focus-within:opacity-100 group-hover:bg-black/25 group-hover:opacity-100"
+                      : "opacity-100",
                   )}
                 >
                   <span className="inline-flex h-10 items-center gap-2 rounded bg-card/95 px-4 text-[15px] font-semibold text-ink shadow-soft">
@@ -240,7 +242,13 @@ export function RecipeEditor({
                   </span>
                 </span>
               </button>
-              <figcaption className="absolute inset-x-3 bottom-0 flex h-12 items-center justify-center font-serif text-[16px] text-[#6b5a4c] italic">
+              {/* It finishes the button's sentence, so it shows when the button does. */}
+              <figcaption
+                className={cx(
+                  "absolute inset-x-3 bottom-0 flex h-12 items-center justify-center font-serif text-[16px] text-[#6b5a4c] italic transition-opacity duration-200",
+                  recipe.image && !photoOver && "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+                )}
+              >
                 {photoOver ? "Let go to use this photo" : "or drop one here"}
               </figcaption>
               {recipe.image && (

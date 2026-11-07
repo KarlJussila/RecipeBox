@@ -125,7 +125,7 @@ function StepHeading({ children }: { children: string }) {
   return <h3 className="mb-3 font-serif text-[22px] leading-snug font-semibold tracking-tight text-ink">{children}</h3>;
 }
 
-function Steps({ sections, tips }: { sections: Section[]; tips: Section[] }) {
+function Steps({ sections }: { sections: Section[] }) {
   const [current, setCurrent] = useState<string | null>(null);
   let number = 0;
   return (
@@ -167,10 +167,23 @@ function Steps({ sections, tips }: { sections: Section[]; tips: Section[] }) {
             </ol>
           </div>
         ))}
-        {/* The recipe's own tips and make-ahead advice: worth reading, but not steps. */}
-        {tips.map((section, si) => (
-          <div key={`tip-${si}`}>
-            <StepHeading>{section.heading || "Notes"}</StepHeading>
+      </div>
+    </div>
+  );
+}
+
+
+/** The recipe's own tips and make-ahead advice: worth reading, but not steps. */
+function Tips({ sections }: { sections: Section[] }) {
+  if (sections.length === 0) return null;
+  return (
+    <div className="mt-14 print:mt-6">
+      <PrintedHeading className="mb-7 print:mb-3">Notes</PrintedHeading>
+      <div className="space-y-8 print:space-y-5">
+        {sections.map((section, si) => (
+          <div key={si}>
+            {/* A site's own "Notes" label would only repeat the heading. */}
+            {section.heading && section.heading.trim().toLowerCase() !== "notes" && <StepHeading>{section.heading}</StepHeading>}
             <ul className="space-y-3">
               {section.items.map((tip, i) => (
                 <li key={i} className="selectable print-break-avoid flow-root max-w-[50rem] text-[17px] leading-[1.65] text-ink-soft print:text-[11pt] print:leading-normal">
@@ -413,7 +426,8 @@ export function RecipeView({
               <IngredientsHeading servings={recipe.servings} />
               <IngredientList sections={ingredients} checked={checked} />
             </div>
-            <Steps key={recipe.id} sections={steps} tips={bucketSections(recipe.tips)} />
+            <Steps key={recipe.id} sections={steps} />
+            <Tips sections={bucketSections(recipe.tips)} />
           </section>
 
           <div className={cx(!recipe.notes.trim() && "print:hidden")}>
