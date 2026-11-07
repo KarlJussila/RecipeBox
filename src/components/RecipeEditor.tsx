@@ -142,7 +142,7 @@ export function RecipeEditor({
       {/* The recipe's own card, written on where it sits. */}
       <div className="px-8 pt-2 pb-14">
         <article className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-14 pt-12 pb-16 shadow-card">
-          <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+          <section className="grid items-center gap-14 @5xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
             <div className="min-w-0">
               <GrowingTextarea
                 value={recipe.title}
@@ -210,7 +210,7 @@ export function RecipeEditor({
                 imageFrom(e.dataTransfer.files);
               }}
               className={cx(
-                "group relative mx-auto w-full max-w-md rounded-[3px] bg-photo p-3 pb-12 shadow-photo transition-[rotate,scale,box-shadow] duration-300 ease-paper @4xl:max-w-none",
+                "group relative mx-auto w-full max-w-md rounded-[3px] bg-photo p-3 pb-12 shadow-photo transition-[rotate,scale,box-shadow] duration-300 ease-paper @5xl:max-w-none",
                 photoOver ? "scale-[1.02] rotate-0 ring-4 ring-leaf/60" : "rotate-[1.4deg]",
               )}
             >

@@ -348,7 +348,7 @@ export function RecipeView({
           style={{ viewTransitionName: "recipe-card" }}
           className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-9 pt-12 pb-16 shadow-card @3xl:px-14 print:bg-none print:p-0 print:shadow-none"
         >
-          <section className="grid items-center gap-14 @4xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:gap-8">
+          <section className="grid items-center gap-14 @5xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:gap-8">
             <div className="min-w-0">
               {(recipe.sourceName || recipe.author) && (
                 // Filled in by hand on the card's printed line.
@@ -392,7 +392,7 @@ export function RecipeView({
             </div>
 
             {/* The photo, a print tucked in with the card: crisp white, just not a light source. */}
-            <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[3px] bg-photo p-3 shadow-photo transition-[rotate] duration-500 ease-paper hover:rotate-0 @4xl:max-w-none print:max-w-none print:rotate-0 print:p-0">
+            <figure className="mx-auto w-full max-w-md rotate-[1.4deg] rounded-[3px] bg-photo p-3 shadow-photo transition-[rotate] duration-500 ease-paper hover:rotate-0 @5xl:max-w-none print:max-w-none print:rotate-0 print:p-0">
               <div style={{ viewTransitionName: "recipe-photo" }} className="overflow-hidden rounded-[2px]">
                 <RecipeImage file={recipe.image} title={recipe.title} className="aspect-[4/3] w-full" />
               </div>

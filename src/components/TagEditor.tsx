@@ -152,7 +152,7 @@ export function TagEditor({
           adding ? "text-ink" : "text-ink-soft",
         )}
       >
-        <Plus className="size-4" strokeWidth={2.25} />
+        <Plus className="relative size-4" strokeWidth={2.25} />
       </button>
       <div className="relative h-px min-w-0 flex-1 bg-umber/42">
         {busy && (
