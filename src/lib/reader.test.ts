@@ -256,6 +256,7 @@ test("keeps the lines the reader left out near the recipe, for the cook to move 
   const recipe = (await readPage(llm, page, null, null))!.recipe;
   expect(recipe.description).toBe("These are soft.");
   expect(recipe.instructions).toEqual([{ heading: "", items: ["Mix and bake."] }]);
+  expect(recipe.tips).toEqual([{ heading: "Tip", items: ["They freeze well."] }]);
   // The comments start at a heading, so they're left out.
   expect(recipe.unused).toBe("Cool on a rack.");
 });

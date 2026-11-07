@@ -5,7 +5,7 @@
 
 import { itemsToBucket, type Item } from "./buckets";
 import { clean, group, headingText } from "./page-lines";
-import { splitTips } from "./steps";
+import { splitTips, tidyNotes } from "./steps";
 import type { Section } from "./types";
 
 export interface PageLines {
@@ -75,7 +75,7 @@ export function layOut(page: PageLines): PageLayout {
     description: page.descriptionLine === null ? "" : clean(lines[page.descriptionLine]),
     ingredients: ingredients.map((g) => g.section),
     instructions: split.steps,
-    tips: [...split.tips, ...notes.map((g) => g.section)],
+    tips: [...split.tips, ...tidyNotes(notes.map((g) => g.section))],
     unused: itemsToBucket(unused),
   };
 }

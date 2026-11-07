@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { isNoteSection, tidyInstructions } from "./steps";
+import { isNoteSection, tidyInstructions, tidyNotes } from "./steps";
 
 test("a Notes: line starts a notes section", () => {
   const tidied = tidyInstructions([{ heading: "", items: ["Simmer.", "Serve.", "Notes:", "Any can of tomatoes works.", "Freezes well."] }]);
@@ -38,4 +38,14 @@ test("make-ahead sections are notes, other headed sections are steps", () => {
 test("tidying is idempotent", () => {
   const once = tidyInstructions([{ heading: "", items: ["Mix.", "Notes:", "Keeps a week.", "Tip: double it."] }]);
   expect(tidyInstructions(once)).toEqual(once);
+});
+
+test("each labeled note gets its label as a heading, wherever it is among the notes", () => {
+  expect(
+    tidyNotes([{ heading: "", items: ["Do ahead: Keeps for days.", "Tip: Test near the top.", "It also freezes.", "Storage:", "Covered, in foil."] }]),
+  ).toEqual([
+    { heading: "Do ahead", items: ["Keeps for days."] },
+    { heading: "Tip", items: ["Test near the top.", "It also freezes."] },
+    { heading: "Storage", items: ["Covered, in foil."] },
+  ]);
 });

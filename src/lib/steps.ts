@@ -45,12 +45,24 @@ function headingLine(item: string): string | null {
  * steps into note sections. Safe to run on already tidied sections.
  */
 export function tidyInstructions(sections: Section[]): Section[] {
+  return tidy(sections, false);
+}
+
+/**
+ * Gives each "Do ahead: ..." or "Tip: ..." note a heading of its own, wherever it
+ * is among the notes, and makes heading-only lines such as "Storage:" headings.
+ */
+export function tidyNotes(sections: Section[]): Section[] {
+  return tidy(sections, true);
+}
+
+function tidy(sections: Section[], notes: boolean): Section[] {
   const out: Section[] = [];
   for (const section of sections) {
     let current: Section = { heading: section.heading, items: [] };
     out.push(current);
-    // Only tips at the end of a section are pulled out; one mid-way is part of the method.
-    let tipsFrom = section.items.length;
+    // Among steps, only tips at the end of a section are pulled out; one mid-way is part of the method.
+    let tipsFrom = notes ? 0 : section.items.length;
     while (tipsFrom > 0 && NOTE_PREFIX.test(plain(section.items[tipsFrom - 1]))) tipsFrom -= 1;
 
     section.items.forEach((item, i) => {
