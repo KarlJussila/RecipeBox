@@ -277,7 +277,8 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === "n") {
         e.preventDefault();
         setAddOpen(true);
-      } else if (e.key === "Escape" && view.name === "recipe" && !document.querySelector("dialog[open]")) {
+      } else if (e.key === "Escape" && view.name === "recipe" && !document.querySelector("dialog[open], [aria-modal='true']")) {
+        // Escape closes whatever is over the recipe (a dialog, cooking mode) before the recipe itself.
         backToList();
       } else if (e.key === "Escape" && view.name === "list" && document.activeElement === searchRef.current && filters.query) {
         setFilters({ ...filters, query: "" });
