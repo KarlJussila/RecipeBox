@@ -23,11 +23,17 @@ const IN_PLACE =
 export function RecipeEditor({
   id,
   allTags,
+  sheetSlot,
+  alone,
   onCancel,
   onSaved,
 }: {
   id: string | null;
   allTags: string[];
+  /** Where the left-out lines' sheet goes, beside the card; without one they stay on the card. */
+  sheetSlot: HTMLElement | null;
+  /** No sidebar beside the page, so the header clears the macOS window buttons. */
+  alone: boolean;
   onCancel: () => void;
   onSaved: (id: string) => void;
 }) {
@@ -125,6 +131,7 @@ export function RecipeEditor({
         className={cx(
           "sticky top-0 z-30 flex items-center gap-2 px-8 transition-colors duration-200",
           isMac ? "h-16 pt-2" : "h-16",
+          isMac && alone && "pl-24",
           scrolled && "paper-sheet border-b border-(--sheet-border) [--sheet-size:100cqw_100vh]",
         )}
       >
@@ -140,8 +147,8 @@ export function RecipeEditor({
       </header>
 
       {/* The recipe's own card, written on where it sits. */}
-      <div className="px-8 pt-2 pb-14">
-        <article className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-14 pt-12 pb-16 shadow-card">
+      <div className="px-6 pt-2 pb-14 @3xl:px-8">
+        <article className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-9 pt-12 pb-16 shadow-card @3xl:px-14">
           <section className="grid items-center gap-14 @5xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
             <div className="min-w-0">
               <GrowingTextarea
@@ -269,7 +276,7 @@ export function RecipeEditor({
             }}
           />
 
-          <RecipeBoard buckets={buckets} onChange={setBuckets} onToDescription={toDescription} />
+          <RecipeBoard buckets={buckets} onChange={setBuckets} onToDescription={toDescription} sheetSlot={sheetSlot} />
 
           {/* The cook's own notes, on the same slip as the recipe page. */}
           <section className="mx-auto mt-20 max-w-2xl -rotate-[0.6deg] rounded-[1px] bg-slip px-8 pt-6 pb-7 shadow-photo transition-[rotate,translate] duration-300 ease-paper focus-within:-translate-y-0.5 focus-within:rotate-0">

@@ -13,7 +13,7 @@ import { api, type Settings } from "./lib/api";
 import { importHtml, importUrl, tagRecipe, type ImportResult } from "./lib/importer";
 import { effectiveLlm } from "./lib/llm";
 import { turnPage } from "./lib/motion";
-import { SHEET_QUERY, useMedia } from "./lib/useMedia";
+import { INDEX_QUERY, SHEET_QUERY, useMedia } from "./lib/useMedia";
 import type { Recipe, RecipeSummary } from "./lib/types";
 import { allTagCounts, NO_FILTERS, useFilteredRecipes, useLibrary, type Filters } from "./state";
 
@@ -42,9 +42,18 @@ export default function App() {
   const wide = useMedia(SHEET_QUERY);
   /** Where a recipe's ingredients sheet goes, in the sidebar, while one is open. */
   const [sheetSlot, setSheetSlot] = useState<HTMLDivElement | null>(null);
-  const sheetMode = wide && view.name === "recipe";
-  /** Too narrow for the sheet, a recipe takes the whole window: the index is no use there. */
-  const alone = !wide && view.name === "recipe";
+  const roomy = useMedia(INDEX_QUERY);
+  /** A recipe or the editor puts its own sheet in the sidebar: the index is no use there. */
+  const onCard = view.name === "recipe" || view.name === "edit";
+  const sheetMode = wide && onCard;
+  /** Too narrow for the sheet, a recipe or the editor takes the whole window. */
+  const alone = !wide && onCard;
+  /** On a narrow window the box's index is tucked behind a menu button. */
+  const tucked = !roomy && view.name === "list";
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!tucked) setMenuOpen(false);
+  }, [tucked]);
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -239,6 +248,10 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && menuOpen) {
+        setMenuOpen(false);
+        return;
+      }
       const mod = isMac ? e.metaKey : e.ctrlKey;
       if (mod && e.key.toLowerCase() === "f") {
         e.preventDefault();
@@ -257,28 +270,37 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view, filters]);
+  }, [view, filters, menuOpen]);
 
   const toggleFavorite = async (r: RecipeSummary) => {
     await api.setFavorite(r.id, !r.favorite);
     await reload();
   };
 
+  const sidebar = (sheetRef?: (el: HTMLDivElement | null) => void) => (
+    <Sidebar
+      recipes={library}
+      tags={tags}
+      filters={filters}
+      onFiltersChange={changeFilters}
+      filteredTagCounts={tagCounts}
+      onManageTags={() => setTagsOpen(true)}
+      onSettings={() => setSettingsTab("ai")}
+      sheetRef={sheetRef}
+    />
+  );
+
   if (recipes === null) return null;
 
   return (
     <div className="flex h-full print:block print:h-auto">
-      {!alone && (
-        <Sidebar
-          recipes={library}
-          tags={tags}
-          filters={filters}
-          onFiltersChange={changeFilters}
-          filteredTagCounts={tagCounts}
-          onManageTags={() => setTagsOpen(true)}
-          onSettings={() => setSettingsTab("ai")}
-          sheetRef={sheetMode ? setSheetSlot : undefined}
-        />
+      {!alone && !tucked && sidebar(sheetMode ? setSheetSlot : undefined)}
+      {tucked && menuOpen && (
+        // Kept open while she picks filters; Escape, the page, or the button puts it away.
+        <>
+          <div aria-hidden onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 animate-fade-in bg-black/30" />
+          <div className="fixed inset-y-0 left-0 z-50 animate-slide-in">{sidebar()}</div>
+        </>
       )}
 
       {/* The sheet the cards lie on. The views scroll over it, so it never repaints. */}
@@ -298,6 +320,7 @@ export default function App() {
             onToggleFavorite={toggleFavorite}
             onAdd={() => setAddOpen(true)}
             onExtensionHelp={() => setSettingsTab("extension")}
+            menu={tucked ? { open: menuOpen, toggle: () => setMenuOpen((o) => !o) } : null}
           />
         )}
 
@@ -324,6 +347,8 @@ export default function App() {
           <RecipeEditor
             id={view.id}
             allTags={tags.map((t) => t.name)}
+            sheetSlot={sheetMode ? sheetSlot : null}
+            alone={alone}
             onCancel={() => setView(view.from)}
             onSaved={async (id) => {
               await refresh();

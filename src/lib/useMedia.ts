@@ -17,3 +17,6 @@ export function useMedia(query: string): boolean {
  * Narrower, the recipe takes the whole window and the ingredients go back on the card.
  */
 export const SHEET_QUERY = "(min-width: 1000px)";
+
+/** Wide enough for the index to stand beside the box; narrower, it's tucked behind a menu button. */
+export const INDEX_QUERY = "(min-width: 900px)";

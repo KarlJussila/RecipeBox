@@ -16,6 +16,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus } from "lucide-react";
 import { useCallback, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { bucketItems, itemsToBucket, type Item } from "../lib/buckets";
 import type { Recipe } from "../lib/types";
 import { ItemMenu, type BucketName, type Destination } from "./ItemMenu";
@@ -89,11 +90,14 @@ export function RecipeBoard({
   buckets,
   onChange,
   onToDescription,
+  sheetSlot,
 }: {
   buckets: Buckets;
   onChange: (buckets: Buckets) => void;
   /** An item moved into the description, as a paragraph of its own. */
   onToDescription: (text: string) => void;
+  /** Where the left-out lines go on their own sheet, beside the card. */
+  sheetSlot: HTMLElement | null;
 }) {
   const [menu, setMenu] = useState<{ id: string; x: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -193,10 +197,13 @@ export function RecipeBoard({
       onDragEnd={dragEnd}
       onDragCancel={dragCancel}
     >
-      <div className={cx("grid items-start gap-x-14 gap-y-16", tray && "@5xl:grid-cols-[minmax(0,1fr)_17rem]")}>
-        <div className="min-w-0 space-y-16">
+      <div className="space-y-16">
+        <div className="space-y-16">
           <section className="pt-1">
-            <PrintedHeading className="mb-3 text-[13px]">Ingredients</PrintedHeading>
+            {/* Right under the divider, its own rule would only double the divider's line. */}
+            <PrintedHeading className="mb-3 text-[13px]" ruleClassName="invisible">
+              Ingredients
+            </PrintedHeading>
             {list("ingredients")}
           </section>
           <section>
@@ -209,18 +216,35 @@ export function RecipeBoard({
           </section>
         </div>
 
-        {tray && (
-          // Beside the recipe on wide windows, where it stays in view while the steps scroll past.
-          <aside className="@5xl:sticky @5xl:top-20">
-            {/* A scrap set beside the card: the lines that didn't make it onto it. */}
-            <div className="scrollbar-quiet overflow-x-hidden rounded-[2px] bg-umber/5 px-5 pt-5 pb-4 ring-1 ring-umber/15 ring-inset @5xl:max-h-[calc(100vh-7rem)] @5xl:overflow-y-auto">
-              <h2 className="font-serif text-xl font-semibold tracking-tight">Left out</h2>
-              <p className="mt-1 mb-3 text-sm leading-snug text-ink-faint">Lines from the recipe’s web page that aren’t in the recipe.</p>
-              {list("unused")}
-            </div>
+        {!sheetSlot && tray && (
+          // On a narrow window, a scrap set under the card's lists: the lines that didn't make it onto it.
+          <aside className="rounded-[2px] bg-umber/5 px-5 pt-5 pb-4 ring-1 ring-umber/15 ring-inset">
+            <h2 className="font-serif text-xl font-semibold tracking-tight">Left out</h2>
+            <p className="mt-1 mb-3 text-sm leading-snug text-ink-faint">Lines from the recipe’s web page that aren’t in the recipe.</p>
+            {list("unused")}
           </aside>
         )}
       </div>
+
+      {sheetSlot &&
+        createPortal(
+          // Beside the card, on a sheet of its own like the recipe page's ingredients, in view
+          // while the lists scroll past. It stays when it's empty, as a place to set a line aside.
+          <div className="card-stock stock-aged flex max-h-full min-h-0 animate-fade-in flex-col text-ink shadow-card">
+            <div className="scrollbar-quiet min-h-0 overflow-x-hidden overflow-y-auto px-7 pt-7 pb-7">
+              <PrintedHeading centered className="text-[13px]">
+                Left out
+              </PrintedHeading>
+              <p className="mt-1.5 mb-4 text-center text-sm leading-snug text-ink-faint">
+                {buckets.unused.length > 0
+                  ? "Lines that aren’t in the recipe. Drag one onto the card to use it."
+                  : "Nothing left out. Drag a line here to set it aside."}
+              </p>
+              {list("unused")}
+            </div>
+          </div>,
+          sheetSlot,
+        )}
 
       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" }}>
         {dragging && (

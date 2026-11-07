@@ -1,9 +1,9 @@
-import { ChevronDown, Plus, Puzzle, Search, SearchX, X } from "lucide-react";
+import { ChevronDown, Menu, Plus, Puzzle, Search, SearchX, X } from "lucide-react";
 import type { RefObject } from "react";
 import type { RecipeSummary } from "../lib/types";
 import { hasFilters, NO_FILTERS, type Filters, type Sort } from "../state";
 import { FeaturedRecipe, RecipeGrid } from "./RecipeGrid";
-import { Button, isMac, Sprig, TagPill } from "./ui";
+import { Button, cx, IconButton, isMac, Sprig, TagPill } from "./ui";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -48,6 +48,7 @@ export function LibraryView({
   onToggleFavorite,
   onAdd,
   onExtensionHelp,
+  menu,
 }: {
   library: RecipeSummary[];
   results: RecipeSummary[];
@@ -63,6 +64,8 @@ export function LibraryView({
   onToggleFavorite: (r: RecipeSummary) => void;
   onAdd: () => void;
   onExtensionHelp: () => void;
+  /** On a narrow window, the button that draws out the index. */
+  menu: { open: boolean; toggle: () => void } | null;
 }) {
   const filtered = hasFilters(filters);
   const showFeatured = !filtered && filters.sort === "newest" && library.length >= 4;
@@ -72,9 +75,14 @@ export function LibraryView({
 
   return (
     <div ref={scrollRef} className="scrollbar-quiet @container h-full overflow-y-auto">
-      <header data-tauri-drag-region className={`px-12 pb-6 ${isMac ? "pt-12" : "pt-10"}`}>
-        <div className="flex items-start justify-between gap-6" data-tauri-drag-region>
-          <div data-tauri-drag-region>
+      <header data-tauri-drag-region className={cx("px-8 pb-6 @3xl:px-12", isMac ? "pt-12" : "pt-10")}>
+        <div className="flex items-start gap-6" data-tauri-drag-region>
+          {menu && (
+            <IconButton label={menu.open ? "Hide the index" : "Show the index"} active={menu.open} onClick={menu.toggle} className="-mr-3 -ml-2.5 mt-[3px]">
+              <Menu className="size-5" />
+            </IconButton>
+          )}
+          <div className="min-w-0 flex-1" data-tauri-drag-region>
             <p className="font-serif text-lg text-ink-soft italic" data-tauri-drag-region>
               {greeting()}
             </p>
@@ -113,7 +121,7 @@ export function LibraryView({
         </div>
       </header>
 
-      <div className="px-12 pb-20">
+      <div className="px-8 pb-20 @3xl:px-12">
         {library.length === 0 ? (
           <div className="mx-auto flex max-w-lg flex-col items-center pt-10 text-center">
             <HerbPot />

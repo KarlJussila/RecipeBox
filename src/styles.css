@@ -70,6 +70,7 @@
   --animate-rise: rise 260ms var(--ease-paper);
   --animate-drop-in: drop-in 420ms var(--ease-paper) both;
   --animate-settle: settle 220ms var(--ease-paper);
+  --animate-slide-in: slide-in 240ms var(--ease-paper);
 
   @keyframes fade-in {
     from { opacity: 0; }
@@ -83,6 +84,10 @@
   /* A new card set down in the box: from a little above, slightly askew, onto the stack. */
   @keyframes drop-in {
     from { opacity: 0; transform: translateY(-16px) rotate(-1.5deg); }
+  }
+  /* The index drawn out from the left edge of a narrow window. */
+  @keyframes slide-in {
+    from { transform: translateX(-100%); }
   }
   /* A paper label pressed down into place. */
   @keyframes settle {
