@@ -91,7 +91,7 @@ const STARTER_TAGS: &[(&str, &[&str])] = &[
     (
         "Cuisine",
         &[
-            "Italian", "Mexican", "French", "Greek", "Spanish", "Middle Eastern", "Indian", "Chinese", "Japanese", "Korean",
+            "Italian", "Mexican", "French", "Greek", "Spanish", "Middle Eastern", "North African", "Indian", "Chinese", "Japanese", "Korean",
             "Thai", "Vietnamese",
         ],
     ),
