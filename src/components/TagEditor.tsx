@@ -11,12 +11,12 @@ const EXAMPLES: Record<string, string> = {
 };
 
 /**
- * One divider tab: a trapezoid cut from the card, with a fine edge and a browned rim.
- * Pointing at it lightens it and slides its name aside for the "×" that removes it.
+ * One divider tab, outlined. Pointing at it shades it and slides its name aside for the
+ * "×" that removes it.
  */
 function Tab({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
-    <div className="group/tab tab-cut relative -mr-1.5 flex h-[30px] shrink-0 items-start px-[22px] pt-[9px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft transition-colors duration-150 hover:text-ink">
+    <div className="group/tab tab-cut relative flex h-[30px] shrink-0 items-start px-[22px] pt-[9px] text-[13.5px] leading-none font-semibold whitespace-nowrap text-ink-soft transition-colors duration-150 hover:text-ink">
       {/* Moved with `left` rather than a transform, which would put it on its own layer. */}
       <span className="relative left-0 transition-[left] duration-200 ease-out group-focus-within/tab:-left-[7px] group-hover/tab:-left-[7px]">
         {name}
@@ -131,30 +131,32 @@ export function TagEditor({
   );
 
   return (
-    <div className="no-print relative mt-22 mb-14 h-px bg-edge print:mt-14">
-      <div className="absolute bottom-0 left-6 flex items-end">
-        <div className="flex items-end">
-          {tags.map((t) => (
-            <Tab key={t} name={t} onRemove={() => onChange(tags.filter((x) => x !== t))} />
-          ))}
-          <button
-            ref={addRef}
-            type="button"
-            onMouseDown={(e) => adding && e.preventDefault()}
-            onClick={() => setAdding((a) => !a)}
-            aria-expanded={adding}
-            aria-label="Add a tag"
-            title="Add a tag"
-            className={cx(
-              "tab-cut relative flex h-[30px] shrink-0 items-start px-[18px] pt-[7px] transition-colors duration-150 hover:text-ink",
-              adding ? "text-ink" : "text-ink-soft",
-            )}
-          >
-            <Plus className="size-4" strokeWidth={2.25} />
-          </button>
-        </div>
+    // The tags are the tabs of dividers standing behind this one, so its edge runs under
+    // them. The "+" is this divider's own tab, so the edge runs up around it instead.
+    <div className="no-print relative mt-[58px] mb-14 flex items-end">
+      <div className="flex items-end border-b border-umber/42 pl-6">
+        {tags.map((t) => (
+          <Tab key={t} name={t} onRemove={() => onChange(tags.filter((x) => x !== t))} />
+        ))}
+      </div>
+      <button
+        ref={addRef}
+        type="button"
+        onMouseDown={(e) => adding && e.preventDefault()}
+        onClick={() => setAdding((a) => !a)}
+        aria-expanded={adding}
+        aria-label="Add a tag"
+        title="Add a tag"
+        className={cx(
+          "tab-cut relative flex h-[31px] shrink-0 items-start px-[18px] pt-[7px] transition-colors duration-150 hover:text-ink",
+          adding ? "text-ink" : "text-ink-soft",
+        )}
+      >
+        <Plus className="size-4" strokeWidth={2.25} />
+      </button>
+      <div className="relative h-px min-w-0 flex-1 bg-umber/42">
         {busy && (
-          <span className="mb-2 ml-4 inline-flex items-center gap-2 text-sm whitespace-nowrap text-ink-faint">
+          <span className="absolute bottom-2 left-4 inline-flex items-center gap-2 text-sm whitespace-nowrap text-ink-faint">
             <Spinner /> Choosing tags…
           </span>
         )}
@@ -162,7 +164,7 @@ export function TagEditor({
       {adding && (
         <div
           ref={menuRef}
-          style={{ left: menuLeft + 24 }}
+          style={{ left: menuLeft }}
           className="absolute top-full z-20 mt-2 w-72 animate-pop-in card-stock p-1 shadow-card-lift"
         >
           <input

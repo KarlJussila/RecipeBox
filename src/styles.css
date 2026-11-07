@@ -119,8 +119,8 @@
     --tin-shadow: 1px 0 0 rgb(40 45 15 / 0.18), 3px 0 10px rgb(60 45 15 / 0.14), 8px 0 28px -6px rgb(60 45 15 / 0.12);
     --pen: rgb(59 44 34 / 0.6);
     /* Divider tabs, drawn on the aged card's stock (see `tab-cut`). */
-    --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0 30 9 0h42l9 30z' fill='%2378551e' fill-opacity='0.3'/%3E%3Cpath d='M1 30 9.7 1h40.6L59 30z' fill='%23e6d4ae'/%3E%3Cpath d='M3 30 11.1 3h37.8L57 30z' fill='%23f5e9c9'/%3E%3C/svg%3E");
-    --tab-hover: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0 30 9 0h42l9 30z' fill='%2378551e' fill-opacity='0.3'/%3E%3Cpath d='M1 30 9.7 1h40.6L59 30z' fill='%23e9d9b6'/%3E%3Cpath d='M3 30 11.1 3h37.8L57 30z' fill='%23faf3e1'/%3E%3C/svg%3E");
+    --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30' fill='none' stroke='%235a3c1e' stroke-opacity='0.42'/%3E%3C/svg%3E");
+    --tab-hover: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30z' fill='%235a3c1e' fill-opacity='0.06'/%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30' fill='none' stroke='%235a3c1e' stroke-opacity='0.42'/%3E%3C/svg%3E");
   }
   .stock-aged {
     --stock: #f5e9c9;
@@ -172,8 +172,8 @@
     --card-cast: rgb(0 0 0 / 0.6);
     --tin-shadow: 1px 0 0 rgb(0 0 0 / 0.3), 4px 0 16px rgb(0 0 0 / 0.25);
     --pen: rgb(239 226 207 / 0.55);
-    --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0 30 9 0h42l9 30z' fill='%23000' fill-opacity='0.45'/%3E%3Cpath d='M1 30 9.7 1h40.6L59 30z' fill='%23493724'/%3E%3Cpath d='M3 30 11.1 3h37.8L57 30z' fill='%233a2e25'/%3E%3C/svg%3E");
-    --tab-hover: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0 30 9 0h42l9 30z' fill='%23000' fill-opacity='0.45'/%3E%3Cpath d='M1 30 9.7 1h40.6L59 30z' fill='%234f3d29'/%3E%3Cpath d='M3 30 11.1 3h37.8L57 30z' fill='%2345372c'/%3E%3C/svg%3E");
+    --tab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30' fill='none' stroke='%23e0cdb0' stroke-opacity='0.42'/%3E%3C/svg%3E");
+    --tab-hover: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30z' fill='%23e0cdb0' fill-opacity='0.06'/%3E%3Cpath d='M0.5 30 9.35 0.5h41.3L59.5 30' fill='none' stroke='%23e0cdb0' stroke-opacity='0.42'/%3E%3C/svg%3E");
   }
   .dark .stock-aged {
     --stock: #3a2e25;
@@ -259,11 +259,13 @@
   border-radius: 3px;
 }
 
-/* A divider tab: a trapezoid with a fine cut edge, a browned rim, and plain stock, open at
-   the bottom where it joins the divider. It's one image, sliced so the slants keep their
-   angle at any width. Tabs stay put: WebKitGTK loses the image while a tab is moving. */
+/* A divider tab: the outline of a trapezoid in the umber of an outlined button, open at
+   the bottom where it joins the divider, with the card showing through. Pointing at it
+   shades it the way an outlined button is shaded. It's one image, sliced so the slants
+   keep their angle at any width. Tabs stay put: WebKitGTK loses the image of a tab that
+   moves. */
 @utility tab-cut {
-  border-image: var(--tab) 0 13 fill / 0 13px / 0 stretch;
+  border-image: var(--tab) 0 11 fill / 0 11px / 0 stretch;
   &:hover,
   &[aria-expanded="true"] {
     border-image-source: var(--tab-hover);
