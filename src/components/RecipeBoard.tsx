@@ -184,6 +184,16 @@ export function RecipeBoard({
     />
   );
 
+  // Over a list, the line under the pointer. Off the lists, the nearest line in the list it's
+  // already in: moving it to another list there would shift the layout under the pointer,
+  // making the first list the nearest again, and back and forth until React gives up.
+  const collisions: CollisionDetection = (args) => {
+    const within = pointerWithin(args);
+    if (within.length > 0) return within;
+    const home = bucketOf(String(args.active.id));
+    return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter((c) => bucketOf(String(c.id)) === home) });
+  };
+
   const open = menu && ORDER.flatMap((name) => buckets[name]).find((item) => item.id === menu.id);
   const anchor = menu && document.querySelector<HTMLElement>(`[data-item="${menu.id}"]`);
   const tray = buckets.unused.length > 0 || (dragging !== null && trayAtStart);
@@ -276,12 +286,6 @@ export function RecipeBoard({
     </DndContext>
   );
 }
-
-// Over a list, the line under the pointer; between lists, the nearest one.
-const collisions: CollisionDetection = (args) => {
-  const within = pointerWithin(args);
-  return within.length > 0 ? within : closestCenter(args);
-};
 
 function BucketList({
   name,
