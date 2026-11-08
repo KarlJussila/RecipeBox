@@ -378,17 +378,18 @@ export function RecipeView({
           style={{ viewTransitionName: "recipe-card" }}
           className="card-stock stock-aged mx-auto max-w-[68rem] animate-fade-in px-9 pt-12 pb-16 shadow-card @3xl:px-14 print:bg-none print:p-0 print:shadow-none"
         >
+          {kitchen && (
+            // Filled in by hand on the card's printed line, which runs as long as the name needs,
+            // across the card above the photo's column.
+            <p className="mb-[22px] flex w-fit max-w-full min-w-[min(100%,26rem)] items-baseline gap-3 border-b border-print-rule pb-0.5">
+              <span className="printed-label shrink-0 text-[11px]">From the kitchen of</span>
+              <span title={kitchen} className="selectable truncate font-hand text-[21px] text-hand-ink">
+                {kitchen}
+              </span>
+            </p>
+          )}
           <section className="grid items-center gap-14 @5xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:gap-8">
             <div className="min-w-0">
-              {kitchen && (
-                // Filled in by hand on the card's printed line, which runs as long as the name needs.
-                <p className="mb-[22px] flex w-fit max-w-full min-w-[min(100%,26rem)] items-baseline gap-3 border-b border-print-rule pb-0.5">
-                  <span className="printed-label shrink-0 text-[11px]">From the kitchen of</span>
-                  <span title={kitchen} className="selectable truncate font-hand text-[21px] text-hand-ink">
-                    {kitchen}
-                  </span>
-                </p>
-              )}
               <h1 className="selectable font-hand text-[42px] leading-[1.5] text-balance text-hand-ink print:text-[26pt]">{recipe.title}</h1>
               {recipe.description && (
                 <div className="mt-6">
