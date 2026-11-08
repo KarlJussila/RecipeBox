@@ -234,7 +234,11 @@ export function draftFromSchema(node: Node, page: PageMeta): RecipeDraft {
   const sourceUrl = page.url ?? resolveUrl(String(node.url ?? ""), null);
   const publisher = names(node.publisher)[0] ?? null;
   const sourceName = page.siteName ?? publisher ?? hostName(sourceUrl);
-  const authors = names(node.author).filter((a) => a !== sourceName);
+  // "Nagi | RecipeTin Eats" is Nagi, of the site we already name.
+  const site = sourceName?.toLowerCase();
+  const authors = names(node.author)
+    .map((a) => a.split(/\s+[|–—]\s+/).filter((part) => part.toLowerCase() !== site).join(" | "))
+    .filter(Boolean);
   const prep = parseDuration(node.prepTime);
   const cook = parseDuration(node.cookTime);
   const total = parseDuration(node.totalTime) ?? (prep || cook ? (prep ?? 0) + (cook ?? 0) : null);

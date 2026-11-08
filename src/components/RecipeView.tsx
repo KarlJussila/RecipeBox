@@ -335,6 +335,7 @@ export function RecipeView({
     recipe.totalMinutes !== null && { label: "Total", value: formatMinutes(recipe.totalMinutes) },
     recipe.servings && { label: "Serves", value: recipe.servings },
   ].filter((s): s is { label: string; value: string } => Boolean(s));
+  const kitchen = [recipe.sourceName, recipe.author && (recipe.sourceName ? `by ${recipe.author}` : recipe.author)].filter(Boolean).join(", ");
   const ingredients = bucketSections(recipe.ingredients);
   const steps = bucketSections(recipe.instructions);
   const hasSteps = steps.length > 0;
@@ -379,13 +380,12 @@ export function RecipeView({
         >
           <section className="grid items-center gap-14 @5xl:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:gap-8">
             <div className="min-w-0">
-              {(recipe.sourceName || recipe.author) && (
-                // Filled in by hand on the card's printed line.
-                <p className="mb-[22px] flex w-[min(100%,26rem)] items-baseline gap-3 border-b border-print-rule pb-0.5">
+              {kitchen && (
+                // Filled in by hand on the card's printed line, which runs as long as the name needs.
+                <p className="mb-[22px] flex w-fit max-w-full min-w-[min(100%,26rem)] items-baseline gap-3 border-b border-print-rule pb-0.5">
                   <span className="printed-label shrink-0 text-[11px]">From the kitchen of</span>
-                  <span className="selectable truncate font-hand text-[21px] text-hand-ink">
-                    {recipe.sourceName}
-                    {recipe.author && (recipe.sourceName ? `, by ${recipe.author}` : recipe.author)}
+                  <span title={kitchen} className="selectable truncate font-hand text-[21px] text-hand-ink">
+                    {kitchen}
                   </span>
                 </p>
               )}

@@ -221,6 +221,13 @@ describe("extractFromHtml", () => {
       { heading: "", items: ["1. Pie dish – not one with a removable base.", "2. Keeps for 3 days."] },
     ]);
   });
+  test("leaves the site's name out of the author", () => {
+    const html = page(
+      { "@type": "Recipe", name: "Meatloaf", author: { "@type": "Person", name: "Nagi | RecipeTin Eats" }, recipeIngredient: ["1 egg"] },
+      '<meta property="og:site_name" content="RecipeTin Eats">',
+    );
+    expect(extractFromHtml(html, null).draft.author).toBe("Nagi");
+  });
   test("falls back to page metadata when there is no recipe data", () => {
     const html = '<head><meta property="og:title" content="A Blog Post"><meta property="og:image" content="/a.jpg"></head>';
     const { draft, complete } = extractFromHtml(html, "https://www.blog.com/post");
