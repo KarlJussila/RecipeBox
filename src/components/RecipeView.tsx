@@ -152,7 +152,7 @@ function Steps({ sections, current, onSelect }: { sections: Section[]; current: 
                   // floated ingredients at the width left over, or takes the full width
                   // below them. WebKit only does that for a block with auto width and no
                   // negative margins, so the highlight's bleed lives on the button inside.
-                  <li key={key} data-step={at} className="print-break-avoid flow-root">
+                  <li key={key} className="print-break-avoid flow-root">
                     <button
                       type="button"
                       onClick={() => onSelect(active ? null : at)}
@@ -289,13 +289,7 @@ export function RecipeView({
     setCurrentStep((step) => step ?? 0);
     setCooking(true);
   };
-  const stopCooking = () => {
-    setCooking(false);
-    // Back on the page, the step she reached is in view and marked.
-    requestAnimationFrame(() =>
-      scrollRef.current?.querySelector(`[data-step="${currentStep}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }),
-    );
-  };
+  const stopCooking = () => setCooking(false);
 
   useEffect(() => {
     let cancelled = false;
