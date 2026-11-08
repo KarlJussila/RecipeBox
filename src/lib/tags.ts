@@ -8,7 +8,7 @@ export const TAG_CATEGORIES = [
   { name: "Cuisine", examples: "Italian, Mexican, Thai, Indian, French", auto: true },
   { name: "Dietary", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free", auto: true },
   { name: "Occasion", examples: "Thanksgiving, Christmas, Easter, Summer, Party", auto: false },
-  { name: "Method", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer, No-Bake", auto: true },
+  { name: "Method", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer", auto: true },
 ] as const;
 
 /** Tags about timing or effort rather than the dish. The app filters by time instead. */

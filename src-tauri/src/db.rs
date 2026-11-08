@@ -96,7 +96,7 @@ const STARTER_TAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("Dietary", &["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free"]),
-    ("Method", &["Slow Cooker", "Instant Pot", "Air Fryer", "Grilling", "No-Bake"]),
+    ("Method", &["Slow Cooker", "Instant Pot", "Air Fryer", "Grilling"]),
 ];
 
 pub struct Db {
