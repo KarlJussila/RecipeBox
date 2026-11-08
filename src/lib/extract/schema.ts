@@ -157,6 +157,26 @@ function looksLikeHeading(line: string): boolean {
   return line.length <= 48 && /:$/.test(line) && !/\d/.test(line);
 }
 
+/**
+ * WP Recipe Maker puts an ingredient's note in parentheses even when the note brings
+ * its own, as in "butter (, melted)" or "oil spray ((or olive oil))". Its card shows
+ * the note's own, so we do too.
+ */
+function unwrapNote(line: string): string {
+  if (!line.endsWith(")")) return line;
+  let depth = 0;
+  for (let i = line.length - 1; i >= 0; i--) {
+    if (line[i] === ")") depth++;
+    else if (line[i] === "(" && --depth === 0) {
+      const note = line.slice(i + 1, -1).trim();
+      if (note.startsWith(",")) return line.slice(0, i).trimEnd() + note;
+      if (note.startsWith("(")) return `${line.slice(0, i).trimEnd()} ${note}`;
+      return line;
+    }
+  }
+  return line;
+}
+
 /** Normalizes recipeIngredient into sections, recognizing "For the X:" headings. */
 export function ingredientSections(value: Json): Section[] {
   const lines = asArray(value).flatMap((item) =>
@@ -165,7 +185,7 @@ export function ingredientSections(value: Json): Section[] {
   const sections: Section[] = [];
   let current: Section = { heading: "", items: [] };
   for (const raw of lines) {
-    const line = raw.replace(LEAKED, "").trim();
+    const line = unwrapNote(raw.replace(LEAKED, "").trim());
     if (!line) continue;
     if (looksLikeHeading(line)) {
       if (current.items.length || current.heading) sections.push(current);

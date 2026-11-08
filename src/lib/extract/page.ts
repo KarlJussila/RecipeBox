@@ -1,6 +1,7 @@
-import type { RecipeDraft } from "../types";
+import { dropFiller, tidyNotes } from "../steps";
+import type { RecipeDraft, Section } from "../types";
 import { draftFromSchema, findRecipes, parseJsonLd, type PageMeta } from "./schema";
-import { cleanLine } from "./text";
+import { cleanLine, cleanText } from "./text";
 
 export interface Extraction {
   draft: RecipeDraft;
@@ -91,6 +92,37 @@ function markupRecipe(doc: Document): Record<string, unknown> | null {
   return node;
 }
 
+// Recipe card plugins show the recipe's notes on the card but leave them out of its
+// structured data, though steps and ingredients point at them ("Note 2").
+// WP Recipe Maker, Tasty Recipes, Mediavine Create, and Jetpack, most specific first.
+const CARD_NOTES = [
+  ".wprm-recipe-notes",
+  ".wprm-recipe-notes-container",
+  ".tasty-recipes-notes-body",
+  ".tasty-recipes-notes",
+  ".mv-create-notes-content",
+  ".mv-create-notes",
+  ".jetpack-recipe-notes",
+];
+
+/** The recipe card's notes, one per paragraph or list item, leaving out any the steps already have. */
+function cardNotes(doc: Document, draft: RecipeDraft): Section[] {
+  const found = CARD_NOTES.map((selector) => doc.querySelector(selector)).find(Boolean);
+  if (!found) return [];
+  const notes = found.cloneNode(true) as Element;
+  notes.querySelectorAll("h1, h2, h3, h4, h5, h6, .wprm-recipe-header, script, style, .adthrive-ad").forEach((el) => el.remove());
+  // WP Recipe Maker sets each note in a span styled as a block.
+  notes.querySelectorAll("span[style*='block']").forEach((el) => el.after("\n"));
+  const known = new Set([...draft.instructions, ...draft.tips].flatMap((s) => s.items));
+  const items = cleanText(notes.innerHTML)
+    .split("\n")
+    // WP Recipe Maker's note on the nutrition facts, which Recipe Box doesn't show.
+    .filter((line) => !known.has(line) && !/^(?:\d+\.\s*)?nutrition\b/i.test(line))
+    .map(dropFiller)
+    .filter(Boolean);
+  return tidyNotes([{ heading: "", items }]);
+}
+
 export function extractFromHtml(html: string, url: string | null): Extraction {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const page = pageMeta(doc, url);
@@ -104,6 +136,7 @@ export function extractFromHtml(html: string, url: string | null): Extraction {
   const drafts = nodes.map((node) => draftFromSchema(node, page)).sort((a, b) => score(b) - score(a));
   const best = drafts[0];
   if (best && score(best) > 0) {
+    best.tips = [...best.tips, ...cardNotes(doc, best)];
     return { draft: best, complete: best.ingredients.length > 0 && best.instructions.length > 0, doc };
   }
 

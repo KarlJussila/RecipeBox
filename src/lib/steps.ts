@@ -14,7 +14,8 @@ const NOTE_HEADING = new RegExp(`^(?:${NOTE_NAMES})$`, "i");
 const NOTE_PREFIX = new RegExp(`^(${NOTE_NAMES})\\s*:\\s*(.+)$`, "i");
 
 /** Sentences about the page rather than the food. */
-const FILLER = /\b(?:first|originally) published\b|\bupdated for style\b|^head (?:this way|here|over)\b|\bclick here\b/i;
+const FILLER =
+  /\b(?:first|originally) published\b|\bupdated for style\b|^head (?:this way|here|over)\b|\bclick here\b|\brefreshed (?:in|on)\b|\bgave this recipe a\b.*\brefresh\b|\baffiliate links?\b|^additional notes are\b/i;
 
 const plain = (text: string) => text.replace(/[‘’]/g, "'").trim();
 
@@ -27,7 +28,7 @@ export function isNoteSection(section: Section): boolean {
   return NOTE_HEADING.test(plain(section.heading));
 }
 
-function dropFiller(text: string): string {
+export function dropFiller(text: string): string {
   return text
     .split(/(?<=[.!?→])\s+/)
     .filter((sentence) => !FILLER.test(sentence))

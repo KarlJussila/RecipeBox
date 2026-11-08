@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { isNoteSection, tidyInstructions, tidyNotes } from "./steps";
+import { dropFiller, isNoteSection, tidyInstructions, tidyNotes } from "./steps";
 
 test("a Notes: line starts a notes section", () => {
   const tidied = tidyInstructions([{ heading: "", items: ["Simmer.", "Serve.", "Notes:", "Any can of tomatoes works.", "Freezes well."] }]);
@@ -48,4 +48,12 @@ test("each labeled note gets its label as a heading, wherever it is among the no
     { heading: "Tip", items: ["Test near the top.", "It also freezes."] },
     { heading: "Storage", items: ["Covered, in foil."] },
   ]);
+});
+
+test("notes about the post rather than the food are filler", () => {
+  expect(dropFiller("Refreshed in 6/17: With fresh photos, weights, and more detailed notes.")).toBe("");
+  expect(dropFiller("Special Tools (affiliate links): Whisk | Rolling Pin")).toBe("");
+  expect(
+    dropFiller("Update: I gave this recipe a gentle refresh in 2025, adding directions. For a richer gratin, use cream. Additional notes are at the end of the recipe."),
+  ).toBe("For a richer gratin, use cream.");
 });

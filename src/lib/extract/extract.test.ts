@@ -77,6 +77,23 @@ describe("ingredientSections", () => {
   test("drops template placeholders sites leak into their data", () => {
     expect(ingredientSections(["4 undefined garlic cloves", "null"])).toEqual([{ heading: "", items: ["4 garlic cloves"] }]);
   });
+  test("keeps a note's own punctuation instead of wrapping it again", () => {
+    expect(
+      ingredientSections([
+        "2 tbsp unsalted butter (, melted)",
+        "Oil spray ((or olive oil))",
+        "1 small onion (, diced (or half a large onion))",
+        "600g starchy potatoes ((Note 1) OR 4 cups frozen hash browns, thawed)",
+        "1 cup milk (whole)",
+      ])[0].items,
+    ).toEqual([
+      "2 tbsp unsalted butter, melted",
+      "Oil spray (or olive oil)",
+      "1 small onion, diced (or half a large onion)",
+      "600g starchy potatoes (Note 1) OR 4 cups frozen hash browns, thawed",
+      "1 cup milk (whole)",
+    ]);
+  });
   test("lines with quantities are never headings", () => {
     expect(ingredientSections(["Ratio 1:2:"])).toEqual([{ heading: "", items: ["Ratio 1:2:"] }]);
   });
@@ -187,6 +204,23 @@ describe("extractFromHtml", () => {
     expect(draft.instructions).toEqual([{ heading: "", items: ["Heat oven: To 350°F.", "Grate the tomatoes."] }]);
   });
 
+  test("reads the notes a recipe card leaves out of its structured data", () => {
+    const html = page({
+      "@type": "Recipe",
+      name: "Quiche",
+      recipeIngredient: ["2 eggs"],
+      recipeInstructions: ["Grease a pie dish (Note 1)", "Bake."],
+    }).replace(
+      "<body></body>",
+      `<body><div class="wprm-recipe-notes-container"><h3 class="wprm-recipe-header">Recipe Notes:</h3><div class="wprm-recipe-notes">` +
+        `<span style="display: block;"><strong>1. Pie dish</strong> – not one with a removable base.</span><div class="wprm-spacer"></div>` +
+        `<span style="display: block;">2. Keeps for 3 days.</span><div class="wprm-spacer"></div>` +
+        `<span style="display: block;">3. Nutrition per serving.</span></div></div></body>`,
+    );
+    expect(extractFromHtml(html, null).draft.tips).toEqual([
+      { heading: "", items: ["1. Pie dish – not one with a removable base.", "2. Keeps for 3 days."] },
+    ]);
+  });
   test("falls back to page metadata when there is no recipe data", () => {
     const html = '<head><meta property="og:title" content="A Blog Post"><meta property="og:image" content="/a.jpg"></head>';
     const { draft, complete } = extractFromHtml(html, "https://www.blog.com/post");
