@@ -105,7 +105,7 @@ const TAG_INSTRUCTIONS = `You tag recipes in a home cook's collection, so she ca
 Choose the few tags from the list in the message that she would look under to find this recipe, and save them with set_tags. Most recipes need two to four. If set_tags reports a problem, fix it and call it again. Once it succeeds, you're done.
 
 - Dish: what she would call it, usually one tag, plus Dessert for a sweet such as Cookies, Cake, or Pie. Don't stretch a tag to fit: a lasagna isn't a Casserole.
-- Ingredient: only what the dish is built around, the thing she'd search for to find it. Leave out what is merely in it, such as the eggs in a cake or the onion in a meatloaf. Potatoes covers sweet potatoes.
+- Ingredient: the ones that define the dish, which she'd search for to find it, or none if no listed tag does. Leave out what is merely in it, such as the eggs in a cake or the onion in a meatloaf. Potatoes covers sweet potatoes.
 - Cuisine: only when the recipe plainly belongs to one.
 - Method: only when the recipe is made that way, such as in a slow cooker.
 - Dietary: only when the recipe says so itself, in its title, description, or website keywords.`;
