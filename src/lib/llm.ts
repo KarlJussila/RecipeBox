@@ -169,7 +169,7 @@ function tagMessage(recipe: TaggableRecipe, tags: SuggestedTag[]): string {
   lines.push("", "Tags you can use:");
   for (const category of AI_CATEGORY_NAMES) {
     const names = tags.filter((t) => t.category === category).map((t) => t.name);
-    if (names.length > 0) lines.push(`${category}: ${names.join(", ")}`);
+    if (names.length > 0) lines.push(`${category}:`, names.join(", "));
   }
   return lines.join("\n");
 }
