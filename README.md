@@ -7,6 +7,7 @@ print-friendly layout.
 - **Tauri 2** app (Rust backend, React + Tailwind frontend), so it's small and native on macOS and Linux.
 - Recipes live in a local **SQLite** database with full-text search. Photos are downloaded, so everything works offline.
 - A **Chrome extension** sends the page you're looking at to the app. Because it reads the page from your own logged-in browser, subscription sites like NYT Cooking work.
+- On an NYT Cooking recipe box page, the extension can save the **whole list** (all saved recipes, or one folder). It pages through the list in a background tab, then fetches each recipe with your login, two seconds apart. Recipes already in the app are skipped, so running it again only adds new saves.
 - An **AI model** sorts recipes into categorized tags (dish, ingredient, cuisine, dietary, method) and reads pages that lack structured recipe data. By default it runs through the [opencode](https://opencode.ai) CLI with its free `opencode/mimo-v2.6-flash-free` model; any OpenAI-compatible API works instead.
 
 ## How importing works

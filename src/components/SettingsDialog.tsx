@@ -67,7 +67,15 @@ function OpencodeStatus() {
   );
 }
 
-function AiTab({ settings, onSave }: { settings: Settings; onSave: (llm: LlmSettings) => Promise<void> }) {
+function AiTab({
+  settings,
+  onSave,
+  onAutoTag,
+}: {
+  settings: Settings;
+  onSave: (llm: LlmSettings) => Promise<void>;
+  onAutoTag: (on: boolean) => Promise<void>;
+}) {
   const [llm, setLlm] = useState<LlmSettings>(effectiveLlm(settings.llm));
   const [status, setStatus] = useState<{ state: "idle" | "testing" | "ok" | "error"; message?: string }>({ state: "idle" });
   const set = (patch: Partial<LlmSettings>) => {
@@ -148,6 +156,21 @@ function AiTab({ settings, onSave }: { settings: Settings; onSave: (llm: LlmSett
         )}
       </div>
       {status.state === "error" && <p className="text-[15px] leading-snug text-tomato">{status.message}</p>}
+
+      <label className="flex cursor-pointer items-start gap-3 border-t border-line pt-5">
+        <input
+          type="checkbox"
+          checked={settings.autoTag !== false}
+          onChange={(e) => void onAutoTag(e.target.checked)}
+          className="mt-1 size-4 shrink-0 accent-leaf"
+        />
+        <span className="flex flex-col gap-1">
+          <span className="text-[15px] font-semibold text-ink">Tag new recipes automatically</span>
+          <span className="text-sm leading-snug text-ink-soft">
+            Turn this off to save recipes now and tag them later. Recipes saved meanwhile get their tags once it’s back on.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }
@@ -319,6 +342,13 @@ export function SettingsDialog({
     onSettingsSaved(next);
   };
 
+  const saveAutoTag = async (autoTag: boolean) => {
+    const next = { ...settings, autoTag };
+    await api.saveSettings(next);
+    setSettings(next);
+    onSettingsSaved(next);
+  };
+
   const saveAppearance = async (appearance: Appearance) => {
     applyAppearance(appearance);
     const next = { ...settings, appearance };
@@ -345,7 +375,7 @@ export function SettingsDialog({
       </div>
       {settings && info && (
         <>
-          {tab === "ai" && <AiTab settings={settings} onSave={saveLlm} />}
+          {tab === "ai" && <AiTab settings={settings} onSave={saveLlm} onAutoTag={saveAutoTag} />}
           {tab === "extension" && <ExtensionTab info={info} />}
           {tab === "appearance" && <AppearanceTab value={settings.appearance ?? "light"} onChange={saveAppearance} />}
           {tab === "backup" && <BackupTab info={info} onRestored={onRestored} />}

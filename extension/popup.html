@@ -10,10 +10,19 @@
         <span class="spinner"></span>
         <svg class="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
         <svg class="alert" viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01" /></svg>
+        <svg class="stack" viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h9" /></svg>
       </div>
       <div class="text">
         <p id="headline">Saving recipe…</p>
         <p id="detail"></p>
+        <div id="bar" class="bar" hidden><span></span></div>
+        <details id="failures" hidden>
+          <summary></summary>
+          <ul></ul>
+        </details>
+        <div id="actions" class="actions" hidden>
+          <button id="action" type="button"></button>
+        </div>
       </div>
     </main>
     <script src="popup.js"></script>

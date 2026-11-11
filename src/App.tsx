@@ -27,7 +27,8 @@ export default function App() {
   const { recipes, tags, reload } = useLibrary();
   const [view, setView] = useState<View>({ name: "list" });
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  const [settings, setSettings] = useState<Settings>({});
+  /** Null until read from disk, so nothing is tagged before the cook's choices are known. */
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -79,7 +80,7 @@ export default function App() {
   const retryDelay = useRef(RETRY_MIN_MS);
   const tagPending = useCallback(
     async (opts: { reportErrors?: boolean } = {}) => {
-      if (taggingRun.current) return;
+      if (taggingRun.current || !settingsRef.current || settingsRef.current.autoTag === false) return;
       taggingRun.current = true;
       window.clearTimeout(retryTimer.current);
       let failed = false;
@@ -90,7 +91,7 @@ export default function App() {
           if (!next) break;
           setTagging((s) => new Set(s).add(next.id));
           try {
-            await tagRecipe(next.id, effectiveLlm(settingsRef.current.llm));
+            await tagRecipe(next.id, effectiveLlm(settingsRef.current?.llm));
           } catch (e) {
             if (opts.reportErrors) toast({ message: `Couldn't choose tags: ${e instanceof Error ? e.message : e}`, tone: "error" });
             failed = true;
@@ -117,6 +118,7 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (!settings) return;
     void tagPending();
     const timer = window.setInterval(() => void tagPending(), RETAG_INTERVAL_MS);
     return () => window.clearInterval(timer);
@@ -140,7 +142,7 @@ export default function App() {
 
   const importFromUrl = useCallback(
     async (url: string): Promise<string | null> => {
-      const result = await importUrl(url, effectiveLlm(settingsRef.current.llm));
+      const result = await importUrl(url, effectiveLlm(settingsRef.current?.llm));
       if (result.status === "error") return result.message;
       await finishImport(result);
       return null;
@@ -157,9 +159,45 @@ export default function App() {
   finishImportRef.current = finishImport;
   const toastRef = useRef(toast);
   toastRef.current = toast;
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const tagPendingRef = useRef(tagPending);
+  tagPendingRef.current = tagPending;
   useEffect(() => {
     let running = false;
     let again = false;
+
+    // A whole saved-recipes list arrives as a batch. One progress toast stands in for
+    // opening and announcing each recipe, and the library refreshes every few seconds.
+    // A batch stopped partway is wrapped up once its pages stop arriving.
+    let run: { progress: ReturnType<typeof toast>; saved: number; failed: number; refreshedAt: number; idle: number } | null = null;
+    const finishRun = () => {
+      if (!run) return;
+      const { progress, saved, failed, idle } = run;
+      run = null;
+      window.clearTimeout(idle);
+      const recipes = (n: number) => `${n} ${n === 1 ? "recipe" : "recipes"}`;
+      progress.update({
+        message: `Saved ${recipes(saved)}.` + (failed ? ` ${recipes(failed)} couldn’t be saved.` : ""),
+        tone: failed ? "info" : "success",
+        busy: false,
+      });
+      void refreshRef.current().then(() => tagPendingRef.current());
+    };
+    const noteBatchPage = (batch: { index: number; total: number }, result: ImportResult) => {
+      run ??= { progress: toastRef.current({ message: "", tone: "info", busy: true }, 0), saved: 0, failed: 0, refreshedAt: 0, idle: 0 };
+      if (result.status === "saved") run.saved++;
+      if (result.status === "error") run.failed++;
+      run.progress.update({ message: `Saving recipes from your browser: ${batch.index + 1} of ${batch.total}` });
+      window.clearTimeout(run.idle);
+      if (batch.index + 1 >= batch.total) return finishRun();
+      run.idle = window.setTimeout(finishRun, 60_000);
+      if (Date.now() - run.refreshedAt > 5000) {
+        run.refreshedAt = Date.now();
+        void refreshRef.current().then(() => tagPendingRef.current());
+      }
+    };
+
     const drain = async () => {
       if (running) {
         again = true;
@@ -171,14 +209,18 @@ export default function App() {
           again = false;
           for (let batch = await api.takePendingImports(); batch.length; batch = await api.takePendingImports()) {
             for (const request of batch) {
-              const progress = toastRef.current({ message: "Saving recipe…", tone: "info", busy: true }, 0);
+              const progress = request.batch ? null : toastRef.current({ message: "Saving recipe…", tone: "info", busy: true }, 0);
               let result: ImportResult;
               try {
-                result = await importHtml(request.html, request.url, effectiveLlm(settingsRef.current.llm));
+                result = await importHtml(request.html, request.url, effectiveLlm(settingsRef.current?.llm));
               } catch (e) {
                 result = { status: "error", message: String(e) };
               }
               await api.resolveImport(request.id, result);
+              if (!progress) {
+                noteBatchPage(request.batch!, result);
+                continue;
+              }
               progress.dismiss();
               if (result.status === "error") toastRef.current({ message: result.message, tone: "error" }, 8000);
               else await finishImportRef.current(result);

@@ -31,6 +31,15 @@ pub struct ImportRequest {
     pub url: String,
     #[serde(default)]
     pub html: String,
+    /// Set when the page is one of many sent together, like a whole saved-recipes list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch: Option<Batch>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Batch {
+    pub index: usize,
+    pub total: usize,
 }
 
 #[derive(Default)]
@@ -49,6 +58,11 @@ impl ImportBridge {
             let _ = tx.send(result);
         }
     }
+}
+
+#[derive(Deserialize)]
+struct KnownBody {
+    urls: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -81,6 +95,17 @@ fn handle(app: AppHandle, mut request: Request) {
     let result = match (request.method(), request.url()) {
         (Method::Get, "/ping") => Ok(json!({ "app": "Recipe Box", "version": app.package_info().version.to_string() })),
         (Method::Get, "/tags") => app.state::<AppState>().db.lock().unwrap().all_tags().map(|t| json!(t)),
+        (Method::Post, "/known") => read_json::<KnownBody>(&mut request).and_then(|body| {
+            let state = app.state::<AppState>();
+            let db = state.db.lock().unwrap();
+            let mut known = Vec::new();
+            for url in body.urls {
+                if db.find_by_source_url(&url)?.is_some() {
+                    known.push(url);
+                }
+            }
+            Ok(json!(known))
+        }),
         (Method::Post, "/import") => read_json::<ImportRequest>(&mut request).map(|body| import(&app, body)),
         (Method::Post, "/tool") => {
             let token = request
@@ -146,7 +171,9 @@ fn import(app: &AppHandle, mut body: ImportRequest) -> Value {
     bridge.waiting.lock().unwrap().insert(body.id.clone(), tx);
     bridge.queue.lock().unwrap().push(body.clone());
 
-    if let Some(window) = app.get_webview_window("main") {
+    // A batch would raise the window hundreds of times; its first page does it once.
+    let raise = body.batch.as_ref().is_none_or(|b| b.index == 0);
+    if let Some(window) = app.get_webview_window("main").filter(|_| raise) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();

@@ -16,6 +16,8 @@ export interface ImportRequest {
   id: string;
   url: string;
   html: string;
+  /** Set when the page is one of many sent together, like a whole saved-recipes list. */
+  batch?: { index: number; total: number };
 }
 
 export interface LlmSettings {
@@ -52,6 +54,8 @@ export type Appearance = "light" | "dark" | "system";
 
 export interface Settings {
   llm?: LlmSettings;
+  /** Whether new recipes are tagged by the AI on their own. On unless turned off. */
+  autoTag?: boolean;
   /** Light unless chosen otherwise. */
   appearance?: Appearance;
 }
