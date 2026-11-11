@@ -89,7 +89,7 @@ export function RecipeCard({
           style={{ aspectRatio: photoShape(recipe), ...turning(recipe, active, "photo") }}
           className="overflow-hidden rounded-[2px] ring-1 ring-[rgb(60_40_20/0.12)]"
         >
-          <RecipeImage file={recipe.image} title={recipe.title} className="size-full" />
+          <RecipeImage file={recipe.image} title={recipe.title} card className="size-full" />
         </div>
         <div className="px-1.5 pt-3.5">
           {recipe.sourceName && <Eyebrow className="truncate">{recipe.sourceName}</Eyebrow>}

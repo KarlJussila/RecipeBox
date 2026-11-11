@@ -83,8 +83,9 @@ export async function loadAppInfo(): Promise<AppInfo> {
 const IMAGE_BASE = navigator.userAgent.includes("Windows") ? "http://recipeimg.localhost/" : "recipeimg://localhost/";
 
 /** URL the webview can load for an image stored in the app's images folder. */
-export function imageSrc(file: string | null): string | null {
-  return file ? IMAGE_BASE + encodeURIComponent(file) : null;
+/** A photo's address. `card` asks for the small copy made for the recipe grid. */
+export function imageSrc(file: string | null, card = false): string | null {
+  return file ? IMAGE_BASE + (card ? "thumb/" : "") + encodeURIComponent(file) : null;
 }
 
 export const api = {

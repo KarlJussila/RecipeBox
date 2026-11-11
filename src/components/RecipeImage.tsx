@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import { imageSrc } from "../lib/api";
 import { cx, Sprig } from "./ui";
 
-/** A recipe photo, or a placeholder with the recipe's initial when there isn't one. */
-export function RecipeImage({ file, title, className }: { file: string | null; title: string; className?: string }) {
+/**
+ * A recipe photo, or a placeholder with the recipe's initial when there isn't one.
+ * `card` shows the small copy made for the recipe grid.
+ */
+export function RecipeImage({ file, title, card, className }: { file: string | null; title: string; card?: boolean; className?: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [file]);
-  const src = imageSrc(file);
+  const src = imageSrc(file, card);
   if (src && !failed) {
     return (
       <img
@@ -16,6 +19,7 @@ export function RecipeImage({ file, title, className }: { file: string | null; t
         crossOrigin="anonymous"
         draggable={false}
         loading="lazy"
+        decoding="async"
         onError={() => setFailed(true)}
         className={cx("object-cover", className)}
       />

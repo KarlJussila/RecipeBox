@@ -3,6 +3,7 @@ mod db;
 mod fetch;
 mod opencode;
 mod server;
+mod thumbs;
 mod tools;
 
 use std::collections::HashMap;
@@ -258,35 +259,39 @@ async fn restore_backup(state: State<'_, AppState>, src: PathBuf) -> Result<()> 
 /// Removes images that no recipe refers to, e.g. from an import that was abandoned.
 fn remove_orphan_images(db: &Db, images_dir: &Path) {
     let Ok(used) = db.image_files() else { return };
+    let used: std::collections::HashSet<&str> = used.iter().map(String::as_str).collect();
+    thumbs::remove_unused(images_dir, &used);
     let Ok(entries) = std::fs::read_dir(images_dir) else { return };
     let day_ago = SystemTime::now() - Duration::from_secs(24 * 60 * 60);
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let old = entry.metadata().and_then(|m| m.modified()).is_ok_and(|t| t < day_ago);
-        if old && !used.contains(&name) {
+        if old && entry.file_type().is_ok_and(|t| t.is_file()) && !used.contains(name.as_str()) {
             let _ = std::fs::remove_file(entry.path());
         }
     }
 }
 
-/// Serves recipe photos to the webview at recipeimg://localhost/<file name>.
-/// File names are random and never reused, so they can be cached forever.
+/// Serves recipe photos to the webview at recipeimg://localhost/<file name>, and their
+/// card-sized copies at recipeimg://localhost/thumb/<file name>. File names are random
+/// and never reused, so they can be cached forever.
 fn serve_image(app: &tauri::AppHandle, path: &str) -> tauri::http::Response<Vec<u8>> {
-    let name = path.trim_start_matches('/');
+    let path = path.trim_start_matches('/');
+    let (name, thumb) = match path.strip_prefix("thumb/") {
+        Some(name) => (name, true),
+        None => (path, false),
+    };
     let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap();
     if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') {
         return not_found();
     }
-    let Ok(bytes) = std::fs::read(app.state::<AppState>().images_dir.join(name)) else {
-        return not_found();
-    };
-    let mime = match name.rsplit('.').next().unwrap_or("") {
-        "png" => "image/png",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "avif" => "image/avif",
-        "heic" => "image/heic",
-        _ => "image/jpeg",
+    let images_dir = &app.state::<AppState>().images_dir;
+    let (bytes, mime) = match thumb.then(|| thumbs::get(images_dir, name)).flatten() {
+        Some(bytes) => (bytes, "image/jpeg"),
+        None => match std::fs::read(images_dir.join(name)) {
+            Ok(bytes) => (bytes, photo_type(name)),
+            Err(_) => return not_found(),
+        },
     };
     tauri::http::Response::builder()
         .header("Content-Type", mime)
@@ -295,6 +300,17 @@ fn serve_image(app: &tauri::AppHandle, path: &str) -> tauri::http::Response<Vec<
         .header("Cache-Control", "public, max-age=31536000, immutable")
         .body(bytes)
         .unwrap()
+}
+
+fn photo_type(name: &str) -> &'static str {
+    match name.rsplit('.').next().unwrap_or("") {
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "heic" => "image/heic",
+        _ => "image/jpeg",
+    }
 }
 
 fn focus_main_window(app: &tauri::AppHandle) {
