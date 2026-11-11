@@ -283,6 +283,8 @@ export function RecipeGrid({
         // Exact, not rounded: rounding would leave every card skipped off screen up to half
         // a pixel off, and the cards below would creep as the ones above came into view.
         const height = slot.getBoundingClientRect().height - ROOM.top - ROOM.bottom;
+        // Hidden while a recipe is open, the slot has no size to measure.
+        if (height <= 0) continue;
         const known = cardHeights.get(key);
         if (known?.height !== height || known.sure !== sure) {
           cardHeights.set(key, { height, sure });

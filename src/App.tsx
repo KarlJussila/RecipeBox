@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Activity, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AddRecipeDialog, looksLikeUrl } from "./components/AddRecipeDialog";
 import { ManageTagsDialog } from "./components/ManageTagsDialog";
@@ -291,7 +291,8 @@ export default function App() {
   useEffect(() => {
     if (view.name === "recipe") setLastOpened(view.id);
   }, [view]);
-  // Before the page-turn captures the list, so it lands where she left it.
+  // Before the page-turn captures the list, so it lands where she left it. Hiding the list
+  // while a recipe was open lost its place.
   useLayoutEffect(() => {
     if (view.name === "list" && listScroll.current) listScroll.current.scrollTop = listScrollTop.current;
   }, [view]);
@@ -313,7 +314,8 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "f") {
         e.preventDefault();
         if (view.name === "edit") return;
-        if (view.name !== "list") setView({ name: "list" });
+        // At once, so the search box is showing to take the focus.
+        if (view.name !== "list") flushSync(() => setView({ name: "list" }));
         searchRef.current?.focus();
         searchRef.current?.select();
       } else if (mod && e.key.toLowerCase() === "n") {
@@ -364,7 +366,9 @@ export default function App() {
 
       {/* The sheet the cards lie on. The views scroll over it, so it never repaints. */}
       <main className="paper-sheet min-w-0 flex-1">
-        {view.name === "list" && (
+        {/* The box stays built, hidden, while a recipe is open, so coming back doesn't
+            build hundreds of cards again. */}
+        <Activity mode={view.name === "list" ? "visible" : "hidden"}>
           <LibraryView
             library={library}
             results={results}
@@ -381,7 +385,7 @@ export default function App() {
             onExtensionHelp={() => setSettingsTab("extension")}
             menu={tucked ? { open: menuOpen, toggle: () => setMenuOpen((o) => !o) } : null}
           />
-        )}
+        </Activity>
 
         {view.name === "recipe" && (
           <RecipeView
