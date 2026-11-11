@@ -5,6 +5,14 @@ import { bucketSections } from "../lib/buckets";
 import { IngredientText, type Checked } from "./RecipeView";
 import { Button, cx, Eyebrow, IconButton, PrintedHeading } from "./ui";
 
+/** Big type for a step read from across the kitchen, smaller for one told in a long paragraph. */
+function stepSize(text: string): string {
+  if (text.length > 1500) return "text-[clamp(1.15rem,1.4vw,1.45rem)] leading-[1.55]";
+  if (text.length > 900) return "text-[clamp(1.25rem,1.6vw,1.6rem)] leading-[1.5]";
+  if (text.length > 450) return "text-[clamp(1.5rem,2.2vw,2.1rem)] leading-[1.45]";
+  return "text-[clamp(1.75rem,3vw,2.75rem)] leading-[1.35]";
+}
+
 /**
  * A distraction-free, one-step-at-a-time view for when the cooking starts:
  * big type, arrow keys or buttons to move, and the screen kept awake. The step she's on and
@@ -129,15 +137,16 @@ export function CookingMode({
           })}
         </div>
 
-        <div className="flex flex-1 flex-col justify-center">
-          <div key={index} className="mx-auto w-full max-w-4xl animate-rise">
+        {/* Centered while it fits; a step too long for the screen scrolls from its start. */}
+        <div className="scrollbar-quiet -mx-4 my-6 flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
+          <div key={index} className="m-auto w-full max-w-4xl animate-rise">
             {steps.length > 1 && (
               <p className="font-serif text-2xl text-leaf italic">
                 {sectioned && step.heading && <span className="text-ink-soft">{step.heading} · </span>}
                 Step {step.number} <span className="text-ink-faint">of {step.of}</span>
               </p>
             )}
-            <p className="selectable mt-6 font-serif text-[clamp(1.75rem,3vw,2.75rem)] leading-[1.35] text-ink">{step.text}</p>
+            <p className={cx("selectable font-serif text-ink", steps.length > 1 && "mt-6", stepSize(step.text))}>{step.text}</p>
           </div>
         </div>
 

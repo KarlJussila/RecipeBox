@@ -160,8 +160,10 @@ function Steps({ sections, current, onSelect }: { sections: Section[]; current: 
                       onClick={() => onSelect(active ? null : at)}
                       aria-pressed={active}
                       className={cx(
-                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] gap-3 rounded px-5 py-4 text-left transition-colors duration-200 print:mx-0 print:w-full print:gap-2 print:p-0 print:py-1",
-                        numbered && "grid-cols-[3rem_minmax(0,1fr)] print:grid-cols-[2rem_minmax(0,1fr)]",
+                        "grid w-[calc(100%+2.5rem)] max-w-[52.5rem] gap-3 rounded px-5 py-4 text-left transition-colors duration-200 print:mx-0 print:w-full print:gap-2 print:p-0 print:py-1",
+                        // A list hangs from the left edge under its numbers; a lone paragraph
+                        // sits centered under the heading, as a paragraph on a page would.
+                        numbered ? "-mx-5 grid-cols-[3rem_minmax(0,1fr)] print:grid-cols-[2rem_minmax(0,1fr)]" : "mx-[max(-1.25rem,calc((100%_-_52.5rem)/2))]",
                         active ? "bg-umber/9" : "hover:bg-umber/5",
                       )}
                     >
