@@ -1,24 +1,27 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { imageSrc } from "../lib/api";
+import { LoadPhotos } from "../lib/nearScreen";
 import { cx, Sprig } from "./ui";
 
 /**
  * A recipe photo, or a placeholder with the recipe's initial when there isn't one.
- * `card` shows the small copy made for the recipe grid.
+ * `card` shows the small copy made for the recipe grid. Inside a list that watches what's
+ * near the screen, the photo waits until the list says to load it.
  */
 export function RecipeImage({ file, title, card, className }: { file: string | null; title: string; card?: boolean; className?: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [file]);
+  const load = useContext(LoadPhotos);
   const src = imageSrc(file, card);
   if (src && !failed) {
     return (
       <img
-        src={src}
+        src={load === false ? undefined : src}
         alt=""
         // Linux webviews refuse no-cors loads from the app's image protocol.
         crossOrigin="anonymous"
         draggable={false}
-        loading="lazy"
+        loading={load === null ? "lazy" : undefined}
         decoding="async"
         onError={() => setFailed(true)}
         className={cx("object-cover", className)}

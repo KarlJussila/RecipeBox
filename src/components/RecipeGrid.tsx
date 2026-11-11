@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Clock, Heart } from "lucide-react";
 import { formatMinutes } from "../lib/extract/duration";
+import { LoadPhotos, nearScreen, scrollParent, useNearScreen, type NearScreen } from "../lib/nearScreen";
 import type { RecipeSummary } from "../lib/types";
 import { RecipeImage } from "./RecipeImage";
 import { cx, Eyebrow } from "./ui";
@@ -26,7 +27,7 @@ function FavoriteButton({ recipe, onToggle, className }: { recipe: RecipeSummary
       aria-label={recipe.favorite ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={recipe.favorite}
       className={cx(
-        "flex size-10 items-center justify-center rounded-full bg-card/90 shadow-soft backdrop-blur transition duration-150 hover:scale-105 active:scale-95",
+        "flex size-10 items-center justify-center rounded-full bg-card/90 shadow-soft transition duration-150 hover:scale-105 active:scale-95",
         recipe.favorite ? "text-tomato" : "text-ink-soft opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
         className,
       )}
@@ -142,7 +143,7 @@ export function FeaturedRecipe({
           </div>
         </div>
       </button>
-      <FavoriteButton recipe={recipe} onToggle={onToggleFavorite} className="absolute top-4 left-4" />
+      <FavoriteButton recipe={recipe} onToggle={onToggleFavorite} className="absolute top-4 left-4 backdrop-blur" />
     </article>
   );
 }
@@ -150,6 +151,69 @@ export function FeaturedRecipe({
 /** The narrowest a card gets, and the space around each card, across and down alike. */
 const CARD_MIN = 248;
 const GAP = 28;
+
+/**
+ * Room around each card for its shadow, its lift when pointed at, and its drop when new.
+ * The slot around a card clips to its own box (that's what lets the browser skip cards
+ * off screen), so it's padded out by this much and pulled back in by the same.
+ */
+const ROOM = { top: 20, side: 20, bottom: 40 };
+
+/**
+ * Each card's measured height, by everything that sets it: the column width, and the
+ * parts of the recipe the card shows. Kept between visits, so coming back from a recipe
+ * finds every card already sized and the grid doesn't have to lay all of them out again.
+ * A height measured before the fonts were in isn't `sure`: the handwriting can wrap a
+ * title differently once it arrives.
+ */
+const cardHeights = new Map<string, { height: number; sure: boolean }>();
+const sizeKey = (r: RecipeSummary, column: number) =>
+  [column, r.id, r.title, r.sourceName, r.totalMinutes === null, r.image, r.imageAspect].join("|");
+
+/**
+ * Holds one card in its column. Once the card's height is sure, the browser skips
+ * drawing it while it's off screen, standing in a box of that height, so a box of
+ * hundreds of recipes lays out as quickly as a few dozen. Its photo starts loading when
+ * the card comes within a screen or so of view.
+ *
+ * Nothing in a card may get a compositing layer of its own (backdrop-filter, will-change,
+ * and the like): WebKitGTK 2.54 can deadlock when layers come and go while the page
+ * scrolls on its own thread, and skipping cards makes their layers come and go.
+ */
+function Slot({
+  recipe,
+  height,
+  near,
+  measure,
+  children,
+}: {
+  recipe: RecipeSummary;
+  height: number | undefined;
+  near: NearScreen;
+  measure: ResizeObserver;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const load = useNearScreen(near, ref);
+  return (
+    <div
+      ref={(el) => {
+        ref.current = el;
+        if (!el) return;
+        measure.observe(el);
+        return () => measure.unobserve(el);
+      }}
+      data-id={recipe.id}
+      style={{
+        padding: `${ROOM.top}px ${ROOM.side}px ${ROOM.bottom}px`,
+        margin: `-${ROOM.top}px -${ROOM.side}px -${ROOM.bottom}px`,
+        ...(height !== undefined && { contentVisibility: "auto", containIntrinsicHeight: `${height}px` }),
+      }}
+    >
+      <LoadPhotos value={load}>{children}</LoadPhotos>
+    </div>
+  );
+}
 
 /**
  * The cards laid out like a spread of index cards: in columns, each card dropped into
@@ -178,56 +242,88 @@ export function RecipeGrid({
     return () => observer.disconnect();
   }, []);
   const count = Math.max(1, Math.floor((width + GAP) / (CARD_MIN + GAP)));
+  const column = Math.round((width - GAP * (count - 1)) / count);
 
-  const heights = useRef(new Map<string, number>());
+  const near = useMemo(() => nearScreen(() => scrollParent(ref.current)), []);
+  useEffect(() => () => near.stop(), [near]);
+
+  // While the box scrolls, cards passing under the pointer don't lift. Each lift gives the
+  // card a compositing layer for a moment, and WebKitGTK can deadlock when layers come and
+  // go mid-scroll (see Slot). It also spares the browser restyling cards it's sliding past.
+  useEffect(() => {
+    const grid = ref.current;
+    const scroller = scrollParent(grid);
+    if (!grid || !scroller) return;
+    let settle = 0;
+    const onScroll = () => {
+      if (!("scrolling" in grid.dataset)) grid.dataset.scrolling = "";
+      clearTimeout(settle);
+      settle = window.setTimeout(() => delete grid.dataset.scrolling, 150);
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      clearTimeout(settle);
+    };
+  }, []);
+
+  const byId = useRef(new Map<string, RecipeSummary>());
+  byId.current = new Map(recipes.map((r) => [r.id, r]));
+  const columnRef = useRef(column);
+  columnRef.current = column;
   const [measured, setMeasured] = useState(0);
-  const observer = useMemo(
-    () =>
-      new ResizeObserver((entries) => {
-        let changed = false;
-        for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.id!;
-          const height = (entry.target as HTMLElement).offsetHeight;
-          if (heights.current.get(id) !== height) {
-            heights.current.set(id, height);
-            changed = true;
-          }
+  const record = useMemo(
+    () => (slots: Iterable<Element>) => {
+      const sure = document.fonts.status === "loaded";
+      let changed = false;
+      for (const slot of slots) {
+        const recipe = byId.current.get((slot as HTMLElement).dataset.id!);
+        if (!recipe) continue;
+        const key = sizeKey(recipe, columnRef.current);
+        // Exact, not rounded: rounding would leave every card skipped off screen up to half
+        // a pixel off, and the cards below would creep as the ones above came into view.
+        const height = slot.getBoundingClientRect().height - ROOM.top - ROOM.bottom;
+        const known = cardHeights.get(key);
+        if (known?.height !== height || known.sure !== sure) {
+          cardHeights.set(key, { height, sure });
+          changed = true;
         }
-        if (changed) setMeasured((m) => m + 1);
-      }),
+      }
+      if (changed) setMeasured((m) => m + 1);
+    },
     [],
   );
-  useEffect(() => () => observer.disconnect(), [observer]);
+  const measure = useMemo(() => new ResizeObserver((entries) => record(entries.map((e) => e.target))), [record]);
+  useEffect(() => () => measure.disconnect(), [measure]);
+  // Once the fonts are in, every card is measured again, so it can be skipped while off screen.
+  useEffect(() => {
+    const again = () => ref.current && record(ref.current.querySelectorAll("[data-id]"));
+    document.fonts.addEventListener("loadingdone", again);
+    return () => document.fonts.removeEventListener("loadingdone", again);
+  }, [record]);
 
   const columns = useMemo(() => {
-    const cols: RecipeSummary[][] = Array.from({ length: count }, () => []);
+    const cols: { recipe: RecipeSummary; height: number | undefined }[][] = Array.from({ length: count }, () => []);
     const tops = new Array<number>(count).fill(0);
-    for (const r of recipes) {
+    for (const recipe of recipes) {
       const i = tops.indexOf(Math.min(...tops));
-      cols[i].push(r);
+      const known = cardHeights.get(sizeKey(recipe, column));
+      cols[i].push({ recipe, height: known?.sure ? known.height : undefined });
       // Before a card is measured, it's taken to be about as tall as a card usually is.
-      tops[i] += (heights.current.get(r.id) ?? 330) + GAP;
+      tops[i] += (known?.height ?? 330) + GAP;
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recipes, count, measured]);
+  }, [recipes, count, column, measured]);
 
   return (
     <div ref={ref} data-masonry className="flex items-start" style={{ gap: GAP }}>
       {columns.map((col, i) => (
         <div key={i} className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
-          {col.map((r) => (
-            <div
-              key={r.id}
-              data-id={r.id}
-              ref={(el) => {
-                if (!el) return;
-                observer.observe(el);
-                return () => observer.unobserve(el);
-              }}
-            >
+          {col.map(({ recipe: r, height }) => (
+            <Slot key={r.id} recipe={r} height={height} near={near} measure={measure}>
               <RecipeCard recipe={r} active={active} onOpen={() => onOpen(r.id)} onToggleFavorite={() => onToggleFavorite(r)} />
-            </div>
+            </Slot>
           ))}
         </div>
       ))}
