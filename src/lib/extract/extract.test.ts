@@ -118,6 +118,18 @@ describe("extractFromHtml", () => {
     const html = `<script type="application/ld+json">{"@type":"Recipe","name":"Meatloaf recipe","recipeIngredient":["1 lb beef"],"recipeInstructions":"Bake."}</script>`;
     expect(extractFromHtml(html, "https://site.com/meatloaf").draft.title).toBe("Meatloaf");
   });
+  test("keeps a recipe told only in prose, with the prose as its method", () => {
+    const prose = "Set a pot of nicely salted water over high heat to boil. ".repeat(10).trim();
+    const html = page({ "@type": "Recipe", name: "Fettuccine", description: prose, recipeInstructions: { "@type": "HowToStep", url: "https://site.com/f#step-1" } });
+    const { draft, complete } = extractFromHtml(html, "https://site.com/f");
+    expect(complete).toBe(true);
+    expect(draft.instructions).toEqual([{ heading: "", items: [prose] }]);
+    expect(draft.description).toBe("");
+  });
+  test("still asks for more when a short summary is all there is", () => {
+    const html = page({ "@type": "Recipe", name: "Fettuccine", description: "A quick pasta." });
+    expect(extractFromHtml(html, "https://site.com/f").complete).toBe(false);
+  });
   const recipe = {
     "@context": "https://schema.org",
     "@type": ["Recipe", "NewsArticle"],

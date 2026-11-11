@@ -127,10 +127,12 @@ function StepHeading({ children }: { children: string }) {
 
 /**
  * The steps, numbered afresh under each heading the way a cookbook numbers a crust and its
- * filling. `current` counts steps across the whole recipe, the same count cooking mode keeps.
+ * filling. A recipe done in one step, like one told in a paragraph, isn't numbered at all.
+ * `current` counts steps across the whole recipe, the same count cooking mode keeps.
  */
 function Steps({ sections, current, onSelect }: { sections: Section[]; current: number | null; onSelect: (step: number | null) => void }) {
   let flat = -1;
+  const numbered = sections.reduce((n, s) => n + s.items.length, 0) > 1;
   return (
     <div>
       <PrintedHeading className="mb-7 print:mb-3">
@@ -158,11 +160,14 @@ function Steps({ sections, current, onSelect }: { sections: Section[]; current: 
                       onClick={() => onSelect(active ? null : at)}
                       aria-pressed={active}
                       className={cx(
-                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] grid-cols-[3rem_minmax(0,1fr)] gap-3 rounded px-5 py-4 text-left transition-colors duration-200 print:mx-0 print:w-full print:grid-cols-[2rem_minmax(0,1fr)] print:gap-2 print:p-0 print:py-1",
+                        "-mx-5 grid w-[calc(100%+2.5rem)] max-w-[52.5rem] gap-3 rounded px-5 py-4 text-left transition-colors duration-200 print:mx-0 print:w-full print:gap-2 print:p-0 print:py-1",
+                        numbered && "grid-cols-[3rem_minmax(0,1fr)] print:grid-cols-[2rem_minmax(0,1fr)]",
                         active ? "bg-umber/9" : "hover:bg-umber/5",
                       )}
                     >
-                      <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums print:text-[22pt]">{i + 1}</span>
+                      {numbered && (
+                        <span className="font-serif text-[40px] leading-[0.9] font-medium text-leaf italic tabular-nums print:text-[22pt]">{i + 1}</span>
+                      )}
                       <span className="selectable pt-1 text-[18px] leading-[1.65] text-ink print:pt-0.5 print:text-[11pt] print:leading-normal">{step}</span>
                     </button>
                   </li>

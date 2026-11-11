@@ -123,6 +123,15 @@ function cardNotes(doc: Document, draft: RecipeDraft): Section[] {
   return tidyNotes([{ heading: "", items }]);
 }
 
+/**
+ * A recipe told in a few paragraphs, with no ingredient list or steps, like NYT Cooking's
+ * "no-recipe recipes". Its recipe data has only the prose, as the description; a summary
+ * that long is the recipe itself.
+ */
+function isProseRecipe(draft: RecipeDraft): boolean {
+  return draft.ingredients.length === 0 && draft.instructions.length === 0 && draft.description.length >= 400;
+}
+
 export function extractFromHtml(html: string, url: string | null): Extraction {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const page = pageMeta(doc, url);
@@ -135,8 +144,13 @@ export function extractFromHtml(html: string, url: string | null): Extraction {
 
   const drafts = nodes.map((node) => draftFromSchema(node, page)).sort((a, b) => score(b) - score(a));
   const best = drafts[0];
-  if (best && score(best) > 0) {
+  if (best && (score(best) > 0 || isProseRecipe(best))) {
     best.tips = [...best.tips, ...cardNotes(doc, best)];
+    if (isProseRecipe(best)) {
+      best.instructions = [{ heading: "", items: [best.description] }];
+      best.description = "";
+      return { draft: best, complete: true, doc };
+    }
     return { draft: best, complete: best.ingredients.length > 0 && best.instructions.length > 0, doc };
   }
 

@@ -131,10 +131,12 @@ export function CookingMode({
 
         <div className="flex flex-1 flex-col justify-center">
           <div key={index} className="mx-auto w-full max-w-4xl animate-rise">
-            <p className="font-serif text-2xl text-leaf italic">
-              {sectioned && step.heading && <span className="text-ink-soft">{step.heading} · </span>}
-              Step {step.number} <span className="text-ink-faint">of {step.of}</span>
-            </p>
+            {steps.length > 1 && (
+              <p className="font-serif text-2xl text-leaf italic">
+                {sectioned && step.heading && <span className="text-ink-soft">{step.heading} · </span>}
+                Step {step.number} <span className="text-ink-faint">of {step.of}</span>
+              </p>
+            )}
             <p className="selectable mt-6 font-serif text-[clamp(1.75rem,3vw,2.75rem)] leading-[1.35] text-ink">{step.text}</p>
           </div>
         </div>
