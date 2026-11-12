@@ -3,9 +3,9 @@
 // (it starts with a set, see STARTER_TAGS in db.rs); the rest are left to the cook.
 
 export const TAG_CATEGORIES = [
-  { name: "Dish", examples: "Main Course, Side Dish, Soup, Salad, Dessert, Breakfast, Appetizer, Bread, Drink, Sauce", auto: true },
+  { name: "Dish", examples: "Main Dish, Side Dish, Soup, Salad, Dessert, Breakfast, Bread, Drink, Sauce", auto: true },
   { name: "Ingredient", examples: "Poultry, Red Meat, Fish, Seafood, Pasta, Rice, Beans, Eggs, Chocolate", auto: true },
-  { name: "Cuisine", examples: "Italian, Mexican, Thai, Indian, French", auto: true },
+  { name: "Cuisine", examples: "Italian, Latin American, Thai, Indian, French", auto: true },
   { name: "Dietary", examples: "Vegetarian, Vegan, Gluten-Free, Dairy-Free", auto: true },
   { name: "Occasion", examples: "Thanksgiving, Christmas, Easter, Summer, Party", auto: false },
   { name: "Method", examples: "Slow Cooker, Grilling, Instant Pot, Air Fryer", auto: true },

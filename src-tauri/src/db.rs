@@ -71,32 +71,44 @@ pub struct RecipeSummary {
 
 const SCHEMA_VERSION: i64 = 3;
 
-/// Tags a new collection starts with. The AI tags recipes only from tags in these
-/// categories, so this is its vocabulary until the cook adds her own.
+/// Tags a new collection starts with. The AI tags recipes only from tags in its
+/// categories (not Occasion), so this is its vocabulary until the cook adds her own.
 const STARTER_TAGS: &[(&str, &[&str])] = &[
     (
         "Dish",
         &[
-            "Main Course", "Side Dish", "Soup", "Stew", "Curry", "Salad", "Sandwich", "Casserole", "Breakfast", "Appetizer", "Snack",
-            "Bread", "Sauce", "Drink", "Dessert", "Cake", "Cookies", "Pie",
+            "Main Dish", "Side Dish", "Soup", "Stew", "Curry", "Salad", "Sandwich", "Casserole", "Breakfast", "Snack", "Dips",
+            "Bread", "Muffins", "Sauce", "Drink", "Dessert", "Cake", "Cookies", "Bars", "Pie", "Tart", "Galette",
         ],
     ),
     (
         "Ingredient",
         &[
-            "Poultry", "Red Meat", "Fish", "Seafood", "Pasta", "Rice", "Beans", "Eggs", "Cheese", "Potatoes", "Spinach",
-            "Broccoli", "Asparagus", "Green Beans", "Squash", "Pumpkin", "Zucchini", "Tomatoes", "Mushrooms", "Fruit", "Nuts", "Chocolate",
+            // Meat and fish
+            "Poultry", "Chicken", "Turkey", "Red Meat", "Beef", "Pork", "Sausage", "Bacon", "Fish", "Salmon", "Seafood", "Shrimp",
+            // Pasta, grains, and beans
+            "Pasta", "Noodles", "Orzo", "Gnocchi", "Couscous", "Rice", "Beans", "Chickpeas", "Lentils", "Peas", "Tofu",
+            // Eggs and cheese
+            "Eggs", "Cheese", "Feta", "Ricotta",
+            // Vegetables
+            "Potatoes", "Sweet Potatoes", "Spinach", "Kale", "Cabbage", "Broccoli", "Cauliflower", "Brussels Sprouts", "Asparagus",
+            "Green Beans", "Corn", "Carrots", "Squash", "Pumpkin", "Zucchini", "Eggplant", "Tomatoes", "Mushrooms",
+            // Fruit and nuts
+            "Fruit", "Apples", "Bananas", "Berries", "Citrus", "Lemons", "Coconut", "Nuts", "Walnuts", "Peanuts",
+            // Flavors
+            "Basil", "Pesto", "Tahini", "Miso", "Gochujang", "Chocolate", "Vanilla",
         ],
     ),
     (
         "Cuisine",
         &[
-            "Italian", "Mexican", "French", "Greek", "Spanish", "Middle Eastern", "North African", "Indian", "Chinese", "Japanese", "Korean",
-            "Thai", "Vietnamese",
+            "Italian", "French", "Greek", "Spanish", "Eastern European", "Middle Eastern", "North African", "Indian", "Chinese",
+            "Japanese", "Korean", "Thai", "Vietnamese", "Latin American",
         ],
     ),
     ("Dietary", &["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free"]),
-    ("Method", &["Slow Cooker", "Instant Pot", "Air Fryer", "Grilling"]),
+    ("Method", &["Sheet Pan", "One Pot", "Stir-Fry", "Slow Cooker", "Instant Pot", "Air Fryer", "Grilling"]),
+    ("Occasion", &["Thanksgiving", "Christmas"]),
 ];
 
 pub struct Db {
